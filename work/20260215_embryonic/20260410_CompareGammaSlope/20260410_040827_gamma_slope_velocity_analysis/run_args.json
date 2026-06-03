@@ -1,0 +1,24 @@
+{
+  "timestamp": "2026-04-10T04:08:48.339943",
+  "cwd": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260410_CompareGammaSlope",
+  "command": "analyze_gamma_slope_velocity.py --previous-run-dir /home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260330_Analyze-20260224Lamda5/20260330_072038_velocity_compare",
+  "argv": [
+    "analyze_gamma_slope_velocity.py",
+    "--previous-run-dir",
+    "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260330_Analyze-20260224Lamda5/20260330_072038_velocity_compare"
+  ],
+  "args": {
+    "scdiffusion_path": "/home/suzuki/Projects/scDiffusion",
+    "adata_path": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+    "model_path1": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_100000.pt",
+    "model_path2": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_000000.pt",
+    "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/Mouse_tf_target_edges.tsv",
+    "target_superclass": "Erythropoietic",
+    "batch_size": 1024,
+    "timesteps": 1000,
+    "device": null,
+    "previous_run_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260330_Analyze-20260224Lamda5/20260330_072038_velocity_compare",
+    "force_recompute_velocities": false,
+    "save_velocities": false
+  }
+}

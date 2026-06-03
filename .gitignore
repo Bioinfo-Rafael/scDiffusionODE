@@ -1,0 +1,50 @@
+.vscode/
+
+# --- Python cache ---
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# --- Jupyter ---
+.ipynb_checkpoints/
+
+# --- OS / editor ---
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+
+# --- Local environments / secrets ---
+.env
+.venv/
+venv/
+env/
+
+# --- Temporary files ---
+*.tmp
+*.bak
+
+# --- Experiment trackers ---
+wandb/
+mlruns/
+
+# --- Large generated model/data artifacts ---
+VAE/cache/
+output/*
+*.ckpt
+*.pt
+*.pth
+*.h5ad
+*.h5
+*.npy
+*.npz
+*.parquet
+
+# --- Repository policy notes ---
+# Do not ignore external_data/*.tsv.
+# Do not ignore LegacyFiles/ unless the migration policy changes.
+# Do not ignore work/ unless the migration policy changes.

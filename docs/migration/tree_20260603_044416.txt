@@ -1,0 +1,582 @@
+.
+├── .gitignore
+├── LICENSE
+├── ODE
+│   ├── ode_20260421_regODEMLratio.py
+│   ├── ode_analysis.py
+│   ├── ode_analysis1106.py
+│   ├── ode_analysis20260413.py
+│   ├── ode_analysis20260416.py
+│   └── ode_analysis20260420.py
+├── VAE
+│   ├── VAE_model.py
+│   ├── VAE_train.py
+│   └── __init__.py
+├── cell_sample.py
+├── cell_sample_20250929_NoConstraint.py
+├── cell_sample_20251014_NoConstraint_hvg1024.py
+├── cell_sample_20251014_soft_hvg1024.py
+├── cell_sample_20251105_soft_hvg1024.py
+├── cell_sample_20251106_soft_hvg1024.py
+├── cell_sample_copy.py
+├── cell_sample_soft.py
+├── cell_train.py
+├── cell_train_20250929_NoConstraint.py
+├── cell_train_20251014_NoConstraint_hvg1024.py
+├── cell_train_copy.py
+├── cell_train_copy2.py
+├── cell_train_soft.py
+├── cell_train_soft20251014_hvg1024.py
+├── cell_train_soft20251105_hvg1024.py
+├── cell_train_soft20251106_hvg1024.py
+├── celltypist_train.py
+├── check_pbmc68k_ready.py
+├── check_sampling_progress.sh
+├── classifier_sample.py
+├── classifier_train.py
+├── data_preparation
+│   ├── README.md
+│   ├── check_data.ipynb
+│   ├── data
+│   │   ├── Pancreas
+│   │   └── pbmc68k
+│   │       └── filtered_matrices_mex
+│   │           ├── 68k_pbmc_barcodes_annotation.tsv
+│   │           └── hg19
+│   │               ├── barcodes.tsv
+│   │               ├── create_anndata.py
+│   │               └── genes.tsv
+│   ├── data_preparation.ipynb
+│   ├── figures
+│   ├── prepare_data.py
+│   └── wget-log
+├── debug_classifier_prediction.py
+├── documentation
+├── downstream_analysis_pancreas.ipynb
+├── environment
+│   ├── environment.yml
+│   ├── environment_classifier.yml
+│   ├── setup_classifier_environment.sh
+│   └── setup_environment.sh
+├── exp_result
+│   ├── pbmc68k_NoConstraint_20251014_hvg1024
+│   ├── pbmc68k_soft20251014_hvg1024
+│   │   └── figures
+│   ├── pbmc68k_soft20251105_hvg1024_reg005
+│   ├── pbmc68k_soft20251105_reg001_hvg1024
+│   └── pbmc68k_soft20251105_reg005_hvg1024
+├── exp_script
+│   ├── general
+│   │   ├── down_stream_analysis_muris.ipynb
+│   │   ├── script_diffusion_interpolation.ipynb
+│   │   ├── script_diffusion_multi-condi.ipynb
+│   │   ├── script_diffusion_umap.ipynb
+│   │   ├── script_random_forest.ipynb
+│   │   └── script_static_eval.ipynb
+│   ├── pancreas
+│   │   ├── pancreas_umap_visualization.py
+│   │   └── script_diffusion_umap_pancreas.ipynb
+│   ├── pbmc68k
+│   │   ├── cluster_plots
+│   │   ├── pbmc68k_umap_visualization.py
+│   │   ├── script_diffusion_umap_pbmc68k_copy.ipynb
+│   │   └── script_diffusion_umap_pbmc68k_copy2.ipynb
+│   ├── pbmc68k_GRN1
+│   │   ├── cluster_plots
+│   │   └── script_diffusion_umap_pbmc68k_copy2_GRN1.ipynb
+│   ├── pbmc68k_GRN_soft
+│   │   └── script_diffusion_umap_pbmc68k_soft.ipynb
+│   ├── pbmc68k_NoConstraint_20250929
+│   │   └── script_diffusion_umap_pbmc68k_NoConstraint_20250929.ipynb
+│   ├── pbmc68k_NoConstraint_20251014_hvg1024
+│   │   └── script_diffusion_umap_pbmc68k_NoConstraint_20251014_hvg1024.ipynb
+│   ├── pbmc68k_soft20251014_hvg1024
+│   │   ├── preprocess_for_ode_constraints.ipynb
+│   │   ├── script_diffusion_umap_pbmc68k_soft20251014_hvg1024.ipynb
+│   │   ├── script_diffusion_umap_pbmc68k_soft20251105hvg1024_reg005.ipynb
+│   │   ├── script_diffusion_umap_pbmc68k_soft20251105hvg1024_reg005_SHUSEI.ipynb
+│   │   └── script_diffusion_umap_pbmc68k_soft20251106.ipynb
+│   ├── pbmc68k_soft_20251127_hvg1024_3000steps_20251127_083149
+│   ├── pbmc68k_soft_20251127_hvg1024_3000steps_20251218_052500
+│   ├── pbmc68k_soft_20251127_hvg1024_3000steps_20251218_054715
+│   ├── pbmc68k_soft_20251127_hvg1024_3000steps_20251218_055929
+│   ├── pbmc68k_soft_20251127_hvg1024_3000steps_20251218_061113
+│   │   └── script_diffusion_umap_pbmc68k_soft_20251127_hvg1024_3000steps_20251218_061113.ipynb
+│   ├── pbmc68k_soft_20251127_hvg1024_50steps_20251127_075158
+│   └── pbmc68k_soft_20251127_hvg1024_50steps_20251127_081127
+├── external_data
+│   ├── Mouse_tf_target_edges.tsv
+│   ├── data_explore.ipynb
+│   ├── tf_target_edges.tsv
+│   └── tf_target_edges_ensembl.tsv
+├── file_changes
+├── guided_diffusion
+│   ├── __init__.py
+│   ├── cell_datasets_WOT.py
+│   ├── cell_datasets_loader.py
+│   ├── cell_datasets_lung.py
+│   ├── cell_datasets_muris.py
+│   ├── cell_datasets_pbmc.py
+│   ├── cell_datasets_sapiens.py
+│   ├── cell_model.py
+│   ├── dist_util.py
+│   ├── fp16_util.py
+│   ├── gaussian_diffusion.py
+│   ├── logger.py
+│   ├── losses.py
+│   ├── nn.py
+│   ├── resample.py
+│   ├── respace.py
+│   ├── script_util.py
+│   └── train_util.py
+├── large_scale_sampling.log
+├── large_scale_sampling.sh
+├── metrics
+│   └── gene_network_metrics.py
+├── migration_snapshot
+│   ├── find_20260603_041513.txt
+│   ├── tree_20260603_041508.txt
+│   └── tree_20260603_044416.txt
+├── monitor_pbmc68k_sampling.py
+├── pbmc68k_classifier_sample.py
+├── pbmc68k_classifier_sample_limited_attempts.py
+├── pbmc68k_sampling_output.log
+├── reference_files
+│   └── scdiff_env.yml
+├── script_diffusion_umap_pancreas.ipynb
+├── test_dependencies.py
+├── test_ode_simple.py
+├── test_pbmc68k_classifier_sample.py
+├── train.sh
+├── train_1127.sh
+├── train_1127_test.sh
+├── train_1218.sh
+├── train_20250929_NoConstraint.sh
+├── train_20251014_NoConstraint_hvg1024.sh
+├── train_20251014_soft_hvg1024.sh
+├── train_20251014_soft_hvg1024_reg005.sh
+├── train_20251105_soft_hvg1024_reg005.sh
+├── train_20251106_soft.sh
+├── train_copy.sh
+├── train_copy2.sh
+├── train_soft.sh
+├── train_soft_test.sh
+├── visualization_analysis.py
+└── work
+    ├── 20260122_1_ReconstructUMAP
+    │   ├── 20260122_162354_MINIMUMTEST
+    │   │   ├── 20260122_162355_train
+    │   │   ├── 20260122_162411_sample
+    │   │   ├── 20260122_162424_viz
+    │   │   └── train_20250112_TEST1.sh
+    │   ├── 20260122_174041_soft
+    │   │   ├── 20260122_174044_train
+    │   │   ├── 20260122_184900_sample
+    │   │   └── 20260122_185059_viz
+    │   ├── 20260123_013259_hard
+    │   │   ├── 20260123_013301_train
+    │   │   ├── 20260123_024218_sample
+    │   │   └── 20260123_024418_viz
+    │   ├── 20260123_024631_NoConstraintWithModel
+    │   │   ├── 20260123_024633_train
+    │   │   ├── 20260123_035449_sample
+    │   │   └── 20260123_035648_viz
+    │   ├── cell_sample_20251106_soft_hvg1024.py
+    │   ├── cell_train_soft20251106_hvg1024.py
+    │   ├── compare3condition
+    │   │   └── compare_velocity.ipynb
+    │   ├── data_preprocessing.ipynb
+    │   ├── run_3_conditions.sh
+    │   ├── train_1218.sh
+    │   ├── train_20250122.sh
+    │   └── visualization_analysis.py
+    ├── 20260123_pancreas
+    │   ├── 20260123_071824_MINIMUMTEST
+    │   │   └── 20260123_071826_train
+    │   ├── 20260123_071943_MINIMUMTEST
+    │   │   ├── 20260123_071945_train
+    │   │   ├── 20260123_071954_sample
+    │   │   └── 20260123_072001_viz
+    │   ├── 20260123_072230_soft10k
+    │   │   ├── 20260123_072232_train
+    │   │   ├── 20260123_072926_sample
+    │   │   └── 20260123_073039_viz
+    │   ├── 20260123_074148_SmallerUnet
+    │   │   └── 20260123_074149_train
+    │   ├── 20260123_074306_SmallerUnet
+    │   │   ├── 20260123_074307_train
+    │   │   ├── 20260123_074947_sample
+    │   │   ├── 20260123_074952_viz
+    │   │   ├── 20260123_080238_sample
+    │   │   └── 20260123_080429_viz
+    │   ├── cell_sample_20260123_soft_hvg1024.py
+    │   ├── cell_train_soft20260123_hvg1024.py
+    │   ├── data_preprocessing_pancreas.ipynb
+    │   ├── train_20260123.sh
+    │   └── train_20260123_MINIMUMTEST.sh
+    ├── 20260215_embryonic
+    │   ├── 20260224_082351_MINIMUMTEST
+    │   │   ├── 20260224_082354_train
+    │   │   ├── 20260224_082404_sample
+    │   │   └── 20260224_082411_viz
+    │   ├── 20260224_084326_Lamda5
+    │   │   ├── 20260224_084328_train
+    │   │   ├── 20260224_095109_sample
+    │   │   ├── 20260224_095500_viz
+    │   │   ├── 20260305_044239_velocity_jupyter
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260305_053513_velocity_jupyter
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260305_112258_velocity_jupyter
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260305_113413_velocity_jupyter
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260318_080225_velocity_jupyter
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260318_080828_velocity_jupyter
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260318_081537_PCA_velocity_BEFORE
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260318_082325_PCA_velocity_BEFORE
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260318_084725_PCA_RANDOM_velocity
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260320_080238_PCA_velocity_100000
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260320_080736_PCA_velocity_000000
+    │   │   │   ├── Epithelial
+    │   │   │   ├── Erythropoietic
+    │   │   │   ├── Fibroblast
+    │   │   │   ├── Immune
+    │   │   │   ├── Neural
+    │   │   │   ├── Neural_crest
+    │   │   │   ├── Other
+    │   │   │   ├── Vascular_endothelial
+    │   │   │   └── Vascular_perivascular
+    │   │   ├── 20260320_154103_random_velocity
+    │   │   │   ├── velocity_embedding
+    │   │   │   │   ├── PCA
+    │   │   │   │   └── scvelo.tl.velocity_embedding
+    │   │   │   ├── velocity_embedding_grid
+    │   │   │   │   ├── PCA
+    │   │   │   │   └── scvelo.tl.velocity_embedding
+    │   │   │   └── velocity_embedding_stream
+    │   │   │       ├── PCA
+    │   │   │       └── scvelo.tl.velocity_embedding
+    │   │   ├── File_Organization_For_Local.py
+    │   │   ├── GenerateRandomParameters.py
+    │   │   ├── PCA_velocity_superclass.py
+    │   │   ├── RandomGene_velocity_superclass.py
+    │   │   ├── plot_velocity_umap_analysis.ipynb
+    │   │   └── velocity_by_Superclass.py
+    │   ├── 20260330_Analyze-20260224Lamda5
+    │   │   ├── 20260330_072038_velocity_compare
+    │   │   │   ├── embed_summary.json
+    │   │   │   ├── fig_gene_inspection_eryth
+    │   │   │   │   └── auto_screening_top_genes
+    │   │   │   ├── gene_metrics_eryth.parquet
+    │   │   │   ├── run_config.json
+    │   │   │   └── velocity_plots_eryth
+    │   │   │       ├── V1
+    │   │   │       └── V2
+    │   │   ├── compute_velocity_metrics.py
+    │   │   ├── embed_velocity.py
+    │   │   ├── explain
+    │   │   ├── figures
+    │   │   └── inspect_gene_correlations.ipynb
+    │   ├── 20260330_noise-direction
+    │   │   ├── analyze_hybrid.py
+    │   │   ├── offline_hybrid_analysis
+    │   │   │   ├── offline_hybrid_analysis_20260409_053413
+    │   │   │   │   └── analysis_config.json
+    │   │   │   └── unweighted_branch_analysis_20260409_115137
+    │   │   │       └── run_config.json
+    │   │   └── replot_unweighted_hybrid_metrics.py
+    │   ├── 20260410_CompareGammaSlope
+    │   │   ├── 20260410_040827_gamma_slope_velocity_analysis
+    │   │   │   ├── gene_level_gamma_slope_metrics.parquet
+    │   │   │   ├── run_args.json
+    │   │   │   └── summary.json
+    │   │   ├── analyze_gamma_slope_velocity.ipynb
+    │   │   └── analyze_gamma_slope_velocity.py
+    │   ├── VaryLambda20260224.sh
+    │   ├── cell_sample_20260123_soft_hvg1024.py
+    │   ├── cell_train_soft20260123_hvg1024.py
+    │   ├── data
+    │   │   ├── download_embryonic.ipynb
+    │   │   └── load_embryonic_data.ipynb
+    │   ├── train_20260123.sh
+    │   ├── train_20260123_MINIMUMTEST.sh
+    │   └── visualization_analysis.py
+    ├── 20260413_Normalized_Embryonic
+    │   ├── 20260413_041050_default
+    │   │   ├── 20260413_041052_train
+    │   │   ├── 20260413_052241_sample
+    │   │   ├── 20260413_052652_viz
+    │   │   └── 20260413_103408_sample
+    │   ├── 20260413_111054_softplus
+    │   │   ├── 20260413_111056_train
+    │   │   ├── 20260413_114627_sample
+    │   │   ├── 20260413_115031_viz
+    │   │   └── 20260414_noise-direction
+    │   │       ├── analyze_hybrid.py
+    │   │       └── offline_hybrid_analysis
+    │   │           ├── offline_hybrid_analysis_20260414_123749
+    │   │           │   └── analysis_config.json
+    │   │           └── offline_hybrid_analysis_20260415_024049
+    │   │               └── analysis_config.json
+    │   ├── 20260415_041240_softplus
+    │   │   ├── 20260415_041242_train
+    │   │   ├── 20260415_044828_sample
+    │   │   ├── 20260415_045234_viz
+    │   │   ├── 20260415_045235_noise-direction
+    │   │   │   ├── analyze_hybrid.py
+    │   │   │   └── offline_hybrid_analysis
+    │   │   │       └── offline_hybrid_analysis_20260415_054108
+    │   │   │           └── analysis_config.json
+    │   │   ├── 20260415_045236_Velocity
+    │   │   │   ├── 20260415_054919_velocity_after_randomcolor
+    │   │   │   │   ├── Epithelial
+    │   │   │   │   ├── Erythropoietic
+    │   │   │   │   ├── Fibroblast
+    │   │   │   │   ├── Immune
+    │   │   │   │   ├── Neural
+    │   │   │   │   ├── Neural_crest
+    │   │   │   │   ├── Other
+    │   │   │   │   ├── Vascular_endothelial
+    │   │   │   │   └── Vascular_perivascular
+    │   │   │   ├── 20260415_060132_velocity_after_gradientcolor
+    │   │   │   │   ├── Epithelial
+    │   │   │   │   ├── Erythropoietic
+    │   │   │   │   ├── Fibroblast
+    │   │   │   │   ├── Immune
+    │   │   │   │   ├── Neural
+    │   │   │   │   ├── Neural_crest
+    │   │   │   │   ├── Other
+    │   │   │   │   ├── Vascular_endothelial
+    │   │   │   │   └── Vascular_perivascular
+    │   │   │   ├── 20260415_061411_velocity_before_gradient_color
+    │   │   │   │   ├── Epithelial
+    │   │   │   │   ├── Erythropoietic
+    │   │   │   │   ├── Fibroblast
+    │   │   │   │   ├── Immune
+    │   │   │   │   ├── Neural
+    │   │   │   │   ├── Neural_crest
+    │   │   │   │   ├── Other
+    │   │   │   │   ├── Vascular_endothelial
+    │   │   │   │   └── Vascular_perivascular
+    │   │   │   └── velocity_by_Superclass.py
+    │   │   └── 20260415_045237_Metrics
+    │   │       └── GenerativeMetrics.ipynb
+    │   ├── 20260421_032741_linear
+    │   │   ├── 20260421_032743_train
+    │   │   ├── 20260421_034903_sample
+    │   │   └── 20260421_034933_viz
+    │   ├── VaryLambda20260224.sh
+    │   ├── cell_sample_20260123_soft_hvg1024.py
+    │   ├── cell_train_soft20260123_hvg1024.py
+    │   ├── train_20260123.sh
+    │   ├── train_20260123_MINIMUMTEST.sh
+    │   └── visualization_analysis.py
+    ├── 20260416_Transformer
+    │   ├── 20260416_115315_MINIMUMTEST
+    │   │   ├── 20260416_115317_train
+    │   │   ├── 20260416_115325_sample
+    │   │   └── 20260416_115334_viz
+    │   ├── 20260416_120628_softplus_lamda1
+    │   │   ├── 20260416_120631_train
+    │   │   ├── 20260416_121220_sample
+    │   │   └── 20260416_121642_viz
+    │   ├── 20260416_122438_softplus_lamda500
+    │   │   ├── 20260416_122441_train
+    │   │   ├── 20260416_123032_sample
+    │   │   └── 20260416_123103_viz
+    │   ├── 20260416_124536_softplus_1024
+    │   │   ├── 20260416_124538_train
+    │   │   ├── 20260416_130430_sample
+    │   │   └── 20260416_130723_viz
+    │   ├── 20260418_044435_softplus_lamda100
+    │   │   ├── 20260418_044437_train
+    │   │   ├── 20260418_051313_sample
+    │   │   ├── 20260418_051437_viz
+    │   │   │   └── UMAP.ipynb
+    │   │   ├── 20260418_104614_sample
+    │   │   ├── 20260418_104951_sample
+    │   │   ├── 20260418_105054_sample
+    │   │   ├── 20260418_105207_sample
+    │   │   ├── 20260418_110008_viz
+    │   │   └── 20260418_110116_viz
+    │   ├── 20260420_035324_Sigmoid
+    │   │   ├── 20260420_035327_train
+    │   │   ├── 20260420_042206_sample
+    │   │   └── 20260420_042329_viz
+    │   ├── 20260421_025635_linear
+    │   │   ├── 20260421_025637_train
+    │   │   ├── 20260421_031358_sample
+    │   │   └── 20260421_031430_viz
+    │   ├── cell_sample_20260416.py
+    │   ├── cell_train_20260416.py
+    │   ├── train_20260416.sh
+    │   ├── train_20260416_MINIMUMTEST.sh
+    │   └── visualization_analysis.py
+    ├── 20260420_Normalized_LearnScale
+    │   ├── 20260420_121522_Lamda10
+    │   │   ├── 20260420_121525_train
+    │   │   ├── 20260420_123836_sample
+    │   │   ├── 20260420_123910_viz
+    │   │   ├── analyze_hybrid.py
+    │   │   └── offline_hybrid_analysis
+    │   │       ├── offline_hybrid_analysis_20260420_125706
+    │   │       │   └── analysis_config.json
+    │   │       └── offline_hybrid_analysis_20260422_040722
+    │   │           └── analysis_config.json
+    │   ├── 20260421_061005_linear
+    │   │   ├── 20260421_061007_train
+    │   │   ├── 20260421_063325_sample
+    │   │   ├── 20260421_063359_viz
+    │   │   ├── analyze_hybrid.py
+    │   │   └── offline_hybrid_analysis
+    │   │       ├── offline_hybrid_analysis_20260421_095044
+    │   │       │   └── analysis_config.json
+    │   │       └── offline_hybrid_analysis_20260422_040905
+    │   │           └── analysis_config.json
+    │   ├── cell_sample_20260420.py
+    │   ├── cell_train_20260420.py
+    │   ├── train_20260123.sh
+    │   └── visualization_analysis.py
+    ├── 20260420_TransformerTimeEmbedding
+    │   ├── 20260420_111216_Sigmoid
+    │   │   ├── 20260420_111218_train
+    │   │   ├── 20260420_114716_sample
+    │   │   └── 20260420_114850_viz
+    │   ├── cell_sample_20260416.py
+    │   ├── cell_train_20260416.py
+    │   ├── train_20260416.sh
+    │   └── visualization_analysis.py
+    ├── 20260421_MoE
+    │   ├── 20260420_154815_embryonic_dynamic
+    │   │   ├── 01_mixture_softplus_mlp_softmax
+    │   │   │   ├── 20260420_154818_train
+    │   │   │   ├── 20260420_160845_sample
+    │   │   │   └── 20260420_160933_viz
+    │   │   ├── 02_mixture_softplus_mlp_topk3
+    │   │   │   ├── 20260420_160944_train
+    │   │   │   ├── 20260420_163106_sample
+    │   │   │   └── 20260420_163207_viz
+    │   │   ├── 03_matrix_dict_mlp_softmax
+    │   │   │   ├── 20260420_163218_train
+    │   │   │   ├── 20260420_170703_sample
+    │   │   │   └── 20260420_170832_viz
+    │   │   ├── 04_matrix_dict_linear_softmax
+    │   │   │   ├── 20260420_170844_train
+    │   │   │   ├── 20260420_174204_sample
+    │   │   │   └── 20260420_174330_viz
+    │   │   ├── 05_matrix_dict_mlp_topk3
+    │   │   │   ├── 20260420_174342_train
+    │   │   │   ├── 20260420_181905_sample
+    │   │   │   └── 20260420_182038_viz
+    │   │   └── 06_lowrank_residual_mlp_softmax
+    │   │       ├── 20260420_182050_train
+    │   │       ├── 20260420_184418_sample
+    │   │       └── 20260420_184511_viz
+    │   ├── cell_sample_dynamic_selectable.py
+    │   ├── cell_train_dynamic_selectable.py
+    │   ├── run_all_dynamic_ode_variants.sh
+    │   └── visualization_analysis.py
+    └── 20260421_RegODEMLratio
+        ├── 20260421_120748_default
+        │   ├── 20260421_120750_train
+        │   ├── 20260421_122832_sample
+        │   ├── 20260421_122859_viz
+        │   ├── analyze_hybrid.py
+        │   └── offline_hybrid_analysis
+        │       ├── offline_hybrid_analysis_20260421_134052
+        │       │   └── analysis_config.json
+        │       └── offline_hybrid_analysis_20260422_042723
+        │           └── analysis_config.json
+        ├── cell_sample_20260421.py
+        ├── cell_train_20260421.py
+        ├── train_20260421.sh
+        └── visualization_analysis.py
+
+370 directories, 209 files

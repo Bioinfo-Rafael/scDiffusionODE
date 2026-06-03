@@ -1,0 +1,12 @@
+{
+  "adata_path": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+  "model_path1": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_100000.pt",
+  "model_path2": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_000000.pt",
+  "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/Mouse_tf_target_edges.tsv",
+  "target_superclass": "Erythropoietic",
+  "device_used": "cuda",
+  "batch_size": 1024,
+  "timesteps": 1000,
+  "n_obs_subset": 36639,
+  "n_vars_subset": 1024
+}

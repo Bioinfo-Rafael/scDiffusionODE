@@ -1,0 +1,36 @@
+{
+  "base_h5ad_path": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260330_Analyze-20260224Lamda5/20260330_072038_velocity_compare/adata_eryth_base.h5ad",
+  "velocity_npz_path": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260330_Analyze-20260224Lamda5/20260330_072038_velocity_compare/velocities_eryth.npz",
+  "out_h5ad_path": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260330_Analyze-20260224Lamda5/20260330_072038_velocity_compare/adata_eryth_embedded.h5ad",
+  "saved_obsm_keys": [
+    "X_tsne",
+    "X_umap",
+    "X_pca",
+    "V1_umap",
+    "V2_umap"
+  ],
+  "saved_uns_keys": [
+    "batch_condition",
+    "celltype_color_map",
+    "celltype_colors",
+    "citation",
+    "hvg",
+    "log1p",
+    "organism",
+    "organism_ontology_term_id",
+    "schema_reference",
+    "schema_version",
+    "title",
+    "pca",
+    "neighbors",
+    "umap",
+    "V1_graph",
+    "V1_graph_neg",
+    "V1_params",
+    "V2_graph",
+    "V2_graph_neg",
+    "V2_params",
+    "paga",
+    "celltype_sizes"
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+  "batch_size": 128,
+  "SoftReg": true,
+  "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+  "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+  "model_path": "/home/suzuki/Projects/scDiffusion/work/20260413_Normalized_Embryonic/20260415_041240_softplus/20260415_041242_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_050000.pt",
+  "output_root": "./offline_hybrid_analysis",
+  "max_cells": 5000,
+  "num_t_points": 64,
+  "explicit_timesteps": "",
+  "num_noise_draws": 20,
+  "seed": 1234,
+  "device": "",
+  "input_dim": 128,
+  "hidden_dim": [
+    512,
+    512,
+    256,
+    128
+  ],
+  "dropout": 0.0,
+  "learn_sigma": false,
+  "diffusion_steps": 1000,
+  "noise_schedule": "linear",
+  "timestep_respacing": "",
+  "use_kl": false,
+  "predict_xstart": false,
+  "rescale_timesteps": false,
+  "rescale_learned_sigmas": false,
+  "class_cond": false
+}

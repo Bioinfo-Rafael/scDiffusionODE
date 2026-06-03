@@ -1,0 +1,55 @@
+{
+  "n_genes_total": 1024,
+  "n_genes_finite_slope_and_gamma_ratio": 1024,
+  "pearson_slope_vs_gamma_ratio": -0.037754606638085164,
+  "spearman_slope_vs_gamma_ratio": 0.6994749347328517,
+  "delta_mean": 1926.8161476870814,
+  "delta_variance": 37179629.15362838,
+  "delta_median": 0.00024125997980009584,
+  "top10_most_negative_pearson_genes": [
+    "ENSG00000254942",
+    "ENSG00000268812",
+    "ENSG00000281450",
+    "ENSG00000255395",
+    "ENSG00000253666",
+    "ENSG00000237254",
+    "ENSG00000167768",
+    "ENSG00000250337",
+    "ENSG00000214049",
+    "ENSG00000264464"
+  ],
+  "top10_smallest_abs_delta_genes": [
+    "ENSG00000203883",
+    "ENSG00000133069",
+    "ENSG00000178403",
+    "ENSG00000150361",
+    "ENSG00000239381",
+    "ENSG00000163554",
+    "ENSG00000135298",
+    "ENSG00000119147",
+    "ENSG00000150275",
+    "ENSG00000133110"
+  ],
+  "top10_largest_gamma_dominance_genes": [
+    "ENSG00000169877",
+    "ENSG00000158578",
+    "ENSG00000086506",
+    "ENSG00000250361",
+    "ENSG00000136929",
+    "ENSG00000170180",
+    "ENSG00000125144",
+    "ENSG00000213934",
+    "ENSG00000004939",
+    "ENSG00000205358"
+  ],
+  "config": {
+    "adata_path": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260330_Analyze-20260224Lamda5/20260330_072038_velocity_compare/adata_eryth_base.h5ad",
+    "model_path1": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_100000.pt",
+    "model_path2": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_000000.pt",
+    "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/Mouse_tf_target_edges.tsv",
+    "target_superclass": "Erythropoietic",
+    "batch_size": 1024,
+    "timesteps": 1000,
+    "previous_run_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260330_Analyze-20260224Lamda5/20260330_072038_velocity_compare"
+  }
+}
