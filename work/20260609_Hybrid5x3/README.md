@@ -1,15 +1,21 @@
-# Hybrid 5×3 + baseline 2 = 17 実験 一括実行（20260609）
+# Hybrid 5 枝 × hybrid mode 一括実行（20260609）
 
-5 ODE 枝 × 3 hybrid mode = 15 + baseline 2 = **17 実験**を同条件で一括学習・比較する。
+5 ODE 枝 × hybrid mode を同条件で一括学習・比較する。
 
 ```
-ODE 枝 (5)      : geneode | lowrank | lincomb | matsum | lora
-hybrid mode (3) : ratio_reg | normed_learned_scale | none
-baseline (2)    : baseline_cellunet | baseline_geneode_blend
+ODE 枝 (5)        : geneode | lowrank | lincomb | matsum | lora
+hybrid mode (4)   : none（通常） | ratio_reg（比正則化） | scale_model（方向×scalar scale）
+                    ＋ normed_learned_scale（deprecated・互換のため温存）
+baseline (2)      : baseline_cellunet | baseline_geneode_blend
 ```
 
-`r = 1 − t/(T−1)`。**既存ファイルは無編集**（`train_util.py` / `ode_20260421` / `ode_20260609_*`
-/ 既存 work dir）。`GeneODE` と `build_math_field` を import 再利用。
+- **旧 17 マトリクス**（§3 `run_experiments_5x3.py` / §8 `test_all_models.sh`）= 5×{ratio_reg, normed_learned_scale, none}
+  + baseline 2 = 17（不変）。
+- **新 20 マトリクス**（§9 `run_all_pipelines.sh`）= 5×{none, ratio_reg, scale_model+x, scale_model+ml_emb}（scale_model 含む）。
+
+`r = 1 − t/(T−1)`。**`train_util.py` / `ode_20260421`（GeneODE）は無編集**、`Cell_Unet.forward` も無変更
+（`forward_with_features` を追加しただけ）。`ode_20260609_*` は scale_model / `decompose_W` 追加で拡張。
+`GeneODE` と `build_math_field` を import 再利用。
 
 ---
 
@@ -17,9 +23,9 @@ baseline (2)    : baseline_cellunet | baseline_geneode_blend
 
 | ファイル | 役割 |
 |---|---|
-| `../../ODE/ode_20260609_hybrid5x3.py` | 統合 `UnifiedODEMLHybrid`（`ode_model(x,t)`・3 mode・共有 scalar）+ `build_ode_branch` + `build_denoiser` |
-| `cell_train_5x3.py` | 引数で枝・mode を選ぶ統合 train。`exp_config.json` 出力 |
-| `cell_sample_5x3.py` | `exp_config.json` から再構築してサンプリング |
+| `../../ODE/ode_20260609_hybrid5x3.py` | 統合 `UnifiedODEMLHybrid`（`ode_model(x,t)`・**4 mode**: none/ratio_reg/scale_model/normed_learned_scale）+ `build_ode_branch` + `build_denoiser` |
+| `cell_train_5x3.py` | 引数で枝・mode を選ぶ統合 train。`exp_config.json` 出力（scale_model 系 `--scale_model_type/--scale_input_source/--ode_input_source/--scale_hidden/--scale_eps` も保存） |
+| `cell_sample_5x3.py` | `exp_config.json` から再構築してサンプリング（scale_* も復元） |
 | `run_experiments_5x3.py` | **17 matrix の launcher**（dry-run / only / skip-existing / gpu / summary） |
 | `run_all_5x3.sh` | launcher を起動する薄い .sh |
 | `run_pipeline_5x3.py` | **単一 config を cell_train→cell_sample→全 viz で一貫実行**（最小テスト用 → §7） |
@@ -38,7 +44,7 @@ baseline (2)    : baseline_cellunet | baseline_geneode_blend
 
 ---
 
-## 2. 統合の肝（5 枝 × 3 mode を 1 経路で）
+## 2. 統合の肝（5 枝 × 4 mode を 1 経路で）
 
 `UnifiedODEMLHybrid.forward` は ODE 枝に **t を渡す**:
 ```
@@ -46,18 +52,24 @@ ode_out = self.ode_model(x, t)   # GeneODE は t 無視、4 fields は t 使用 
 ml_out  = self.ml_model(x, t, y)
 ```
 これで「field を hybrid に差すと t=0 で時刻依存が消える」問題を回避（GeneODE 専用だった
-`ODE_ML_HybridNorm` の制約を解消）。3 mode は `ODE_ML_HybridNorm` と同一仕様:
+`ODE_ML_HybridNorm` の制約を解消）。mode は **4 つ**（`scale_model` を追加）:
 
 | mode | 出力 | `ode_model._cached_ratio_reg` |
 |---|---|---|
-| ratio_reg | `r·ode+(1−r)·ml` | training 時 ratio penalty |
-| normed_learned_scale | `exp(log_scale)·(r·ode_unit+(1−r)·ml_unit)` | None |
 | none | `r·ode+(1−r)·ml` | None |
+| ratio_reg | `r·ode+(1−r)·ml` | training 時 ratio penalty |
+| **scale_model** | `scale·(r·ode_unit+(1−r)·ml_unit)`、`scale=scale_model(scale_in,t)∈(B,1)` | None（ratio penalty なし） |
+| normed_learned_scale | `exp(log_scale)·(r·ode_unit+(1−r)·ml_unit)` | None（**deprecated**・温存） |
 
-- scale は **共有 scalar 1 個**（normed のときだけ生成）。
+- **scale_model**（新規）: ODE/ML 出力を L2 正規化して**方向**を作り、`scale_model` が予測する **scalar scale (B,1)**
+  を全 gene に掛ける。`scale_in` は `--scale_input_source ∈ {x（遺伝子ベクトル）, ml_emb（Cell_Unet 中間表現）}`。
+  `--scale_model_type simple` のとき `SimpleScalarScaleModel` を生成。`Cell_Unet.forward_with_features()` で
+  `ml_out` と `ml_emb` を 1 回で取得（二重 forward 回避）。`--ode_input_source` 既定 `none`（将来用 `x_ml_emb` は
+  未対応 branch で `RuntimeError`）。
+- `normed_learned_scale` は共有 scalar `exp(log_scale)`（deprecated）。
 - `self.ode_model = branch` なので `train_util` の off_mask_penalty hook が **無変更で発火**。
   plain Cell_Unet は ode_model を持たないので不発火（baseline）。
-- off-mask 構造罰則（SoftReg）は 3 mode 直交で全 mode 共通に効く。
+- off-mask 構造罰則（SoftReg）は全 mode 直交で共通に効く。
 
 ---
 
@@ -105,13 +117,18 @@ python run_experiments_5x3.py --skip-existing
 - ローカル（torch 不在）: 全 `.py` を `py_compile`、`.sh` を `bash -n`、`--dry-run` で matrix 検証。
 - 学習マシン: `python smoke_test_5x3.py`（17 config の forward/backward、field の t 伝播、
   ratio cache 出し分け、log_scale grad、hook 発火/plain 不発火）。
+- `python test_scale_model_forward.py`（scale_model の軽量 forward test・実データ不要。`forward_with_features`、
+  scale=(B,1) 正値、ratio_reg/none/scale_model の 3 mode、x_ml_emb 未対応エラー等を検証）。
 
 ---
 
 ## 6. 注意
 
-- `train_util.py` は無変更（hook は全 hybrid 枝で発火、plain で不発火）。
+- `train_util.py` は無変更（hook は全 hybrid 枝で発火、plain で不発火）。`Cell_Unet.forward` も無変更。
 - checkpoint: normed の log_scale（top-level param）は保存。sample は exp_config.json で同型再構築。
+- **scale_model**: `scale_model.*`（`SimpleScalarScaleModel` の MLP param）が checkpoint に増える。復元は
+  exp_config.json の scale_* で同型再構築すれば `scale_model.*` も一致ロード（ratio_reg/none の checkpoint には
+  `scale_model.*` は無く、復元時も生成されない）。
 - 実行環境のパス（`sys.path` / `data_dir` / `edge_tsv_path`）は `/home/suzuki/...`（学習マシン）。
   別マシンでは launcher 内 `COMMON` と各 py 冒頭の `sys.path` を書換える。
 - baseline_geneode_blend は matrix の `geneode__none`（SoftReg=True 付き）とは別物

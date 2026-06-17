@@ -8,12 +8,13 @@ ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}）用の作図�
 
 | ファイル | 役割 / 出力 | run_all_viz の出力先 |
 |---|---|---|
-| `_restore.py` | 共有: config 正規化 + `build_denoiser` で復元 + checkpoint ロード + velocity 計算 | — |
+| `_restore.py` | 共有: config 正規化 + `build_denoiser` で復元 + checkpoint ロード + velocity 計算 + **`find_viz_checkpoints`**（init+EMA 選択）+ `extract_param_groups` | — |
+| `model_introspection.py` | 共有: **effective W(x,t) 取得 + W metric**（off_on_ratio/sparsity/hoyer/effective_rank/top1pct）+ `decompose_W` + **branch-specific の step 横軸作図** | — |
 | `plot_loss.py` | **loss 曲線**（loss_curves / loss_curves_simple。CSV のみ依存） | `{out}/loss/` |
-| `plot_params.py` | **W 可視化**(hist/heat/W_abs_vs_t/gamma) + **パラメタ分布(学習ステップ軸)** + **t×step の W ヒートマップ** | `{out}/params/<ts>_viz/` |
+| `plot_params.py` | **2 階層**: ① raw パラメタ分布（param_dist_W/misc・step 軸）② **effective operator W**（metric CSV + heatmap + hist + sparsity + top edges）+ branch-specific | `{out}/params/<ts>_viz/` |
 | `eval_model_io.py` | **入出力評価**（ノイズ方向 metrics weighted/unweighted + 次元方向相関）。corr/ と alignment_mse/ に分離 | `{out}/eval_io/<ts>_analyze/` |
 | `plot_velocity_umap.py` | **Superclass 別 velocity UMAP**（stream/arrow、配色2通り）+ **real vs gen UMAP**（`umap_analysis.png`・凡例なし） | `{out}/velocity/` |
-| `run_all_viz.py` | 上 4 つを 1 checkpoint に対し順次実行（`--skip loss,params,eval_io,velocity`） | — |
+| `run_all_viz.py` | 上 4 つを 1 checkpoint に対し順次実行（`--skip loss,params,eval_io,velocity`。`--heatmap_*` を plot_params へ forward） | — |
 
 3 dir の checkpoint は config json（`exp_config`/`field_config`/`hybrid_config`）を渡せば全て復元可能。
 他 2 dir（HybridNormModes / MathMLPHybrid）には同名の 1 行 shim（runpy 委譲）あり。
@@ -22,26 +23,55 @@ ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}）用の作図�
 
 ## モデル結合の要点
 
-- 復元は `_restore.build_model`（`ODE/ode_20260609_hybrid5x3.py: build_denoiser` 経由、5 枝 + plain）。
+- 復元は `_restore.build_model`（`ODE/ode_20260609_hybrid5x3.py: build_denoiser` 経由、5 枝 + plain、
+  scale_model 系 config も読込み。旧 config に無ければ default で従来どおり復元）。
+- **checkpoint 選択** `_restore.find_viz_checkpoints`: 1 列目 `model000000`(raw init) + EMA 最大 `max_ema_points` 点
+  （`np.linspace(0, N, max_ema_points)` 近傍。N=lr_anneal_steps→total_steps→ema 最大 step）。dedup・不足でも落ちない。
+  `save_interval=1` + `lr_anneal_steps≥2` で複数 checkpoint。
+
+### plot_params は 2 階層
+
+**① raw parameter visualization**（state_dict そのもの。学習が動いているか）
+- `param_dist_W.png`: 静的 W 系を **per-k × on/off mask** で分割（geneode `W`、lincomb `expertW{k}`、
+  matsum `A{k}`、lora `W0`+`Delta{k}`）。lowrank は静的 W 無し → W 行は出ない。**モデル間比較用ではない**（同一モデルの step 変化用）。
+- `param_dist_misc.png`: gamma / b(expert_b) / coeff_net / U_net / V_net / time_emb / cellunet / **scale_model**（scale_model 使用時のみ）/ other。
+  **gamma は misc**（W には入れない）。専用 `gamma_decay` 図は**出さない**。
+- `scale_vs_step.png`: normed モデルの `log_scale`→`exp` を step に対して折れ線。
+
+**② effective operator visualization**（`model.ode_model.compute_W(x,t)` の有効作用素。**モデル間比較はこちら**。`model_introspection.py`）
+- `effective_W_metrics.csv`: 全モデル共通 metric（`mean_abs_all/on/off`・`off_on_ratio`・`off_mass_fraction`・
+  `density_abs_gt_*`・`fraction_abs_lt_*`・`hoyer_sparsity`・`effective_rank`・`top1pct_mass_fraction`・`W_IS_EXACT`）。
+- heatmap（y=diffusion t, x=checkpoint）: `W_off_on_ratio` / `W_off_mass_fraction` / `W_effective_rank` /
+  `W_density_abs_gt_{eps}` / `W_meanabs` / `W_offmask` の `_t_vs_step.png`。
+- `W_hist_by_step_t{0,T//2,T-1}.png`（代表 t で all/on/off を checkpoint 別に）、`W_sparsity_vs_step.png`、
+  `top_W_edges.csv`（|W| 上位エッジ、gene 名）、`W_abs_vs_t.png`。
+- lincomb の `compute_W` は **proxy**（`W_IS_EXACT=False`）→ タイトル/CSV/ログに `[PROXY]`。
+- **full W_heat（n×n、ほぼノイズ）は既定 off**。`--plot_full_W_heat` 指定時のみ `W_heat_t{t}.png`。
+- **heatmap だけ高粒度**: heatmap 用に別途 `find_viz_checkpoints(max_ema_points=--heatmap_max_ema_points 既定10)` ＋
+  `--heatmap_n_t_grid`(既定20) で計算し `effective_W_metrics_heatmap.csv` を別名保存（通常の
+  `effective_W_metrics.csv` / hist / sparsity / top_edges は `--max_ema_points`(既定5)・`--n_t_grid`(既定16) のまま）。
+
+### branch-specific（`model_introspection`、**checkpoint step 横軸**）
+全 checkpoint を build して描く（`--skip_branch_specific` で抑制）。各図に対応 CSV を保存。
+- coeff: `{lincomb,matsum,lora}_coeff_vs_step.png`（signed `a_k` の t 方向 mean±std を line+band。互換名 `*_coeff_t_vs_k.png` も）。
+- lincomb: `expert_contribution_vs_step`（`|a_k|·‖softplus(W_k x+b_k)‖`）/ `expertW_k_sparsity`(density>eps)。
+- matsum: `Ak_pairwise_corr`（**Pearson** 相関・下三角・対角非表示・off-diag スケール。互換名 `*_cosine.png`）/ `Ak_sparsity`(density>eps)。
+- lora: `delta_component_norm_vs_step`（per-k `‖a_kΔ_k‖_F` + `‖W0‖_F` 破線）/ `Delta_k_metrics`(Δ_k+W0 の density>eps)。
+- lowrank: `singular_values_vs_t`（凡例外）/ `UV_mean_vs_t`（`mean(U)/mean(V)/mean(W=UVᵀ)`、norm でなく mean）。
+- geneode（`decompose_W` 無）/ plain は branch-specific を skip。
+
+### その他
 - velocity = `model.ode_model(x, velocity_t)`（GeneODE は t 無視 / fields は t 使用）。`--velocity_t` 既定 0。
-- scvelo は**元 velocity_by_Superclass.py の方式を踏襲**: velocity を `layers["velocity_ode"]`、`layers["X"]=X.copy()` を
-  作って `velocity_graph(vkey="velocity_ode", xkey="X", backend="loky", n_jobs=32)` → embedding → stream/arrow/grid。
-- W 可視化は field の `compute_W(x,t)`、GeneODE は静的 `W` を使用。lincomb は proxy（`W_IS_EXACT=False`）。
-  W ヒートマップ `W_heat_t{t}.png` は **フル解像度 (n×n)・枠線なし**（方眼紙塗り）。
-- **パラメタ分布（学習ステップ横軸）**: `find_checkpoints` が model_path の dir 内の `model*.pt` を step 順に集め、
-  `extract_param_groups` が branch 別に学習パラメタを抽出 → ヒストグラム格子（行=param群, 列=step）。
-  - `param_dist_W.png`: 静的 W 系を **per-k × on/off mask** で分割（geneode `W`、lincomb `expertW{k}`、
-    matsum `A{k}`、lora `W0`+`Delta{k}`）。lowrank は静的 W 無し → W 行は出ず U_net/V_net 等は misc へ。
-  - `param_dist_misc.png`: gamma / b(expert_b) / coeff_net / U_net / V_net / time_emb / cellunet / other。
-  - `scale_vs_step.png`: normed モデルの `log_scale`→`exp` を step に対して折れ線。
-  - 複数 checkpoint が必要（`save_interval=1` + `lr_anneal_steps≥2`）。`--max_ckpts`(既定8) で間引き。
-- **t×学習ステップ の W ヒートマップ**: `W_meanabs_t_vs_step.png` と `W_offmask_t_vs_step.png`
-  （y=diffusion t, x=training step, 値=mean|W| / off-mask mean|W|）。`--n_t_grid`(既定16) / `--max_ckpts`。
-- CLI 追加: `--skip_param_dist --skip_W_t_step --max_ckpts --n_t_grid`。
-- 次元方向相関（eval_model_io）= 各サンプルで `pearson(out(1024), ε(1024))`。ε は `diffusion.q_sample` の付加ノイズ。
-  corr_scatter は等間隔 5 点 t（T=1000→0,249,499,749,999）、corr_dim_vs_t は 100 間隔（0..900,999）。
-  出力は `corr/`（corr_*）と `alignment_mse/`（alignment/mse/norm_ratio）のサブディレクトリに分離。
-- plain baseline（ode_model 無）は W/velocity/branch 解析を自動スキップ（loss / eval_io の hybrid 出力のみ）。
+  scvelo は**元 velocity_by_Superclass.py の方式を踏襲**（`layers["velocity_ode"]`・`layers["X"]`、`velocity_graph(...,n_jobs=32)`→stream/arrow）。
+- 次元方向相関（eval_model_io）= 各サンプルで `pearson(out, ε)`。ε は `diffusion.q_sample` の付加ノイズ。
+  corr_scatter は等間隔 5 点 t、corr_dim_vs_t は 100 間隔。出力は `corr/` と `alignment_mse/` に分離。
+- plain baseline（ode_model 無）は W/effective/branch/velocity 解析を自動スキップ（loss / eval_io の hybrid 出力のみ）。
+
+### plot_params の主な CLI（既定は安全側）
+- 選択: `--max_ema_points`(5) / `--heatmap_max_ema_points`(10) / `--n_t_grid`(16) / `--heatmap_n_t_grid`(20) / `--max_viz_cells`(4)
+- effective W: `--top_edges`(100) / `--sparsity_eps`("1e-4,1e-3,1e-2") / `--max_svd_dim`(512) / `--plot_full_W_heat`(off)
+- skip: `--skip_param_dist` / `--skip_W` / `--skip_effective_W_metrics` / `--skip_branch_specific`
+- 後方互換: 旧 `--skip_W_t_step` は `--skip_effective_W_metrics` にマップ（旧 `--max_ckpts` は legacy fallback 用に残置）。
 
 ## 使い方
 

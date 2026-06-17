@@ -26,6 +26,13 @@ root直下に散らばっていた古い学習スクリプト、サンプリン�
 
 環境情報、説明資料、参照ファイル、移行スナップショットは `docs/` 配下に整理しています。
 
+## 最近の実験（20260609）
+`work/20260609_*` に ODE×ML hybrid denoising model 群（5 ODE 枝 × hybrid mode）と役割別の可視化スイートがある。
+hybrid mode は `none` / `ratio_reg` / `scale_model`（方向×scalar scale。新規）＋ `normed_learned_scale`（deprecated）。
+詳細・実行手順は [`work/20260609_Hybrid5x3/README.md`](work/20260609_Hybrid5x3/README.md) と
+[`work/20260609_Hybrid5x3/PIPELINE_TEST.md`](work/20260609_Hybrid5x3/PIPELINE_TEST.md)、
+ODE モデル本体は [`ODE/README_20260609.md`](ODE/README_20260609.md) を参照。
+
 ## 注意
 この整理作業では、`git add`、`git commit`、`git push` はまだ実行していません。
 
