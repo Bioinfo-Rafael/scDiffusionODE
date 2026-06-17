@@ -52,6 +52,9 @@ def grep_val(text, key):
 def main():
     a = create_argparser().parse_args()
     exp_id = f"{a.ode_branch}__{a.hybrid_norm_mode}"
+    if a.hybrid_norm_mode == "scale_model":
+        # scale_model は入力ソース別に分離（scale_model_x / scale_model_ml_emb）
+        exp_id = f"{a.ode_branch}__scale_model_{a.scale_input_source}"
     # {HERE}/runs/{model_name}/{YYYYMMDD}/{train,sample,viz}/...（runs/ 配下に集約）
     out_dir = run_paths.run_base(HERE, exp_id, create=not a.dry_run)  # dry-run では dir を作らない
 
@@ -63,7 +66,12 @@ def main():
              "--SoftReg", str(a.SoftReg), "--ode_reg_lambda", str(a.ode_reg_lambda),
              "--lr_anneal_steps", str(a.lr_anneal_steps), "--batch_size", str(a.batch_size),
              "--diffusion_steps", str(a.diffusion_steps), "--log_interval", "1",
-             "--save_interval", "1", "--output_dir", os.path.join(out_dir, "train")]
+             "--save_interval", "1",
+             "--scale_model_type", a.scale_model_type,
+             "--scale_input_source", a.scale_input_source,
+             "--ode_input_source", a.ode_input_source,
+             "--scale_hidden", str(a.scale_hidden), "--scale_eps", str(a.scale_eps),
+             "--output_dir", os.path.join(out_dir, "train")]
     t_out = run_capture("1/3 cell_train_5x3", train, a.dry_run)
     model_path = grep_val(t_out, "TRAINED_MODEL_PATH=")
     exp_config = grep_val(t_out, "EXP_CONFIG=")
@@ -109,6 +117,12 @@ def create_argparser():
     p.add_argument("--K", type=int, default=8)
     p.add_argument("--SoftReg", default="True")
     p.add_argument("--ode_reg_lambda", type=float, default=5.0)
+    # scale_model mode（hybrid_norm_mode="scale_model" のとき simple を指定）
+    p.add_argument("--scale_model_type", default="none")       # none|simple
+    p.add_argument("--scale_input_source", default="ml_emb")   # ml_emb|x
+    p.add_argument("--ode_input_source", default="none")       # none|x_ml_emb
+    p.add_argument("--scale_hidden", type=int, default=128)
+    p.add_argument("--scale_eps", type=float, default=1e-8)
     # train
     p.add_argument("--lr_anneal_steps", type=int, default=4)  # >=2: loss曲線/複数ckpt用
     p.add_argument("--batch_size", type=int, default=8)

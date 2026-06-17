@@ -26,9 +26,15 @@ baseline (2)    : baseline_cellunet | baseline_geneode_blend
 | `run_paths.py` | **出力構造ヘルパ**（3 dir 共有）。`{work}/runs/{model}/{YYYYMMDD_HHMMSS}/{train,sample,viz}` を採番/逆算 |
 | `viz/` | 可視化スイート（役割別: `plot_loss` / `plot_params` / `eval_model_io` / `plot_velocity_umap`）。`viz/README.md` 参照 |
 | `smoke_test_5x3.py` | 17 config の construction/forward/backward・t 伝播・hook 検証（torch のみ・高速） |
-| `test_all_models.sh` | **全 17 モデルを train→sample→viz で一括 e2e テスト**（`run_pipeline_5x3.py` を loop。§8） |
+| `test_all_models.sh` | **全 17 モデルを train→sample→viz で一括 e2e テスト**（旧マトリクス: 5×3 + baseline2。§8） |
+| `run_all_pipelines.sh` | **5 ODE × 4 hybrid変種 = 20 を一括 e2e テスト**（新マトリクス: none/ratio_reg/scale_model×2）。手順は `PIPELINE_TEST.md` |
+| `PIPELINE_TEST.md` | 上記 20 構成の実行手順 + **1 モデルだけ全パイプライン実行する方法** |
+| `../../ODE/ode_20260609_scalemodel.py` | `scale_model` mode 用 `SimpleScalarScaleModel`（方向×scalar scale）+ `build_scale_model` |
+| `test_scale_model_forward.py` | scale_model 追加の軽量 forward test（実データ不要・13 項目） |
 
 > ODE モデル本体（`ode_20260609_hybrid5x3.py` ほか 2 つ）の解説は `../../ODE/README_20260609.md`。
+> hybrid_norm_mode は `none` / `ratio_reg` / `scale_model`（+deprecated `normed_learned_scale`）。
+> 全構成テスト・単一モデル実行の手順は **`PIPELINE_TEST.md`**。
 
 ---
 
@@ -181,3 +187,57 @@ STEPS=4 MAXCELLS=120 bash test_all_models.sh   # サイズ上書き
   実データで train→sample→viz まで通す e2e 版。HybridNorm/MathMLP にも同名の `test_all_models.sh` がある
   （それぞれ 3 / 4 モデル）。
 - `DRY=1` は各 pipeline に `--dry-run` を渡すだけ（ディレクトリは作らない）。
+
+---
+
+## 9. 新マトリクス: 5 ODE × 4 hybrid変種 = 20（scale_model 含む）クイックスタート
+
+`hybrid_norm_mode` は **`none`（通常） / `ratio_reg`（比正則化） / `scale_model`**（+deprecated
+`normed_learned_scale`）。`scale_model` は ODE/ML 出力を L2 正規化して方向を作り、`scale_model(scale_in,t)`
+が予測する **scalar scale (B,1)** を掛ける mode（scale 入力は遺伝子ベクトル `x` か Cell_Unet 中間表現 `ml_emb`）。
+
+> 旧 §8 `test_all_models.sh` は別マトリクス（5×3 + baseline2 = 17、`normed_learned_scale` 含む / scale_model 無し）。
+> 本節（scale_model を含む 20 構成）の **完全な手順・結果確認は [`PIPELINE_TEST.md`](PIPELINE_TEST.md)**。
+
+### 前提（毎回）
+```bash
+export PATH="$HOME/miniconda3/envs/scdiffusion/bin:$PATH"   # conda env python を最優先（SMA venv が PATH を隠す）
+cd work/20260609_Hybrid5x3
+```
+※ **必ず `bash` で実行**（対話シェルは zsh。zsh だと文字列フラグが word-split されず argparse が落ちる）。
+※ `--data_dir` / `--edge_tsv_path` 未指定でも `local_paths.resolve_path` でローカル解決。
+
+### 全 20 構成
+```bash
+bash run_all_pipelines.sh                       # 全20を最小設定で train→sample→viz
+DRY=1 bash run_all_pipelines.sh                 # コマンドだけ表示（dir 作らない）
+STEPS=5 MAXCELLS=300 SKIP=velocity bash run_all_pipelines.sh   # サイズ/skip 上書き
+```
+env: `STEPS`(=lr_anneal_steps,≥2) / `BS` `SBS` / `DIFF`(=diffusion_steps) / `NSAMP` / `MAXCELLS` `AMAX` `NT` /
+`BRANCHES`(枝を限定) / `SKIP`(viz一部省略) / `DRY`。末尾に OK/FAIL サマリ。
+
+### どれか 1 モデルだけ全パイプライン実行
+**(a) その ODE 枝の 4 変種すべて:**
+```bash
+BRANCHES="lora" bash run_all_pipelines.sh
+# → lora__none / lora__ratio_reg / lora__scale_model_x / lora__scale_model_ml_emb
+```
+**(b) 特定の 1 (モデル, 方法) だけ — `run_pipeline_5x3.py` を直接:**
+```bash
+# scale_model（ml_emb 入力）
+python run_pipeline_5x3.py --ode_branch lora --hybrid_norm_mode scale_model \
+  --scale_model_type simple --scale_input_source ml_emb \
+  --lr_anneal_steps 3 --batch_size 8 --diffusion_steps 1000 --num_samples 8
+
+# 通常 blend / 比正則化（scale 引数は不要）
+python run_pipeline_5x3.py --ode_branch matsum --hybrid_norm_mode none      --lr_anneal_steps 3 --num_samples 8
+python run_pipeline_5x3.py --ode_branch geneode --hybrid_norm_mode ratio_reg --lr_anneal_steps 3 --num_samples 8
+```
+- `--ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}`
+- `scale_model` のときだけ `--scale_model_type simple --scale_input_source {x|ml_emb}` を付ける
+  （`none`/`ratio_reg` は既定 `--scale_model_type none` でOK）。
+- `--dry-run`（確認のみ）/ `--skip_viz` / `--skip velocity,eval_io` も可。
+
+### 出力
+`runs/{branch}__{none|ratio_reg|scale_model_x|scale_model_ml_emb}/{YYYYMMDD_HHMMSS}/{train,sample,viz}/`
+（`runs/` は .gitignore 済み。scale_model は checkpoint に `scale_model.*` が入り `viz/params/.../param_dist_misc.png` に出る）。

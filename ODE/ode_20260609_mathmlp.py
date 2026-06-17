@@ -286,6 +286,12 @@ class LowRankField(MathMLPField):
         U, V = self._factors(x, t)
         return torch.einsum("bir,bjr->bij", U, V)                    # (B, d, d)
 
+    @torch.no_grad()
+    def decompose_W(self, x, t=None):
+        """可視化用に W(x,t) の構成要素（U, V, W）を返す。matplotlib 非依存（tensor のみ）。"""
+        U, V = self._factors(x.float(), t)
+        return {"U": U, "V": V, "W": torch.einsum("bir,bjr->bij", U, V), "is_exact": True}
+
 
 # ============================================================
 # 2) 線型結合 :  V = Σ_k a_k(x,t) softplus(W_k x + b_k)
@@ -337,6 +343,13 @@ class LinCombField(MathMLPField):
         a = self._coeffs(x.float(), t)                               # (B,K)
         return torch.einsum("bk,kij->bij", a, self.expert_W)          # (B,d,d) proxy
 
+    @torch.no_grad()
+    def decompose_W(self, x, t=None):
+        """⚠ proxy。W_proxy=Σ_k a_k W_k は単一 softplus(W_eff x+b_eff) と等価でない（is_exact=False）。"""
+        a = self._coeffs(x.float(), t)                               # (B,K)
+        return {"a": a, "expert_W": self.expert_W, "expert_b": self.expert_b,
+                "W_proxy": torch.einsum("bk,kij->bij", a, self.expert_W), "is_exact": False}
+
 
 # ============================================================
 # 3) 行列の和 :  W(x,t) = Σ_k a_k(x,t) A_k ,  V = softplus(Wx + b)
@@ -376,6 +389,12 @@ class MatSumField(MathMLPField):
     def compute_W(self, x, t=None):
         a = self._coeffs(x.float(), t)                               # (B,K)
         return torch.einsum("bk,kij->bij", a, self.A)                 # (B,d,d)
+
+    @torch.no_grad()
+    def decompose_W(self, x, t=None):
+        """可視化用に係数 a と基底行列 A、合成 W を返す（is_exact=True）。"""
+        a = self._coeffs(x.float(), t)                               # (B,K)
+        return {"a": a, "A": self.A, "W": torch.einsum("bk,kij->bij", a, self.A), "is_exact": True}
 
 
 # ============================================================
@@ -424,6 +443,14 @@ class LoRAField(MathMLPField):
         a = self._coeffs(x.float(), t)                               # (B,K)
         Delta = torch.einsum("kir,kjr->kij", self.U, self.V)          # (K,d,d)
         return self.W0[None] + torch.einsum("bk,kij->bij", a, Delta)  # (B,d,d)
+
+    @torch.no_grad()
+    def decompose_W(self, x, t=None):
+        """可視化用に W0 / U / V / Δ_k / 係数 a と合成 W を返す（is_exact=True）。"""
+        a = self._coeffs(x.float(), t)                               # (B,K)
+        Delta = torch.einsum("kir,kjr->kij", self.U, self.V)          # (K,d,d)
+        return {"a": a, "W0": self.W0, "U": self.U, "V": self.V, "Delta": Delta,
+                "W": self.W0[None] + torch.einsum("bk,kij->bij", a, Delta), "is_exact": True}
 
 
 # ============================================================
@@ -580,7 +607,8 @@ def load_hybrid_state_dict(hybrid, sd, strict=True, log=print):
         + ", ".join(f"{k} ckpt{tuple(sd[k].shape)} vs model{tuple(model_sd[k].shape)}" for k in mismatch))
 
     def is_core(k):
-        return k.startswith("ode_model.") or k.startswith("ml_model.")
+        return (k.startswith("ode_model.") or k.startswith("ml_model.")
+                or k.startswith("scale_model."))
 
     critical = [k for k in missing if is_core(k)] + [k for k in mismatch if is_core(k)]
     if critical:

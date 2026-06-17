@@ -117,6 +117,11 @@ def main():
         ratio_reg_target=args.ratio_reg_target,
         hybrid_scale_init=args.hybrid_scale_init,
         hybrid_scale_eps=args.hybrid_scale_eps,
+        scale_model_type=args.scale_model_type,
+        scale_input_source=args.scale_input_source,
+        ode_input_source=args.ode_input_source,
+        scale_hidden=args.scale_hidden,
+        scale_eps=args.scale_eps,
         device=dist_util.dev(),
     )
     model.to(dist_util.dev())
@@ -138,6 +143,11 @@ def main():
         "ratio_reg_target": args.ratio_reg_target,
         "hybrid_scale_init": args.hybrid_scale_init,
         "hybrid_scale_eps": args.hybrid_scale_eps,
+        "scale_model_type": args.scale_model_type,
+        "scale_input_source": args.scale_input_source,
+        "ode_input_source": args.ode_input_source,
+        "scale_hidden": args.scale_hidden,
+        "scale_eps": args.scale_eps,
         "time_dim": args.time_dim,
         "field_hidden": args.field_hidden,
         "field_dropout": args.field_dropout,
@@ -224,7 +234,7 @@ def create_argparser():
         edge_tsv_path="/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
         # ---- branch / mode selection ----
         ode_branch="geneode",            # geneode|lowrank|lincomb|matsum|lora|plain
-        hybrid_norm_mode="ratio_reg",    # ratio_reg|normed_learned_scale|none
+        hybrid_norm_mode="ratio_reg",    # ratio_reg|none|scale_model|normed_learned_scale(deprecated)
         rank=16,
         K=8,
         time_dim=64,
@@ -234,6 +244,12 @@ def create_argparser():
         use_decay=True,
         hybrid_scale_init=1.0,
         hybrid_scale_eps=1e-8,
+        # ---- scale_model mode（hybrid_norm_mode="scale_model" のとき simple を指定）----
+        scale_model_type="none",         # none|simple
+        scale_input_source="ml_emb",     # ml_emb|x
+        ode_input_source="none",         # none|x_ml_emb
+        scale_hidden=128,
+        scale_eps=1e-8,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

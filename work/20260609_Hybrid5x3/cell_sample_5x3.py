@@ -78,6 +78,9 @@ def resolve_cfg(args):
         use_decay=_to_bool(args.use_decay), ratio_reg_weight=args.ratio_reg_weight,
         ratio_reg_target=args.ratio_reg_target, hybrid_scale_init=args.hybrid_scale_init,
         hybrid_scale_eps=args.hybrid_scale_eps,
+        scale_model_type=args.scale_model_type, scale_input_source=args.scale_input_source,
+        ode_input_source=args.ode_input_source, scale_hidden=args.scale_hidden,
+        scale_eps=args.scale_eps,
     )
     if args.exp_config and os.path.exists(args.exp_config):
         with open(args.exp_config) as f:
@@ -137,6 +140,9 @@ def main():
         lowrank_penalty_subsample=cfg["lowrank_penalty_subsample"], use_decay=cfg["use_decay"],
         ratio_reg_weight=cfg["ratio_reg_weight"], ratio_reg_target=cfg["ratio_reg_target"],
         hybrid_scale_init=cfg["hybrid_scale_init"], hybrid_scale_eps=cfg["hybrid_scale_eps"],
+        scale_model_type=cfg["scale_model_type"], scale_input_source=cfg["scale_input_source"],
+        ode_input_source=cfg["ode_input_source"], scale_hidden=cfg["scale_hidden"],
+        scale_eps=cfg["scale_eps"],
         device=device,
     )
     model.to(device)
@@ -183,6 +189,8 @@ def create_argparser():
         ode_reg_lambda=5.0, time_dim=64, field_hidden=256, field_dropout=0.0,
         lowrank_penalty_subsample=8, use_decay=True, ratio_reg_weight=1.0, ratio_reg_target=1.0,
         hybrid_scale_init=1.0, hybrid_scale_eps=1e-8,
+        scale_model_type="none", scale_input_source="ml_emb", ode_input_source="none",
+        scale_hidden=128, scale_eps=1e-8,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

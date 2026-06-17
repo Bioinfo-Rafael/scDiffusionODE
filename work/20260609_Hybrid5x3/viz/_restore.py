@@ -76,6 +76,12 @@ def normalize_config(cfg, **cli_overrides):
         ratio_reg_target=float(cfg.get("ratio_reg_target", 1.0)),
         hybrid_scale_init=float(cfg.get("hybrid_scale_init", 1.0)),
         hybrid_scale_eps=float(cfg.get("hybrid_scale_eps", 1e-8)),
+        # scale_model mode 関連（旧 config に無ければ既存挙動の default）
+        scale_model_type=str(cfg.get("scale_model_type", "none")),
+        scale_input_source=str(cfg.get("scale_input_source", "ml_emb")),
+        ode_input_source=str(cfg.get("ode_input_source", "none")),
+        scale_hidden=int(cfg.get("scale_hidden", 128)),
+        scale_eps=float(cfg.get("scale_eps", 1e-8)),
         diffusion_steps=int(cfg.get("diffusion_steps", 1000)),
     )
     for k, v in cli_overrides.items():
@@ -114,6 +120,11 @@ def build_model(cfg_norm, model_path, gene_list, diffusion_num_timesteps, edge_t
         ratio_reg_target=cfg_norm["ratio_reg_target"],
         hybrid_scale_init=cfg_norm["hybrid_scale_init"],
         hybrid_scale_eps=cfg_norm["hybrid_scale_eps"],
+        scale_model_type=cfg_norm["scale_model_type"],
+        scale_input_source=cfg_norm["scale_input_source"],
+        ode_input_source=cfg_norm["ode_input_source"],
+        scale_hidden=cfg_norm["scale_hidden"],
+        scale_eps=cfg_norm["scale_eps"],
         device=device,
     )
     sd = dist_util.load_state_dict(model_path, map_location="cpu")
@@ -201,6 +212,107 @@ def find_checkpoints(model_path, max_ckpts=8):
     return cks
 
 
+# ------------------------------------------------------------------
+# 可視化用 checkpoint 選択: raw init(model000000.pt) + EMA 5 点
+# ------------------------------------------------------------------
+def _collect_ckpt_files(model_path, patterns):
+    """model_path の run/checkpoint 周辺に限定して checkpoint を集める: {abspath: step}。
+
+    同一ディレクトリ直下 + その配下（recursive）のみ探索 → 別実験の checkpoint は拾わない。
+    """
+    d = os.path.dirname(os.path.abspath(model_path))
+    out = {}
+    for pat in patterns:
+        for p in glob.glob(os.path.join(d, pat)):
+            out[os.path.abspath(p)] = _step_of(p)
+        for p in glob.glob(os.path.join(d, "**", pat), recursive=True):
+            out[os.path.abspath(p)] = _step_of(p)
+    return out
+
+
+def _resolve_total_steps(cfg, ema_steps):
+    """学習総ステップ N を決める: lr_anneal_steps → total_steps → 存在する ema の最大 step。"""
+    if cfg:
+        for key in ("lr_anneal_steps", "total_steps"):
+            v = cfg.get(key)
+            try:
+                if v is not None and int(v) > 0:
+                    return int(v)
+            except (TypeError, ValueError):
+                pass
+    if ema_steps:
+        return max(ema_steps)
+    return None
+
+
+def find_viz_checkpoints(model_path, cfg=None, max_ema_points=5, include_init=True,
+                         prefer_ema=True, log_targets=False, log=print):
+    """param 分布 / effective W の step 比較に使う最大 (1+max_ema_points) checkpoint を選ぶ。
+
+    返り値: [{"label","step","path","kind"}]
+      - kind="model_init": model000000.pt（初期化直後の raw param。1 列目）
+      - kind="ema"       : ema_*.pt のうち step が np.linspace(0, N, max_ema_points) に最も近い点
+      - kind="model"     : ema が一つも無いときの fallback（model*.pt を step 順）
+
+    N は lr_anneal_steps → total_steps → 存在する ema の最大 step で決める。
+    完全一致が無ければ最近傍 ema を採用。EMA 同士は path 重複を除去。
+    model000000.pt は EMA と step が同じでも別 kind として必ず残す（raw init ≠ EMA）。
+    checkpoint が少ない / 無い場合も落ちずに使える分だけ返す。
+    log_targets=True で「target -> 選択した EMA step」の対応を log に出す（既定 False）。
+    （注: max_ema_points=5 のとき linspace(0,N,5)=[0,N/4,N/2,3N/4,N] で従来と同値。）
+    """
+    result = []
+    if not model_path:
+        return result
+    ck_dir = os.path.dirname(os.path.abspath(model_path))
+
+    # --- raw init: model000000.pt ---
+    if include_init:
+        init_path = os.path.join(ck_dir, "model000000.pt")
+        if not os.path.exists(init_path):
+            cand = sorted(_collect_ckpt_files(model_path, ["model000000.pt"]).keys())
+            init_path = cand[0] if cand else None
+        if init_path and os.path.exists(init_path):
+            result.append({"label": "init model000000", "step": 0,
+                           "path": init_path, "kind": "model_init"})
+
+    # --- EMA max_ema_points 点（np.linspace(0, N, max_ema_points) に最近傍）---
+    ema_map = _collect_ckpt_files(model_path, ["ema_*.pt"])
+    ema = sorted((s, p) for p, s in ema_map.items() if s >= 0)
+    if ema and prefer_ema:
+        N = _resolve_total_steps(cfg, [s for s, _ in ema])
+        if N and N > 0:
+            targets = list(np.linspace(0.0, float(N), max_ema_points))
+        else:  # N 不明 → 存在 ema の範囲を等間隔
+            lo, hi = ema[0][0], ema[-1][0]
+            targets = list(np.linspace(lo, hi, max_ema_points))
+        seen = set()
+        for tg in targets[:max_ema_points]:
+            s, p = min(ema, key=lambda sp: abs(sp[0] - tg))
+            if log_targets:
+                log(f"[params] heatmap EMA target={tg:.1f} -> selected step={s}")
+            if p in seen:
+                continue
+            seen.add(p)
+            result.append({"label": f"ema step{s}", "step": s, "path": p, "kind": "ema"})
+    else:
+        # fallback: ema が無い → model*.pt を step 順（init と重複する path は除く）
+        init_paths = {r["path"] for r in result}
+        n_legacy = max_ema_points + (1 if include_init else 0)
+        for s, p in find_checkpoints(model_path, n_legacy):
+            ap = os.path.abspath(p)
+            if ap in init_paths:
+                continue
+            result.append({"label": f"model step{s}", "step": s, "path": ap, "kind": "model"})
+
+    return result
+
+
+def viz_ckpts_as_pairs(ckpt_dicts):
+    """find_viz_checkpoints の dict 列を旧来の (step, path) 列に変換（互換ヘルパ）。"""
+    return [(c["step"], c["path"]) for c in ckpt_dicts]
+
+
 def extract_param_groups(sd, cfg):
     """checkpoint state_dict から branch に応じた学習パラメタ群を抽出。
 
@@ -260,6 +372,11 @@ def extract_param_groups(sd, cfg):
     ml_keys = [k for k in sd if k.startswith("ml_model.")]
     if ml_keys:
         groups["cellunet"] = np.concatenate([npy(k).ravel() for k in ml_keys])
+
+    # --- scale_model（scale_model mode を使ったときだけ存在。W 系ではなく misc 扱い）---
+    sm_keys = [k for k in sd if k.startswith("scale_model.")]
+    if sm_keys:
+        groups["scale_model"] = np.concatenate([npy(k).ravel() for k in sm_keys])
 
     # --- scalar（log_scale）---
     if "log_scale" in sd:

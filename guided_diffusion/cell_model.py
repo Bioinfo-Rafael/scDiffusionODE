@@ -85,11 +85,40 @@ class Cell_Unet(nn.Module):
             x = layer(x, emb)  
             x = x + history.pop()  # Skip connection  
   
-        x = self.out1(x)  
+        x = self.out1(x)
         x = self.norm_out(x)
-        x = self.act(x)  
-        x = self.out2(x)  
-        return x  
+        x = self.act(x)
+        x = self.out2(x)
+        return x
+
+    def forward_with_features(self, x_input, t, y=None):
+        """forward() と同一計算 + 中間表現を返す: (ml_out, {"ml_emb", "emb"})。
+
+        ml_emb は encoder (self.layers) を全て通した直後（history.pop() 前）の x で、
+        次元は hidden_num[-1]。forward() は変更せず、本メソッドは同じ系列を再現するため
+        ml_out は forward() と一致する（Cell_Unet は BatchNorm を持たず決定論的）。
+        """
+        emb = self.time_embedding(t)
+        x = x_input.float()
+
+        history = []
+        for layer in self.layers:
+            x = layer(x, emb)
+            history.append(x)
+
+        ml_emb = x  # encoder 最深部（history.pop() 前）。dim = hidden_num[-1]
+
+        history.pop()
+
+        for layer in self.reverse_layers:
+            x = layer(x, emb)
+            x = x + history.pop()  # Skip connection
+
+        x = self.out1(x)
+        x = self.norm_out(x)
+        x = self.act(x)
+        x = self.out2(x)
+        return x, {"ml_emb": ml_emb, "emb": emb}
 
 
 class Cell_classifier(nn.Module):

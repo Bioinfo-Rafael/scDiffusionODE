@@ -56,7 +56,9 @@ def main():
 
     if "params" not in skip:
         cmd = [PY, os.path.join(HERE, "plot_params.py"), *common,
-               "--output_dir", os.path.join(out, "params")]
+               "--output_dir", os.path.join(out, "params"),
+               "--heatmap_max_ema_points", str(a.heatmap_max_ema_points),
+               "--heatmap_n_t_grid", str(a.heatmap_n_t_grid)]
         rcs["plot_params"] = run("2/4 plot_params", cmd)
 
     if "eval_io" not in skip:
@@ -100,6 +102,9 @@ def create_argparser():
     p.add_argument("--num_noise_draws", type=int, default=4)
     p.add_argument("--weighting", default="both")
     p.add_argument("--group_col", default="Superclass")
+    # plot_params の effective-W heatmap 専用粒度（未指定でも plot_params 既定 10/20 で動く）
+    p.add_argument("--heatmap_max_ema_points", type=int, default=10)
+    p.add_argument("--heatmap_n_t_grid", type=int, default=20)
     return p
 
 
