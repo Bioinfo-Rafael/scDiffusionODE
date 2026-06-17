@@ -155,6 +155,12 @@ python run_pipeline_5x3.py --ode_branch lora --hybrid_norm_mode ratio_reg \
 # run 識別名: --name <名前> → 出力が runs/{model}/{YYYYMMDD_HHMMSS}_<名前>/ になる（同条件の振り分けに便利）
 ```
 
+**実行条件の記録**: `exp_config.json`（train dir 内）に **モデル/正則化条件に加え学習ハイパラ全部**を保存
+（`run_name` / `batch_size` / `lr` / `lr_anneal_steps` / `weight_decay` / `ema_rate` / `save_interval` / `log_interval` /
+`schedule_sampler` / `model_name` ＋ `command`=叩いた cell_train コマンドそのまま ＋ `all_args`=全引数スナップショット）。
+pipeline 経由なら **`runs/{model}/{date[_name]}/pipeline_command.txt`** に pipeline コマンドも残る。
+（sample 復元は従来キーだけ参照するので追加は無害・後方互換。）
+
 **3 段の流れ**（pipeline が学習ログから model_path / `exp_config.json` / loss_details.csv を grep して次段へ渡す）:
 1. `cell_train_5x3.py`（`--save_interval 1` 固定）→ `train/.../checkpoints/<name>/model00000{0..N}.pt` + `ema_*` + `loss_details.csv` + `exp_config.json`
 2. `cell_sample_5x3.py`（`exp_config.json` で再構築）→ `sample/.../*.npz`

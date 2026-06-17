@@ -16,6 +16,7 @@ data/edge は未指定でも local_paths fallback でローカル解決される
 
 import argparse
 import os
+import shlex
 import subprocess
 import sys
 
@@ -59,10 +60,18 @@ def main():
     # --name 指定時は日付 dir の末尾に _{name} を付けて run を識別しやすくする。
     out_dir = run_paths.run_base(HERE, exp_id, create=not a.dry_run, suffix=a.name)  # dry-run では dir を作らない
 
+    # 叩いた pipeline コマンドそのものを out_dir 直下に残す（train が走る前に書く）。
+    if not a.dry_run:
+        with open(os.path.join(out_dir, "pipeline_command.txt"), "w") as f:
+            f.write("# run_pipeline_5x3.py invocation\n")
+            f.write(f"exp_id={exp_id}\n")
+            f.write(" ".join(shlex.quote(s) for s in sys.argv) + "\n")
+
     # 1) TRAIN
     train = [PY, os.path.join(HERE, "cell_train_5x3.py"),
              "--data_dir", a.data_dir, "--edge_tsv_path", a.edge_tsv_path,
              "--ode_branch", a.ode_branch, "--hybrid_norm_mode", a.hybrid_norm_mode,
+             "--name", a.name,
              "--rank", str(a.rank), "--K", str(a.K),
              "--SoftReg", str(a.SoftReg), "--ode_reg_lambda", str(a.ode_reg_lambda),
              "--lr_anneal_steps", str(a.lr_anneal_steps), "--batch_size", str(a.batch_size),

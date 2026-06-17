@@ -12,6 +12,7 @@ import argparse
 import os
 import sys
 import json
+import shlex
 from datetime import datetime
 
 sys.path.insert(0, '/home/suzuki/Projects/scDiffusion')
@@ -54,7 +55,8 @@ def main():
         base_output_dir = args.output_dir
     else:
         _model = f"{args.ode_branch}__{args.hybrid_norm_mode}"
-        base_output_dir = run_paths.stage_dir(run_paths.run_base(_HERE, _model), "train")
+        base_output_dir = run_paths.stage_dir(
+            run_paths.run_base(_HERE, _model, suffix=args.name), "train")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     train_output_dir = os.path.join(base_output_dir, f"{timestamp}_train")
     counter = 1
@@ -158,6 +160,22 @@ def main():
         "diffusion_steps": args.diffusion_steps,
         "seed": args.seed,
         "n_genes": len(gene_list),
+        # ---- 実行条件の完全記録（再現用。sample 復元は上のキーだけ参照するので追加は無害）----
+        "run_name": args.name,
+        "batch_size": args.batch_size,
+        "microbatch": args.microbatch,
+        "lr": args.lr,
+        "weight_decay": args.weight_decay,
+        "ema_rate": args.ema_rate,
+        "lr_anneal_steps": args.lr_anneal_steps,
+        "save_interval": args.save_interval,
+        "log_interval": args.log_interval,
+        "schedule_sampler": args.schedule_sampler,
+        "use_fp16": args.use_fp16,
+        "model_name": args.model_name,
+        "train_output_dir": train_output_dir,
+        "command": " ".join(shlex.quote(s) for s in sys.argv),  # 叩いたコマンドそのまま
+        "all_args": {k: v for k, v in sorted(vars(args).items())},  # 全引数スナップショット
     }
     config_path = os.path.join(train_output_dir, "exp_config.json")
     with open(config_path, "w") as f:
@@ -223,6 +241,7 @@ def create_argparser():
         model_name="hybrid5x3",
         save_dir='output/hybrid5x3',
         output_dir="",
+        name="",   # run 識別名（exp_config.json に run_name で記録、output_dir 未指定時は日付 dir 末尾に付与）
         seed=1234,
         # ---- regularization (existing hook) ----
         SoftReg=True,
