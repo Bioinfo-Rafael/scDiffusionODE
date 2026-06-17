@@ -85,11 +85,16 @@ class GeneODE(nn.Module):
         self._cached_ratio_reg = None
 
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, t=None) -> torch.Tensor:
         """
         x : (cells, len(gene_list))  — 外部順序そのまま
+        t : 省略可（デフォルト None）。GeneODE は時刻非依存なので無視する。
+            t を渡す hybrid（MathML_Hybrid 等）に GeneODE をそのまま差し込めるよう、
+            互換のため引数だけ受ける（既存呼び出し ode_model(x) は不変）。
         戻り値も同形状
         """
+        # t は時刻非依存モデルのため未使用（互換目的の引数）
+        del t
         # Ensure input is float32 to match model parameters
         x = x.float()
         

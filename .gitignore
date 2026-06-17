@@ -44,7 +44,20 @@ output/*
 *.npz
 *.parquet
 
+# --- Generated figures (images) ---
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.svg
+
+# --- Generated experiment outputs (train/sample/viz + matrix summaries) ---
+# runs/ 配下は train(checkpoints/loss_details.csv) / sample(npz) / viz(png) など全て生成物。
+runs/
+work/*/experiments/
+
 # --- Repository policy notes ---
 # Do not ignore external_data/*.tsv.
 # Do not ignore LegacyFiles/ unless the migration policy changes.
-# Do not ignore work/ unless the migration policy changes.
+# Do not ignore work/ (code) — but work/*/runs/ と work/*/experiments/（生成物）は ignore する。
+# 図を意図的に commit したい場合は `git add -f path/to.png`。

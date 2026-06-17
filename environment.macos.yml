@@ -1,0 +1,42 @@
+name: scdiffusion
+# macOS (Apple Silicon / arm64) 用。
+# CUDA は NVIDIA GPU + Linux/Windows 専用のため、'pytorch-cuda' と 'nvidia' channel を除外。
+# PyTorch は osx-arm64 の CPU/MPS ビルドが入る。GPU(CUDA) 学習は Linux+NVIDIA 機で行うこと。
+# 元の environment.yml はそのまま保持（リモート Linux+CUDA 環境用）。
+channels:
+  - pytorch
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.9
+  - pytorch=2.5.1
+  - numpy=1.24.0
+  - pandas=2.0.0
+  - scipy=1.10.0
+  - scikit-learn=1.2.0
+  - matplotlib=3.7.0
+  - seaborn=0.12.0
+  - jupyter=1.0.0
+  - ipykernel=6.22.0
+  - h5py=3.8.0
+  - pyarrow=20.0.0
+  - python-igraph=0.11.9
+  - pip=23.0.0
+  - pip:
+    - anndata==0.8.0
+    - blobfile==2.0.2
+    - click==8.1.8
+    - llvmlite==0.43.0
+    - loompy==3.0.7
+    - lxml==4.9.4
+    - natsort==8.4.0
+    - numba==0.60.0
+    - numpy-groupies==0.11.3
+    - pycryptodomex==3.23.0
+    - pynndescent==0.5.13
+    - scanpy==1.9.3
+    - scvelo==0.2.5
+    - session-info==1.0.1
+    - stdlib-list==0.11.1
+    - tqdm==4.65.0
+    - umap-learn==0.5.7
