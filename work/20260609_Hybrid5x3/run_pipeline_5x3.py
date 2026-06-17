@@ -51,7 +51,11 @@ def grep_val(text, key):
 
 
 def main():
-    a = create_argparser().parse_args()
+    # pipeline が知らないフラグ（extra）は cell_train_5x3.py にそのまま forward する。
+    #   → lr / weight_decay / ema_rate / seed / schedule_sampler / ode_reg_norm /
+    #     ratio_reg_weight / ratio_reg_target / time_dim / field_* / use_decay /
+    #     model_name / save_dir / resume_checkpoint 等、cell_train の任意 keyword を指定可能。
+    a, extra = create_argparser().parse_known_args()
     exp_id = f"{a.ode_branch}__{a.hybrid_norm_mode}"
     if a.hybrid_norm_mode == "scale_model":
         # scale_model は入力ソース別に分離（scale_model_x / scale_model_ml_emb）
@@ -75,12 +79,14 @@ def main():
              "--rank", str(a.rank), "--K", str(a.K),
              "--SoftReg", str(a.SoftReg), "--ode_reg_lambda", str(a.ode_reg_lambda),
              "--lr_anneal_steps", str(a.lr_anneal_steps), "--batch_size", str(a.batch_size),
-             "--diffusion_steps", str(a.diffusion_steps), "--log_interval", "1",
-             "--save_interval", "1",
+             "--diffusion_steps", str(a.diffusion_steps),
+             "--log_interval", str(a.log_interval),
+             "--save_interval", str(a.save_interval),
              "--scale_model_type", a.scale_model_type,
              "--scale_input_source", a.scale_input_source,
              "--ode_input_source", a.ode_input_source,
              "--scale_hidden", str(a.scale_hidden), "--scale_eps", str(a.scale_eps),
+             *extra,  # pipeline 未知フラグ（lr/seed/... 任意の cell_train keyword）を素通し
              "--output_dir", os.path.join(out_dir, "train")]
     t_out = run_capture("1/3 cell_train_5x3", train, a.dry_run)
     model_path = grep_val(t_out, "TRAINED_MODEL_PATH=")
@@ -119,7 +125,8 @@ def main():
 
 
 def create_argparser():
-    p = argparse.ArgumentParser()
+    # allow_abbrev=False: `--lr` を `--lr_anneal_steps` の略記と誤認させない（extra へ正しく流す）
+    p = argparse.ArgumentParser(allow_abbrev=False)
     # branch/mode
     p.add_argument("--ode_branch", default="lora")
     p.add_argument("--hybrid_norm_mode", default="ratio_reg")
@@ -138,6 +145,9 @@ def create_argparser():
     p.add_argument("--lr_anneal_steps", type=int, default=4)  # >=2: loss曲線/複数ckpt用
     p.add_argument("--batch_size", type=int, default=8)
     p.add_argument("--diffusion_steps", type=int, default=1000)
+    # checkpoint/log 頻度（既定 1000。短い test では小さく、長時間 run では大きく調整）
+    p.add_argument("--save_interval", type=int, default=1000)
+    p.add_argument("--log_interval", type=int, default=1000)
     # sample
     p.add_argument("--num_samples", type=int, default=16)
     p.add_argument("--sample_batch_size", type=int, default=8)

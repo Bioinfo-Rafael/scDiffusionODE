@@ -35,12 +35,15 @@ cd "$WORK"
 # --- 設定（env で上書き可）。STEPS>=2: loss 曲線/複数 checkpoint 用 ---
 STEPS="${STEPS:-3}"; BS="${BS:-8}"; DIFF="${DIFF:-1000}"
 NSAMP="${NSAMP:-8}"; SBS="${SBS:-8}"
+# test は毎 step checkpoint を残したいので 1（pipeline 既定 1000 に依存しない。env で上書き可）
+SAVEINT="${SAVEINT:-1}"; LOGINT="${LOGINT:-1}"
 MAXCELLS="${MAXCELLS:-300}"; AMAX="${AMAX:-150}"; NT="${NT:-4}"
 BRANCHES="${BRANCHES:-geneode lowrank lincomb matsum lora}"
 [ -n "$DRY" ] && DRYFLAG="--dry-run" || DRYFLAG=""
 [ -n "$SKIP" ] && SKIPFLAG="--skip $SKIP" || SKIPFLAG=""
 
 COMMON="--lr_anneal_steps $STEPS --batch_size $BS --diffusion_steps $DIFF \
+        --save_interval $SAVEINT --log_interval $LOGINT \
         --num_samples $NSAMP --sample_batch_size $SBS \
         --max_cells $MAXCELLS --analyze_max_cells $AMAX --num_t_points $NT $DRYFLAG $SKIPFLAG"
 

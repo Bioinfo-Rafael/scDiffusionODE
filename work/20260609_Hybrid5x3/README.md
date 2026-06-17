@@ -145,15 +145,25 @@ python run_experiments_5x3.py --skip-existing
 ```bash
 cd work/20260609_Hybrid5x3
 
-# 最小テスト（lora / ratio_reg。lr_anneal_steps は 2 以上にすること）
+# 最小テスト（lora / ratio_reg。lr_anneal_steps は 2 以上、save_interval は step 数以下にすること）
 python run_pipeline_5x3.py --ode_branch lora --hybrid_norm_mode ratio_reg \
-  --lr_anneal_steps 4 --batch_size 8 --diffusion_steps 1000 \
+  --lr_anneal_steps 4 --save_interval 1 --log_interval 1 --batch_size 8 --diffusion_steps 1000 \
   --num_samples 16 --max_cells 120 --analyze_max_cells 100 --num_t_points 4
 
 # コマンドだけ確認: --dry-run / viz を省く: --skip_viz / 一部だけ: --skip velocity,analyze
 # branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}、mode ∈ {ratio_reg, normed_learned_scale, none}
 # run 識別名: --name <名前> → 出力が runs/{model}/{YYYYMMDD_HHMMSS}_<名前>/ になる（同条件の振り分けに便利）
+# --save_interval/--log_interval 既定は 1000。短い test では毎 step 残すため 1 を明示（さもないと init+最終の2点だけ）
+# 任意の学習 keyword（lr/weight_decay/ema_rate/seed/ode_reg_norm/ratio_reg_*/time_dim/field_*/model_name 等）も
+# そのまま渡せる（pipeline が知らないフラグは cell_train にそっくり forward。例: --lr 3e-4 --seed 7）
 ```
+
+**任意の cell_train keyword を素通し**: pipeline が明示的に持たないフラグは `parse_known_args` で拾って
+`cell_train_5x3.py` にそのまま forward する（`allow_abbrev=False` で `--lr` を `--lr_anneal_steps` と誤認しない）。
+→ `lr` / `weight_decay` / `ema_rate` / `seed` / `schedule_sampler` / `ode_reg_norm` / `ratio_reg_weight` /
+`ratio_reg_target` / `time_dim` / `field_hidden` / `field_dropout` / `use_decay` / `model_name` / `save_dir` 等が
+pipeline 経由で指定可能。**受け側 cell_train が持たない keyword はその train ステップで `unrecognized arguments`** になる
+（HybridNorm/MathMLP の `cell_train_20260609.py` は `seed` 等を持たない。下表参照）。
 
 **実行条件の記録**: `exp_config.json`（train dir 内）に **モデル/正則化条件に加え学習ハイパラ全部**を保存
 （`run_name` / `batch_size` / `lr` / `lr_anneal_steps` / `weight_decay` / `ema_rate` / `save_interval` / `log_interval` /
@@ -162,7 +172,7 @@ pipeline 経由なら **`runs/{model}/{date[_name]}/pipeline_command.txt`** に 
 （sample 復元は従来キーだけ参照するので追加は無害・後方互換。）
 
 **3 段の流れ**（pipeline が学習ログから model_path / `exp_config.json` / loss_details.csv を grep して次段へ渡す）:
-1. `cell_train_5x3.py`（`--save_interval 1` 固定）→ `train/.../checkpoints/<name>/model00000{0..N}.pt` + `ema_*` + `loss_details.csv` + `exp_config.json`
+1. `cell_train_5x3.py`（`--save_interval` を forward。test は 1 推奨）→ `train/.../checkpoints/<name>/model*.pt` + `ema_*` + `loss_details.csv` + `exp_config.json`
 2. `cell_sample_5x3.py`（`exp_config.json` で再構築）→ `sample/.../*.npz`
 3. `viz/run_all_viz.py` が役割別 4 スクリプトを呼び、`viz/{loss,params,eval_io,velocity}/` に分離出力:
    - `plot_loss.py` → `viz/loss/`、`plot_params.py` → `viz/params/<ts>_viz/`、
@@ -185,8 +195,12 @@ bash work/run_all_20260609_pipelines.sh
 ```
 
 **注意**:
-- `--lr_anneal_steps` は **2 以上**必須。1 だと loss 曲線が描けず、param 分布 / W t×step も checkpoint 1 点になる
-  （pipeline は `save_interval=1` 固定なので **step 数 = checkpoint 数**）。
+- `--lr_anneal_steps` は **2 以上**必須。1 だと loss 曲線が描けない。
+- **`--save_interval` / `--log_interval` 既定は 1000**。`save_interval > lr_anneal_steps` だと checkpoint は
+  `model000000`(init) と最終の **2 点だけ**になり、step 横軸の branch-specific 図 / W t×step が退化する。
+  短い test では **`--save_interval 1`**（= step 数 = checkpoint 数）、長時間 run では 5000 等にする。
+  test ランチャ（`run_all_pipelines.sh` / `test_all_models.sh`）は `--save_interval 1 --log_interval 1` を自動付与
+  （`SAVEINT` / `LOGINT` env で上書き可）。
 - `--data_dir` / `--edge_tsv_path` は未指定/`/home/suzuki/...` でも `local_paths.resolve_path` でローカル解決
   （リモート default・ローカル fallback）。`--diffusion_steps` は train/sample/viz で揃える（≥20、既定 1000）。
 - velocity はローカル env（numpy≥1.24 / pandas≥2.0 + scvelo0.2.5）でも `plot_velocity_umap.py` 冒頭の
@@ -248,14 +262,14 @@ BRANCHES="lora" bash run_all_pipelines.sh
 ```
 **(b) 特定の 1 (モデル, 方法) だけ — `run_pipeline_5x3.py` を直接:**
 ```bash
-# scale_model（ml_emb 入力）
+# scale_model（ml_emb 入力）。短い test は --save_interval 1（既定 1000 だと checkpoint が init+最終の2点）
 python run_pipeline_5x3.py --ode_branch lora --hybrid_norm_mode scale_model \
   --scale_model_type simple --scale_input_source ml_emb \
-  --lr_anneal_steps 3 --batch_size 8 --diffusion_steps 1000 --num_samples 8
+  --lr_anneal_steps 3 --save_interval 1 --batch_size 8 --diffusion_steps 1000 --num_samples 8
 
 # 通常 blend / 比正則化（scale 引数は不要）
-python run_pipeline_5x3.py --ode_branch matsum --hybrid_norm_mode none      --lr_anneal_steps 3 --num_samples 8
-python run_pipeline_5x3.py --ode_branch geneode --hybrid_norm_mode ratio_reg --lr_anneal_steps 3 --num_samples 8
+python run_pipeline_5x3.py --ode_branch matsum --hybrid_norm_mode none      --lr_anneal_steps 3 --save_interval 1 --num_samples 8
+python run_pipeline_5x3.py --ode_branch geneode --hybrid_norm_mode ratio_reg --lr_anneal_steps 3 --save_interval 1 --num_samples 8
 ```
 - `--ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}`
 - `scale_model` のときだけ `--scale_model_type simple --scale_input_source {x|ml_emb}` を付ける
@@ -296,11 +310,11 @@ python run_pipeline_5x3.py --ode_branch geneode --hybrid_norm_mode ratio_reg --l
 `lr=1e-4` / `ema_rate=0.9999` / `weight_decay=0.0001` / `ode_reg_norm='l1'`。変更不要。
 
 ### ⚠️ 注意点
-- **`run_pipeline_5x3.py` は内部で `--save_interval 1 --log_interval 1` を固定**（短時間テスト前提）。
-  100000 step だと checkpoint 10 万個になる（旧は `save_interval=5000 / log_interval=1000`）。
-  **本番長時間 run を忠実に再現するなら下記 (B) で `cell_train_5x3.py` を直接叩く**。
+- **`run_pipeline_5x3.py` の `--save_interval` / `--log_interval` 既定は 1000**（旧 `train_20260123.sh` の
+  `5000 / 1000` に近い値）。100000 step なら下記 (A) の **`--save_interval 5000 --log_interval 1000`** で旧と同値。
+  逆に短い検証では `save_interval > step 数`だと checkpoint が init+最終の 2 点になるので `--save_interval 1` を付ける。
 
-### (A) パイプラインで（短め検証向け・lambda 3 条件）
+### (A) パイプラインで（lambda 3 条件・忠実再現）
 ```bash
 export PATH="$HOME/miniconda3/envs/scdiffusion/bin:$PATH"
 cd work/20260609_Hybrid5x3
@@ -309,12 +323,16 @@ for L in 5 50 500; do
     --ode_branch geneode --hybrid_norm_mode none \
     --SoftReg True --ode_reg_lambda $L --name lambda$L \
     --batch_size 128 --diffusion_steps 1000 --lr_anneal_steps 100000 \
+    --save_interval 5000 --log_interval 1000 \
     --num_samples 10000 --sample_batch_size 50
 done
+# ※ --save_interval/--log_interval 既定は 1000。長時間 run は 5000/1000（旧 train_20260123.sh と同値）に。
 # ※ --name で日付 dir 末尾に _{name} が付く → runs/geneode__none/<日時>_lambda5/ のように lambda 別に分離
 ```
 
-### (B) 忠実再現（`save_interval=5000` を効かせる・train/sample を直接実行）
+### (B) train/sample を個別に制御したいとき（直接実行）
+> (A) でも `--save_interval` を渡せるので忠実再現は (A) で可能。train だけ流す/サンプル数を後で変える等、
+> 段階を分けたいときはこちら。
 ```bash
 export PATH="$HOME/miniconda3/envs/scdiffusion/bin:$PATH"
 cd work/20260609_Hybrid5x3

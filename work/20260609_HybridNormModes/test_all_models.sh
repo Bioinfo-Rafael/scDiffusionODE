@@ -16,10 +16,13 @@ PIPE="$WORK/run_pipeline_hybridnorm.py"
 
 STEPS="${STEPS:-4}"; BS="${BS:-8}"; DIFF="${DIFF:-1000}"
 NSAMP="${NSAMP:-16}"; SBS="${SBS:-8}"
+# test は毎 step checkpoint を残したいので 1（pipeline 既定 1000 に依存しない。env で上書き可）
+SAVEINT="${SAVEINT:-1}"; LOGINT="${LOGINT:-1}"
 MAXCELLS="${MAXCELLS:-120}"; AMAX="${AMAX:-100}"; NT="${NT:-4}"
 [ -n "$DRY" ] && DRYFLAG="--dry-run" || DRYFLAG=""
 
 COMMON="--lr_anneal_steps $STEPS --batch_size $BS --diffusion_steps $DIFF \
+        --save_interval $SAVEINT --log_interval $LOGINT \
         --num_samples $NSAMP --sample_batch_size $SBS \
         --max_cells $MAXCELLS --analyze_max_cells $AMAX --num_t_points $NT $DRYFLAG"
 

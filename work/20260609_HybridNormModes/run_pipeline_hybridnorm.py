@@ -45,7 +45,9 @@ def grep(text, key):
 
 
 def main():
-    a = create_argparser().parse_args()
+    # pipeline 未知フラグ（extra）は cell_train_20260609.py にそのまま forward する
+    #   → lr / weight_decay / ema_rate / seed / ode_reg_norm / model_name 等の任意 keyword を指定可能。
+    a, extra = create_argparser().parse_known_args()
     exp_id = f"hybridnorm__{a.hybrid_norm_mode}"
     out = run_paths.run_base(HERE, exp_id, create=not a.dry_run)   # {HERE}/runs/{model}/{YYYYMMDD}（dry-run は作らない）
 
@@ -54,8 +56,11 @@ def main():
              "--hybrid_norm_mode", a.hybrid_norm_mode, "--SoftReg", a.SoftReg,
              "--ode_reg_lambda", str(a.ode_reg_lambda),
              "--lr_anneal_steps", str(a.lr_anneal_steps), "--batch_size", str(a.batch_size),
-             "--diffusion_steps", str(a.diffusion_steps), "--log_interval", "1",
-             "--save_interval", "1", "--output_dir", os.path.join(out, "train")]
+             "--diffusion_steps", str(a.diffusion_steps),
+             "--log_interval", str(a.log_interval),
+             "--save_interval", str(a.save_interval),
+             *extra,  # pipeline 未知フラグ（lr/seed/... 任意の cell_train keyword）を素通し
+             "--output_dir", os.path.join(out, "train")]
     t = run_capture("1/3 cell_train (HybridNorm)", train, a.dry_run)
     mp, cfg, mdir = grep(t, "TRAINED_MODEL_PATH="), grep(t, "HYBRID_CONFIG="), grep(t, "MODEL_DIR=")
     loss = os.path.join(mdir, "loss_details.csv") if mdir else ""
@@ -80,13 +85,17 @@ def main():
 
 
 def create_argparser():
-    p = argparse.ArgumentParser()
+    # allow_abbrev=False: `--lr` を `--lr_anneal_steps` の略記と誤認させない（extra へ正しく流す）
+    p = argparse.ArgumentParser(allow_abbrev=False)
     p.add_argument("--hybrid_norm_mode", default="ratio_reg")
     p.add_argument("--SoftReg", default="True")
     p.add_argument("--ode_reg_lambda", type=float, default=5.0)
     p.add_argument("--lr_anneal_steps", type=int, default=4)  # >=2: loss曲線/複数ckpt用
     p.add_argument("--batch_size", type=int, default=8)
     p.add_argument("--diffusion_steps", type=int, default=1000)
+    # checkpoint/log 頻度（既定 1000。短い test では save_interval<=step 数にする）
+    p.add_argument("--save_interval", type=int, default=1000)
+    p.add_argument("--log_interval", type=int, default=1000)
     p.add_argument("--num_samples", type=int, default=16)
     p.add_argument("--sample_batch_size", type=int, default=8)
     p.add_argument("--max_cells", type=int, default=800)

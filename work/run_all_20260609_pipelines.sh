@@ -27,9 +27,11 @@ run () {  # $1=label $2=dir $3=script ; rest=script-specific args
   if [ "$rc" -eq 0 ]; then SUMMARY="${SUMMARY}  OK   : ${label}\n"; else SUMMARY="${SUMMARY}  FAIL : ${label} (exit=${rc})\n"; FAIL=1; fi
 }
 
-run "Hybrid5x3 (lora/ratio_reg)"  20260609_Hybrid5x3      run_pipeline_5x3.py        --ode_branch lora --hybrid_norm_mode ratio_reg
-run "HybridNorm (ratio_reg)"      20260609_HybridNormModes run_pipeline_hybridnorm.py --hybrid_norm_mode ratio_reg
-run "MathMLP (lowrank)"           20260609_MathMLPHybrid   run_pipeline_mathmlp.py    --model_type lowrank
+# 3 pipeline とも save_interval/log_interval を CLI で持つ（既定 1000）。短い smoke test で毎 step
+# checkpoint を残すため 1 を明示（さもないと init+最終の 2 点だけになる）。
+run "Hybrid5x3 (lora/ratio_reg)"  20260609_Hybrid5x3      run_pipeline_5x3.py        --ode_branch lora --hybrid_norm_mode ratio_reg --save_interval 1 --log_interval 1
+run "HybridNorm (ratio_reg)"      20260609_HybridNormModes run_pipeline_hybridnorm.py --hybrid_norm_mode ratio_reg --save_interval 1 --log_interval 1
+run "MathMLP (lowrank)"           20260609_MathMLPHybrid   run_pipeline_mathmlp.py    --model_type lowrank --save_interval 1 --log_interval 1
 
 echo ""; echo "=================== SUMMARY ==================="
 printf "%b" "$SUMMARY"
