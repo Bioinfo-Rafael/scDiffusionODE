@@ -152,6 +152,7 @@ python run_pipeline_5x3.py --ode_branch lora --hybrid_norm_mode ratio_reg \
 
 # コマンドだけ確認: --dry-run / viz を省く: --skip_viz / 一部だけ: --skip velocity,analyze
 # branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}、mode ∈ {ratio_reg, normed_learned_scale, none}
+# run 識別名: --name <名前> → 出力が runs/{model}/{YYYYMMDD_HHMMSS}_<名前>/ になる（同条件の振り分けに便利）
 ```
 
 **3 段の流れ**（pipeline が学習ログから model_path / `exp_config.json` / loss_details.csv を grep して次段へ渡す）:
@@ -258,3 +259,71 @@ python run_pipeline_5x3.py --ode_branch geneode --hybrid_norm_mode ratio_reg --l
 ### 出力
 `runs/{branch}__{none|ratio_reg|scale_model_x|scale_model_ml_emb}/{YYYYMMDD_HHMMSS}/{train,sample,viz}/`
 （`runs/` は .gitignore 済み。scale_model は checkpoint に `scale_model.*` が入り `viz/params/.../param_dist_misc.png` に出る）。
+
+---
+
+## 10. 旧 `work/20260215_embryonic` 条件の再現（lambda 振り）
+
+旧実験（`VaryLambda20260224.sh → train_20260123.sh → cell_train_soft20260123_hvg1024.py`）の正体は
+**`GeneODE(soft=True)` + `Cell_Unet` を `ODE_ML_Hybrid` で線形内分比 blend したもの**:
+`out = r·ode_out + (1−r)·ml_out`（`r = 1 − t/(T−1)`、**penalty なし**）。
+これは新フレームワークの **`--ode_branch geneode --hybrid_norm_mode none`** に一致する。
+`ode_reg_lambda`(5/50/500) / `SoftReg` / `ode_reg_norm='l1'` は **TrainLoop レベルの ODE 正則化**で、
+`cell_train_5x3.py` でも同じく TrainLoop にそのまま渡される（=意味が完全一致）。lambda を振っていただけ。
+
+### キーワード対応表
+
+| 旧（`train_20260123.sh` / VaryLambda） | 新キーワード | 値 |
+|---|---|---|
+| GeneODE + Cell_Unet | `--ode_branch` | **geneode** |
+| ODE_ML_Hybrid（線形 blend・penalty なし） | `--hybrid_norm_mode` | **none** |
+| `--SoftReg True` | `--SoftReg` | **True** |
+| `--ode_reg_lambda 5/50/500`（振っていた条件） | `--ode_reg_lambda` | **5 / 50 / 500** |
+| `DATA=Embryonic.h5ad` / edge tsv | `--data_dir` / `--edge_tsv_path` | いずれも既定でOK（未指定で `resolve_path` がローカル解決） |
+| `BATCH_SIZE=128` | `--batch_size` | **128** |
+| `DIFFUSION_STEPS=1000` | `--diffusion_steps` | **1000** |
+| `LR_ANNEAL_STEPS=100000` | `--lr_anneal_steps` | **100000** |
+| `NUM_SAMPLES=10000` | `--num_samples` | **10000** |
+| `SAMPLE_BATCH_SIZE=50` | `--sample_batch_size` | **50** |
+
+既定で**そのまま一致**（パイプラインは露出しないが `cell_train_5x3.py` の既定が旧と同値）:
+`lr=1e-4` / `ema_rate=0.9999` / `weight_decay=0.0001` / `ode_reg_norm='l1'`。変更不要。
+
+### ⚠️ 注意点
+- **`run_pipeline_5x3.py` は内部で `--save_interval 1 --log_interval 1` を固定**（短時間テスト前提）。
+  100000 step だと checkpoint 10 万個になる（旧は `save_interval=5000 / log_interval=1000`）。
+  **本番長時間 run を忠実に再現するなら下記 (B) で `cell_train_5x3.py` を直接叩く**。
+
+### (A) パイプラインで（短め検証向け・lambda 3 条件）
+```bash
+export PATH="$HOME/miniconda3/envs/scdiffusion/bin:$PATH"
+cd work/20260609_Hybrid5x3
+for L in 5 50 500; do
+  python run_pipeline_5x3.py \
+    --ode_branch geneode --hybrid_norm_mode none \
+    --SoftReg True --ode_reg_lambda $L --name lambda$L \
+    --batch_size 128 --diffusion_steps 1000 --lr_anneal_steps 100000 \
+    --num_samples 10000 --sample_batch_size 50
+done
+# ※ --name で日付 dir 末尾に _{name} が付く → runs/geneode__none/<日時>_lambda5/ のように lambda 別に分離
+```
+
+### (B) 忠実再現（`save_interval=5000` を効かせる・train/sample を直接実行）
+```bash
+export PATH="$HOME/miniconda3/envs/scdiffusion/bin:$PATH"
+cd work/20260609_Hybrid5x3
+
+python cell_train_5x3.py \
+  --ode_branch geneode --hybrid_norm_mode none \
+  --SoftReg True --ode_reg_lambda 5 --ode_reg_norm l1 \
+  --batch_size 128 --lr 1e-4 --diffusion_steps 1000 \
+  --lr_anneal_steps 100000 --save_interval 5000 --log_interval 1000 \
+  --output_dir runs/geneode__none/train
+# → 出力の TRAINED_MODEL_PATH= と EXP_CONFIG= を控える
+
+python cell_sample_5x3.py \
+  --model_path <TRAINED_MODEL_PATH> --exp_config <EXP_CONFIG> \
+  --num_samples 10000 --batch_size 50 --diffusion_steps 1000 \
+  --output_dir runs/geneode__none/sample
+```
+lambda は `--ode_reg_lambda 5 / 50 / 500` で振る。ローカルは CPU なので 100000 step は重い（リモート CUDA 推奨）。

@@ -55,8 +55,9 @@ def main():
     if a.hybrid_norm_mode == "scale_model":
         # scale_model は入力ソース別に分離（scale_model_x / scale_model_ml_emb）
         exp_id = f"{a.ode_branch}__scale_model_{a.scale_input_source}"
-    # {HERE}/runs/{model_name}/{YYYYMMDD}/{train,sample,viz}/...（runs/ 配下に集約）
-    out_dir = run_paths.run_base(HERE, exp_id, create=not a.dry_run)  # dry-run では dir を作らない
+    # {HERE}/runs/{model_name}/{YYYYMMDD_HHMMSS[_name]}/{train,sample,viz}/...（runs/ 配下に集約）
+    # --name 指定時は日付 dir の末尾に _{name} を付けて run を識別しやすくする。
+    out_dir = run_paths.run_base(HERE, exp_id, create=not a.dry_run, suffix=a.name)  # dry-run では dir を作らない
 
     # 1) TRAIN
     train = [PY, os.path.join(HERE, "cell_train_5x3.py"),
@@ -113,6 +114,7 @@ def create_argparser():
     # branch/mode
     p.add_argument("--ode_branch", default="lora")
     p.add_argument("--hybrid_norm_mode", default="ratio_reg")
+    p.add_argument("--name", default="", help="run 識別名。日付 dir 末尾に _{name} を付ける（例: lambda5）")
     p.add_argument("--rank", type=int, default=16)
     p.add_argument("--K", type=int, default=8)
     p.add_argument("--SoftReg", default="True")

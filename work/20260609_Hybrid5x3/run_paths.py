@@ -23,15 +23,21 @@ import os
 from datetime import datetime
 
 
-def run_base(work_root, model_name, when=None, create=True):
-    """{work_root}/runs/{model_name}/{YYYYMMDD_HHMMSS} を返す（実行ごとにユニーク）。
+def run_base(work_root, model_name, when=None, create=True, suffix=None):
+    """{work_root}/runs/{model_name}/{YYYYMMDD_HHMMSS[_suffix]} を返す（実行ごとにユニーク）。
 
     model 名 dir を runs/ 配下に置くことで、work dir 直下が 15 モデル分で散らからない。
     日付 dir は時刻 HHMMSS まで含むので、同日の再実行も別 dir に完全分離される。
     when を渡すと採番時刻を固定できる（matrix で全実験を 1 つの batch 時刻に揃える用途）。
+    suffix を渡すと日付 dir の末尾に `_{suffix}` を付ける（run の識別名用。空文字/None なら付けない）。
     create=False のときはパス文字列のみ返す（dry-run でディレクトリを作らない用途）。
     """
     stamp = (when or datetime.now()).strftime("%Y%m%d_%H%M%S")
+    if suffix:
+        # path 区切り等を潰して安全な 1 セグメントにする
+        safe = "".join(c if (c.isalnum() or c in "-_.") else "_" for c in str(suffix).strip())
+        if safe:
+            stamp = f"{stamp}_{safe}"
     base = os.path.join(work_root, "runs", model_name, stamp)
     if create:
         os.makedirs(base, exist_ok=True)
