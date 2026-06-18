@@ -468,7 +468,9 @@ def main():
         combined, _ = create_combined_anndata(adata_real, args.sample_path)
         if combined is not None:
             try:
-                plot_umap_analysis(combined, out_root, max_cells=args.max_cells)
+                # real は既に上の max_cells で絞り済み・gen は npz 全部 → 結合後は再キャップしない
+                # （real(≤max_cells) + generated(全部) をそのまま UMAP 化）
+                plot_umap_analysis(combined, out_root, max_cells=0)
             except Exception as e:
                 print(f"[velocity] real-vs-gen umap failed ({type(e).__name__}: {e})")
 
