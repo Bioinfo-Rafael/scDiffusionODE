@@ -41,11 +41,15 @@ MAXCELLS="${MAXCELLS:-300}"; AMAX="${AMAX:-150}"; NT="${NT:-4}"
 BRANCHES="${BRANCHES:-geneode lowrank lincomb matsum lora}"
 [ -n "$DRY" ] && DRYFLAG="--dry-run" || DRYFLAG=""
 [ -n "$SKIP" ] && SKIPFLAG="--skip $SKIP" || SKIPFLAG=""
+# NAME: 日付 dir 末尾に _<NAME> を付けてこの batch を識別（全 20 構成共通）。EXTRA: 任意の追加フラグ（例: --ode_reg_lambda 50）
+[ -n "$NAME" ] && NAMEFLAG="--name $NAME" || NAMEFLAG=""
+EXTRA="${EXTRA:-}"
 
 COMMON="--lr_anneal_steps $STEPS --batch_size $BS --diffusion_steps $DIFF \
         --save_interval $SAVEINT --log_interval $LOGINT \
         --num_samples $NSAMP --sample_batch_size $SBS \
-        --max_cells $MAXCELLS --analyze_max_cells $AMAX --num_t_points $NT $DRYFLAG $SKIPFLAG"
+        --max_cells $MAXCELLS --analyze_max_cells $AMAX --num_t_points $NT \
+        $NAMEFLAG $DRYFLAG $SKIPFLAG $EXTRA"
 
 SUMMARY=""; FAIL=0
 run () {  # $1=label ; rest=run_pipeline args
