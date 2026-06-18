@@ -20,6 +20,9 @@
 #   BRANCHES="lora" bash run_all_pipelines.sh       # 1 モデル(lora)の 4 変種だけ
 #   BRANCHES="geneode lora" bash run_all_pipelines.sh
 #   STEPS=5 MAXCELLS=300 SKIP=velocity bash run_all_pipelines.sh   # サイズ/skip 上書き
+#   # 途中から再開（config 単位で除外/限定。ラベル= <branch>__{none|ratio_reg|scale_model_x|scale_model_ml_emb}）:
+#   SKIP_CONFIGS="geneode__none geneode__ratio_reg" bash run_all_pipelines.sh   # この 2 つを除く 18 構成
+#   ONLY="lora__scale_model_x lora__scale_model_ml_emb" bash run_all_pipelines.sh   # 列挙した config だけ
 #
 # 注意:
 #   - 必ず `bash` で実行（zsh だと文字列 $COMMON が word-split されない）。
@@ -52,8 +55,14 @@ COMMON="--lr_anneal_steps $STEPS --batch_size $BS --diffusion_steps $DIFF \
         $NAMEFLAG $DRYFLAG $SKIPFLAG $EXTRA"
 
 SUMMARY=""; FAIL=0
+_in_list () { local x; for x in $2; do [ "$x" = "$1" ] && return 0; done; return 1; }
 run () {  # $1=label ; rest=run_pipeline args
   label="$1"; shift
+  # ONLY / SKIP_CONFIGS（空白区切りの <branch>__<variant> ラベル）で構成を絞る
+  if [ -n "$ONLY" ] && ! _in_list "$label" "$ONLY"; then
+    echo "### (skip ${label}: ONLY に無い)"; SUMMARY="${SUMMARY}  SKIP : ${label} (not in ONLY)\n"; return; fi
+  if [ -n "$SKIP_CONFIGS" ] && _in_list "$label" "$SKIP_CONFIGS"; then
+    echo "### (skip ${label}: SKIP_CONFIGS 指定)"; SUMMARY="${SUMMARY}  SKIP : ${label}\n"; return; fi
   echo ""; echo "##############################################################"
   echo "### ${label}"
   echo "##############################################################"
