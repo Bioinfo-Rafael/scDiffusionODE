@@ -225,7 +225,7 @@ def main():
 
 def create_argparser():
     defaults = dict(
-        data_dir="data_preparation/pbmc68k.h5ad",
+        data_dir="/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
         schedule_sampler="uniform",
         lr=1e-4,
         weight_decay=0.0001,
