@@ -96,7 +96,7 @@ def create_argparser():
     p.add_argument("--output_dir", default="")
     p.add_argument("--skip", default="", help="comma: loss,params,eval_io,velocity")
     p.add_argument("--velocity_t", type=float, default=0.0)
-    p.add_argument("--max_cells", type=int, default=3000)
+    p.add_argument("--max_cells", type=int, default=0)  # velocity/UMAP の cell 上限。0=制限なし（全 cell）
     p.add_argument("--analyze_max_cells", type=int, default=1000)
     p.add_argument("--num_t_points", type=int, default=16)
     p.add_argument("--num_noise_draws", type=int, default=4)

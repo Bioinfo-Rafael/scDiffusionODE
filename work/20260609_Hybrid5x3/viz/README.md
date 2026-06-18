@@ -81,7 +81,7 @@ python run_all_viz.py \
   --model_path <ckpt.pt> --config <exp_config.json> \
   --sample_path <samples.npz> --loss_path <.../loss_details.csv> \
   --data_dir <Embryonic.h5ad> --edge_tsv_path <tf_target_edges.tsv> \
-  --output_dir <out> [--skip loss,velocity] [--max_cells 800]
+  --output_dir <out> [--skip loss,velocity] [--max_cells 0]   # max_cells 既定 0=制限なし（全 cell）。重い時のみ正の値で間引く
 ```
 
 単体実行（`--output_dir` 省略時は `--model_path` から `{base}/viz/{role}` に保存）:
@@ -96,7 +96,8 @@ train→sample→viz 一気通貫（単一 config、上位ディレクトリ。�
 ```bash
 cd work/20260609_Hybrid5x3
 python run_pipeline_5x3.py --ode_branch lora --hybrid_norm_mode ratio_reg \
-  --lr_anneal_steps 4 --batch_size 8 --diffusion_steps 1000 --num_samples 16 --max_cells 800
+  --lr_anneal_steps 4 --batch_size 8 --diffusion_steps 1000 --num_samples 16
+# --max_cells 既定 0=制限なし（velocity/UMAP に全 cell）。重くて困る時だけ --max_cells 5000 等
 ```
 
 ## 注意
@@ -106,5 +107,8 @@ python run_pipeline_5x3.py --ode_branch lora --hybrid_norm_mode ratio_reg \
 - scvelo は `n_jobs=32`（元コード踏襲・remote 確認済み）。ローカル env（numpy≥1.24 / pandas≥2.0 + scvelo 0.2.5）は
   `velocity_graph`(ragged np.array) と `set_legend`(cat.categories setter) が非互換で落ちる。`plot_velocity_umap.py`
   冒頭の **version-guarded 互換 shim**（`_apply_scvelo_compat_shims`）で両者を回避し、ローカルでも stream/arrow を生成。
-  remote の互換 env（numpy<1.24 / pandas<2.0）では shim は **no-op**。重い場合は `--max_cells` で間引き。
+  remote の互換 env（numpy<1.24 / pandas<2.0）では shim は **no-op**。
+- **`--max_cells` 既定 0 = 制限なし（全 cell で velocity/UMAP）**。real データを最初にサブサンプルする箇所
+  （`plot_velocity_umap.py`）と real-vs-gen UMAP の両方に効く。scvelo は cell 数で重くなるので、重い時のみ
+  正の値（例 `--max_cells 5000`）で間引く。
 - ローカルは CPU。CUDA は dev() で自動利用（リモート）。

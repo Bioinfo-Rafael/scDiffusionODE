@@ -98,7 +98,7 @@ def create_argparser():
     p.add_argument("--log_interval", type=int, default=1000)
     p.add_argument("--num_samples", type=int, default=16)
     p.add_argument("--sample_batch_size", type=int, default=8)
-    p.add_argument("--max_cells", type=int, default=800)
+    p.add_argument("--max_cells", type=int, default=0)  # velocity/UMAP の cell 上限。0=制限なし（全 cell）
     p.add_argument("--analyze_max_cells", type=int, default=400)
     p.add_argument("--num_t_points", type=int, default=8)
     p.add_argument("--skip_viz", action="store_true")

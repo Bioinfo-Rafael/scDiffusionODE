@@ -388,9 +388,10 @@ def create_combined_anndata(adata_real, sample_path):
     return combined, adata_gen
 
 
-def plot_umap_analysis(combined, output_dir, max_cells=8000):
-    """real vs gen の UMAP（2 panel）。**凡例なし**。output_dir 直下に umap_analysis.png。"""
-    if combined.n_obs > max_cells:
+def plot_umap_analysis(combined, output_dir, max_cells=0):
+    """real vs gen の UMAP（2 panel）。**凡例なし**。output_dir 直下に umap_analysis.png。
+    max_cells<=0 は制限なし（real+gen 全 cell）。"""
+    if max_cells and max_cells > 0 and combined.n_obs > max_cells:
         idx = np.random.choice(combined.n_obs, max_cells, replace=False)
         combined = combined[idx].copy()
     combined.X = R.sanitize(R.to_dense(combined.X))   # z-score 済み前提、NaN/Inf 除去のみ
@@ -442,9 +443,11 @@ def main():
     # データのロード
     print(f"Loading real data from {args.data_dir}...")
     adata = sc.read_h5ad(args.data_dir)
-    if adata.n_obs > args.max_cells:
+    # max_cells<=0 は「制限なし（全 cell）」。正の値のときだけサブサンプル。
+    if args.max_cells and args.max_cells > 0 and adata.n_obs > args.max_cells:
         idx = np.random.choice(adata.n_obs, args.max_cells, replace=False)
         adata = adata[idx].copy()
+    print(f"[velocity] using {adata.n_obs} cells (max_cells={args.max_cells or 'unlimited'})")
 
     # ODEモデルを用いた Velocity の計算
     X = R.to_dense(adata.X).astype(np.float32)
@@ -465,7 +468,7 @@ def main():
         combined, _ = create_combined_anndata(adata_real, args.sample_path)
         if combined is not None:
             try:
-                plot_umap_analysis(combined, out_root)
+                plot_umap_analysis(combined, out_root, max_cells=args.max_cells)
             except Exception as e:
                 print(f"[velocity] real-vs-gen umap failed ({type(e).__name__}: {e})")
 
@@ -510,7 +513,8 @@ def create_argparser():
     p.add_argument("--output_dir", default="")
     p.add_argument("--group_col", default="Superclass")
     p.add_argument("--velocity_t", type=float, default=0.0)
-    p.add_argument("--max_cells", type=int, default=3000)
+    p.add_argument("--max_cells", type=int, default=0,
+                   help="velocity/UMAP に使う cell 上限。0 以下=制限なし（全 cell）。重い場合のみ正の値で間引く")
     p.add_argument("--min_cells", type=int, default=15)
     p.add_argument("--n_jobs", type=int, default=32)
     p.add_argument("--seed", type=int, default=1234)
