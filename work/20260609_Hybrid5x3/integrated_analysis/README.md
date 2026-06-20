@@ -16,7 +16,14 @@ python integrated_analysis/run_integrated_umap.py \
   --per_model_real_cells 50000 --per_model_gen_cells 3000 \
   --integrated_real_cells 0 --integrated_gen_per_model 500 --seed 0
 
+cd /home/suzuki/Projects/scDiffusion-github/work/20260609_Hybrid5x3
+export PATH="$HOME/.conda/envs/scdiffusion/bin:$PATH"
 
+python integrated_analysis/run_integrated_umap.py \
+  --runs_root runs --output_root integrated_analysis/outputs --run_suffix ALL100k \
+  --only integrated \
+  --integrated_exclude lowrank__ratio_reg,lora__ratio_reg \
+  --integrated_real_cells 0 --integrated_gen_per_model 500 --seed 0
 
 `work/20260609_Hybrid5x3/runs/` 配下の **20 構成（5 ODE branch × 4 variant）の generated サンプル**を使い、
 **2 系統**の UMAP 可視化を作る独立した追加解析。
