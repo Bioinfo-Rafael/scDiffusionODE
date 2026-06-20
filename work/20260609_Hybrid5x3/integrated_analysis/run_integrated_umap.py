@@ -56,6 +56,10 @@ def build_argparser():
     # B) integrated
     p.add_argument("--integrated_real_cells", type=int, default=0, help="integrated の real 件数（0=全部）")
     p.add_argument("--integrated_gen_per_model", type=int, default=500, help="integrated の model ごと generated 件数")
+    p.add_argument("--integrated_include", default="",
+                   help="integrated に使う config_label をこれだけに限定（カンマ区切り。空=全部）")
+    p.add_argument("--integrated_exclude", default="",
+                   help="integrated から除外する config_label（カンマ区切り。空=除外なし）。例: lowrank__ratio_reg,lora__ratio_reg")
     # どちらを作るか
     p.add_argument("--only", choices=["per_model", "integrated"], default=None,
                    help="片方だけ作る（既定は両方）")
@@ -78,6 +82,8 @@ def _params_from_args(a, out_dir):
         "per_model_real_cells": a.per_model_real_cells, "per_model_gen_cells": a.per_model_gen_cells,
         "integrated_real_cells": a.integrated_real_cells,
         "integrated_gen_per_model": a.integrated_gen_per_model,
+        "integrated_include": [s.strip() for s in a.integrated_include.split(",") if s.strip()],
+        "integrated_exclude": [s.strip() for s in a.integrated_exclude.split(",") if s.strip()],
         "n_pcs": a.n_pcs, "n_neighbors": a.n_neighbors, "min_dist": a.min_dist,
         "annotation_priority": [s.strip() for s in a.annotation_priority.split(",") if s.strip()],
     })
@@ -101,11 +107,18 @@ def main():
         for label, v in skipped.items():
             print(f"  {label:32s} reason={v['reason']}")
         print(f"\n[dry-run] selected={len(selected)} skipped={len(skipped)}")
+        int_selected = U.filter_selected(selected, params["integrated_include"], params["integrated_exclude"])
         print("\n=== plan ===")
         print(f"  per-model     : real {a.per_model_real_cells} + gen {a.per_model_gen_cells}/model"
               f"  -> per_model/<label>.png x{len(selected)} + all_models_facets.png")
         print(f"  integrated    : real {'all' if a.integrated_real_cells<=0 else a.integrated_real_cells}"
-              f" + gen {a.integrated_gen_per_model}/model -> integrated/*.png (overlay 3 + summary)")
+              f" + gen {a.integrated_gen_per_model}/model, models={len(int_selected)}/{len(selected)}"
+              f" -> integrated/*.png (overlay 3 + summary)")
+        if params["integrated_exclude"]:
+            print(f"    integrated exclude: {params['integrated_exclude']}")
+        if params["integrated_include"]:
+            print(f"    integrated include: {params['integrated_include']}")
+        print(f"    integrated models used: {list(int_selected)}")
         print("\n=== selected_runs_config.json (preview) ===")
         preview = {k: config[k] for k in ("created_at", "runs_root", "run_suffix", "data_dir",
                                           "data_dir_resolved", "selection_rule", "n_selected", "n_skipped")}

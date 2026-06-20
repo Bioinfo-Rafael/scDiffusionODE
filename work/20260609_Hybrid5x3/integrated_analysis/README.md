@@ -74,7 +74,15 @@ python integrated_analysis/run_integrated_umap.py \
 # 片方だけ作る
 python integrated_analysis/run_integrated_umap.py ... --only per_model
 python integrated_analysis/run_integrated_umap.py ... --only integrated
+
+# integrated を「特定モデルを除外」して作図（real は全件のまま。per-model には影響しない）
+python integrated_analysis/run_integrated_umap.py \
+  --runs_root runs --output_root integrated_analysis/outputs --run_suffix ALL100k \
+  --only integrated --integrated_exclude lowrank__ratio_reg,lora__ratio_reg \
+  --integrated_real_cells 0 --integrated_gen_per_model 500 --seed 0
 ```
+> `--integrated_include`/`--integrated_exclude` は **integrated の generated だけ**を絞る（real は全件、per-model は不変）。
+> どちらも空（既定）なら従来どおり全 20 モデル。実際に使われた model は `integrated_gen_counts.csv` で確認。
 
 主な引数（`--help` で全部）:
 
@@ -88,6 +96,8 @@ python integrated_analysis/run_integrated_umap.py ... --only integrated
 | `--per_model_gen_cells` | 3000 | A) generated 件数（モデルごと） |
 | `--integrated_real_cells` | 0 | B) real 件数（**0 = 全部**） |
 | `--integrated_gen_per_model` | 500 | B) generated 件数（モデルごと） |
+| `--integrated_include` | （空=全部） | integrated に使う config_label をこれだけに限定（カンマ区切り） |
+| `--integrated_exclude` | （空=除外なし） | integrated から除外する config_label（カンマ区切り）。例 `lowrank__ratio_reg,lora__ratio_reg` |
 | `--only` | （両方） | `per_model` / `integrated` 片方だけ |
 | `--n_pcs`/`--n_neighbors`/`--min_dist` | 50/15/0.5 | UMAP |
 | `--annotation_priority` | Superclass,Subclass,ClassAnn,celltype,final_annotation | real の色付け列の優先順位 |

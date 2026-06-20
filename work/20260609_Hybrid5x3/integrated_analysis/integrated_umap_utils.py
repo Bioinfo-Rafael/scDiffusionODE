@@ -185,6 +185,20 @@ def _timestamp_dirs(config_dir, run_suffix):
     return subs
 
 
+def filter_selected(selected, include=None, exclude=None):
+    """selected（dict[label]->rec）を include/exclude で絞る。
+
+    include が空でなければ include に在るものだけ、exclude に在るものは除く。
+    両方空なら selected をそのまま返す（= 従来挙動・後方互換）。順序は保つ。
+    """
+    inc = set(include or [])
+    exc = set(exclude or [])
+    if not inc and not exc:
+        return dict(selected)
+    return {k: v for k, v in selected.items()
+            if (not inc or k in inc) and (k not in exc)}
+
+
 def select_runs(runs_root, run_suffix="", config_labels=None):
     """各 config label について採用 run を 1 つ選ぶ（新しい順で最初に条件を満たすもの）。"""
     labels = config_labels or ALL_CONFIG_LABELS
@@ -677,6 +691,7 @@ def default_params():
         "run_suffix": "ALL100k", "data_dir": DEFAULT_DATA_DIR,
         "per_model_real_cells": 50000, "per_model_gen_cells": 3000,
         "integrated_real_cells": 0, "integrated_gen_per_model": 500,
+        "integrated_include": [], "integrated_exclude": [],
         "seed": 0, "n_pcs": 50, "n_neighbors": 15, "min_dist": 0.5,
         "annotation_priority": list(DEFAULT_ANNOTATION_PRIORITY),
         # 見た目（per-model / integrated で別々の点サイズ）
@@ -741,10 +756,20 @@ def run_full(params, do_per_model=True, do_integrated=True, log=print):
         del real_pm
 
     if do_integrated:
+        # integrated に使う model を include/exclude で絞る（既定は空＝全 selected を使用）
+        int_selected = filter_selected(selected, params.get("integrated_include"),
+                                       params.get("integrated_exclude"))
+        if not int_selected:
+            raise RuntimeError("integrated 用に残る model が 0 件です。"
+                               f"include={params.get('integrated_include')} exclude={params.get('integrated_exclude')}")
         log(f"[run] === B) integrated (real {'all' if params['integrated_real_cells'] <= 0 else params['integrated_real_cells']}"
-            f" + gen {params['integrated_gen_per_model']}/model) ===")
+            f" + gen {params['integrated_gen_per_model']}/model, models={len(int_selected)}/{len(selected)}) ===")
+        if params.get("integrated_exclude"):
+            log(f"[integrated] exclude={params['integrated_exclude']}")
+        if params.get("integrated_include"):
+            log(f"[integrated] include={params['integrated_include']}")
         real_int = subsample_real(adata_real, params["integrated_real_cells"], seed=params["seed"], log=log)
-        gen_int, gen_counts = load_gen_all(selected, params["integrated_gen_per_model"],
+        gen_int, gen_counts = load_gen_all(int_selected, params["integrated_gen_per_model"],
                                            seed=params["seed"], n_vars_expected=adata_real.n_vars, log=log)
         combined = build_combined(real_int, gen_int, log=log)
         log(f"[integrated] combined shape={combined.shape} "
