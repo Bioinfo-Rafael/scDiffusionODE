@@ -4,3 +4,8 @@ python run_pipeline_5x3.py --ode_branch lora --hybrid_norm_mode scale_model --sc
 NAME=ALL100k STEPS=100000 BS=128 SBS=50 NSAMP=10000 \
 SAVEINT=5000 LOGINT=1000 MAXCELLS=50000 \
   bash run_all_pipelines.sh
+
+  SKIP_CONFIGS="geneode__none geneode__ratio_reg" \
+NAME=ALL100k STEPS=100000 BS=128 SBS=50 NSAMP=10000 \
+SAVEINT=5000 LOGINT=1000 MAXCELLS=50000 \
+  bash run_all_pipelines.sh
