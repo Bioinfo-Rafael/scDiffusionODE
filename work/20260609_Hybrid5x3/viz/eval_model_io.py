@@ -155,6 +155,11 @@ def main():
     timesteps = sorted(set(dim_t) | set(rep_t))
     scatter_store = {m: {t: {"out": [], "eps": []} for t in rep_t} for m in modes}
 
+    # scale_model mode は実 forward が L2 正規化 + scale を含む別経路。decomposition をそれに一致させる。
+    is_scale = has_branch and getattr(model, "hybrid_norm_mode", None) == "scale_model"
+    forward_check = {}            # is_scale のとき weighted hybrid と model() の一致度を 1 回だけ記録
+    did_forward_check = False
+
     rows = []
     for t in timesteps:
         mom = RunningMoments()
@@ -168,27 +173,69 @@ def main():
                 model_t = diffusion._scale_timesteps(t_raw)
 
                 if has_branch:
-                    ode_raw = model.ode_model(x_t, model_t)
-                    ml_raw = model.ml_model(x_t, model_t)
                     r = model._scheduler(model_t, device=x_t.device, dtype=x_t.dtype)
                     while r.dim() < x_t.dim():
                         r = r.unsqueeze(-1)
+                    if is_scale:
+                        # _forward_scale_model と同一の前処理（ml は forward_with_features 1 回のみ）。
+                        ml_out, ml_features = model.ml_model.forward_with_features(x_t, model_t, None)
+                        ml_emb = ml_features["ml_emb"]
+                        if getattr(model, "ode_input_source", "none") == "x_ml_emb":
+                            ode_out = model.ode_model(x_t, model_t, ml_emb=ml_emb)
+                        else:
+                            ode_out = model.ode_model(x_t, model_t)
+                        eps_n = model.scale_model_norm_eps
+                        ode_unit = ode_out / (ode_out.norm(p=2, dim=-1, keepdim=True) + eps_n)
+                        ml_unit = ml_out / (ml_out.norm(p=2, dim=-1, keepdim=True) + eps_n)
+                        scale_in = ml_emb if model.scale_input_source == "ml_emb" else x_t
+                        scale = model.scale_model(scale_in, model_t)
+                        while scale.dim() < x_t.dim():
+                            scale = scale.unsqueeze(-1)
+                        ode_raw, ml_raw = ode_out, ml_out   # unweighted（raw branch 診断）用
+                    else:
+                        ode_raw = model.ode_model(x_t, model_t)
+                        ml_raw = model.ml_model(x_t, model_t)
                 else:
                     ode_raw = ml_raw = r = None
 
                 row_vals = {"effective_r": r.reshape(B, -1)[:, 0]} if has_branch else {}
                 for m in modes:
                     if has_branch:
-                        if m == "weighted":
+                        if is_scale and m == "weighted":
+                            # 実 forward と一致: out = scale·(r·ode_unit + (1-r)·ml_unit)
+                            ode_c, ml_c = scale * r * ode_unit, scale * (1.0 - r) * ml_unit
+                            hybrid = ode_c + ml_c
+                        elif is_scale:
+                            # unweighted = raw branch 診断（正規化も scale も掛けない生の枝出力）
+                            ode_c, ml_c = ode_raw, ml_raw
+                            hybrid = ode_c + ml_c
+                        elif m == "weighted":
                             ode_c, ml_c = r * ode_raw, (1.0 - r) * ml_raw
+                            hybrid = ode_c + ml_c
                         else:
                             ode_c, ml_c = ode_raw, ml_raw
-                        hybrid = ode_c + ml_c
+                            hybrid = ode_c + ml_c
                     else:
                         ode_c = ml_c = None
                         hybrid = model(x_t, model_t)
                     pfx = f"{m}_" if len(modes) > 1 else ""
                     row_vals.update(metric_set(ode_c, ml_c, hybrid, noise, prefix=pfx))
+                    # scale_model: scale/||eps|| を unweighted の norm セクションに併記（norm_ratio と同じ正規化）
+                    if is_scale and m == "unweighted":
+                        row_vals[f"{pfx}scale"] = scale.reshape(B, -1)[:, 0] / flatten_norm(noise)
+                    # 実 forward 一致 sanity check（is_scale & weighted で最初の 1 回だけ）
+                    if is_scale and m == "weighted" and args.check_forward and not did_forward_check:
+                        out_real = model(x_t, model_t)
+                        max_abs = float((hybrid - out_real).abs().max().item())
+                        rel_l2 = float((hybrid - out_real).norm().item()
+                                       / (out_real.norm().item() + 1e-12))
+                        forward_check = {"max_abs_diff": max_abs, "rel_l2": rel_l2, "t": int(t)}
+                        did_forward_check = True
+                        print(f"[analyze] scale_model forward sanity: max|delta|={max_abs:.3e} "
+                              f"rel_l2={rel_l2:.3e} (t={t})")
+                        if rel_l2 > 1e-3:
+                            print(f"[analyze][WARN] weighted hybrid と model() の差が大きい "
+                                  f"(rel_l2={rel_l2:.3e})。decomposition を確認してください。")
                     if t in rep_t and len(scatter_store[m][t]["out"]) < args.scatter_rows:
                         scatter_store[m][t]["out"].append(hybrid[0].detach().cpu().numpy())
                         scatter_store[m][t]["eps"].append(noise[0].detach().cpu().numpy())
@@ -206,7 +253,8 @@ def main():
     for m in modes:
         pfx = f"{m}_" if len(modes) > 1 else ""
         # norm_ratio / alignment / mse は alignment_mse/ サブディレクトリへ
-        _plot_curve(df, [f"{pfx}ode_norm_ratio", f"{pfx}ml_norm_ratio"],
+        # scale_model の unweighted では scale スカラも同じ軸に併記（列が無いモードでは _plot_curve が自動 filter）
+        _plot_curve(df, [f"{pfx}ode_norm_ratio", f"{pfx}ml_norm_ratio", f"{pfx}scale"],
                     "norm ratio (||out||/||eps||)", os.path.join(align_dir, f"{m}_norm_ratio.png"))
         _plot_curve(df, [f"{pfx}ode_align", f"{pfx}ml_align"],
                     "alignment <out,eps>/||eps||^2", os.path.join(align_dir, f"{m}_alignment.png"))
@@ -234,7 +282,11 @@ def main():
     # real vs gen の UMAP は plot_velocity_umap.py（viz/velocity）へ移設した（eval_io には置かない）。
 
     with open(os.path.join(out_dir, "analysis_config.json"), "w") as f:
-        json.dump({"args": vars(args), "cfg": cfg, "has_branch": has_branch}, f, indent=2)
+        json.dump({"args": vars(args), "cfg": cfg, "has_branch": has_branch,
+                   "hybrid_norm_mode": getattr(model, "hybrid_norm_mode", None),
+                   "component_decomposition": "scale_corrected" if is_scale else "standard",
+                   "scale_model_corrected": bool(is_scale),
+                   "forward_check": forward_check}, f, indent=2)
     print(f"[analyze] done. Output directory: {out_dir}")
 
 
@@ -267,6 +319,11 @@ def create_argparser():
     p.add_argument("--weighting", choices=["weighted", "unweighted", "both"], default="both")
     p.add_argument("--scatter_rows", type=int, default=4)
     p.add_argument("--seed", type=int, default=1234)
+    # scale_model で weighted hybrid と model() の一致を 1 回だけ sanity check（既定 on）。--no_check_forward で無効。
+    p.add_argument("--check_forward", dest="check_forward", action="store_true", default=True,
+                   help="scale_model: weighted hybrid と実 forward の一致を 1 回 sanity check（既定 on）")
+    p.add_argument("--no_check_forward", dest="check_forward", action="store_false",
+                   help="forward sanity check を無効化する")
     return p
 
 
