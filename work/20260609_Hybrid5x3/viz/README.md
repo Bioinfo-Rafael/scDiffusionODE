@@ -79,14 +79,14 @@ ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}）用の作図�
 - **実行コマンドのログ**: 出力先に `command.txt`（実行コマンド+cwd+時刻）と `run.log`（標準出力の複製）を保存し、
   `summary.json` にも `command`/`argv`/`cwd` を記録する（再現用）。
 
-今回の run（`lincomb__none/20260617_180937`）の実行例（conda env `scdiffusion` の python を使用）:
+今回の run（`lincomb__none/20260618_214524_ALL100k`）の実行例（conda env `scdiffusion` の python を使用）:
 ```bash
 cd work/20260609_Hybrid5x3/viz
 "$HOME/miniconda3/envs/scdiffusion/bin/python" plot_lincomb_a_embedding.py \
-  --run_dir ../runs/lincomb__none/20260617_180937 \
+  --run_dir ../runs/lincomb__none/20260618_214524_ALL100k \
   --max_cells 50000 --t_values 0,499,999 \
   --color_cols Superclass,celltype,final_annotation
-# → ../runs/lincomb__none/20260617_180937/viz/lincomb_a_embedding/<ts>_a_embedding/ に保存。
+# → ../runs/lincomb__none/20260618_214524_ALL100k/viz/lincomb_a_embedding/<ts>_a_embedding/ に保存。
 #   実行コマンドは同 dir の command.txt / run.log / summary.json("command") にも残る。
 ```
 
