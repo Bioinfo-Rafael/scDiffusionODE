@@ -14,6 +14,7 @@ ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}）用の作図�
 | `plot_params.py` | **2 階層**: ① raw パラメタ分布（param_dist_W/misc・step 軸）② **effective operator W**（metric CSV + heatmap + hist + sparsity + top edges）+ branch-specific | `{out}/params/<ts>_viz/` |
 | `eval_model_io.py` | **入出力評価**（ノイズ方向 metrics weighted/unweighted + 次元方向相関）。corr/ と alignment_mse/ に分離 | `{out}/eval_io/<ts>_analyze/` |
 | `plot_velocity_umap.py` | **Superclass 別 velocity UMAP**（stream/arrow、配色2通り）+ **real vs gen UMAP**（`umap_analysis.png`・凡例なし） | `{out}/velocity/` |
+| `plot_lincomb_a_embedding.py` | **単体（LinComb 専用）: 係数 a(x,t) の K 次元 cell embedding**（raw signed `a_k` の PCA/UMAP + 補助指標 abs/top_abs_k/entropy + 係数統計）。run_all_viz には未統合 | —（単体。`{run_dir}/viz/lincomb_a_embedding/<ts>_a_embedding/`） |
 | `run_all_viz.py` | 上 4 つを 1 checkpoint に対し順次実行（`--skip loss,params,eval_io,velocity`。`--heatmap_*` を plot_params へ forward） | — |
 
 3 dir の checkpoint は config json（`exp_config`/`field_config`/`hybrid_config`）を渡せば全て復元可能。
@@ -60,6 +61,22 @@ ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}）用の作図�
 - lowrank: `singular_values_vs_t`（凡例外）/ `UV_mean_vs_t`（`mean(U)/mean(V)/mean(W=UVᵀ)`、norm でなく mean）。
 - geneode（`decompose_W` 無）/ plain は branch-specific を skip。
 
+### LinComb 係数 a の cell embedding（`plot_lincomb_a_embedding.py`・単体）
+学習済み **LinComb** run（`ode_branch=lincomb`）専用。`V=Σ_k a_k(x,t)·softplus(W_k x+b_k)−decay(x)` の
+係数 `a = ode_model._coeffs(x,t)` を `(B,K)` で抽出し、**K 次元 a-space の cell embedding** として可視化する。
+主解析は **raw signed `a_k`**（softmax なし。`compute_W` は LinComb では proxy なので使わない）。
+既存の学習/モデル/forward は不変、復元は `_restore.build_model`。**run_all_viz には未統合**（単体実行。
+`ROLE="lincomb_a_embedding"` 定義済みで後から統合可）。LinComb 以外を渡すと `model_type` を見て分かりやすく停止。
+- 入力 `--run_dir`: config を `train/**/exp_config.json`→`**/exp_config.json`、checkpoint を
+  `train/**/checkpoints/**/{ema_*,model*}.pt`→`**/{ema_*,model*}.pt` の順で自動検出（**ema 優先・step 最大**、
+  `--config`/`--model_path` で上書き）。`--t_values`(既定 `0,499,999`) / `--max_cells`(既定 50000、≤0 で全 cell) /
+  `--use_noisy_xt`(既定 false=clean x0 を a(x0,t) に。true は `q_sample` の x_t) / `--color_cols`(既定 `Superclass,celltype,final_annotation`、存在する列のみ)。
+- 出力 `{run_dir}/viz/lincomb_a_embedding/<ts>_a_embedding/`: t ごとに `lincomb_a_values_t{t}.csv`
+  （`a0..aK-1` / `abs_a0..K-1` / `top_abs_k` / `top_abs_value` / `a_l2_norm` / `a_abs_sum` / `abs_a_entropy`）+
+  `lincomb_a_space_t{t}.h5ad` + UMAP/PCA 図（`top_abs_k`=離散、entropy・l2・各 `a_k`/`abs_a_k`=連続、`--color_cols` の annotation）。
+  全 t 集計 `lincomb_a_summary_by_t.csv`（per k: mean/std a・mean/std |a|・top fraction）+ `lincomb_a_mean_abs_by_t.png` +
+  `lincomb_top_expert_fraction_by_t.png` + `summary.json`。**PCA/UMAP 失敗時も CSV/h5ad は必ず残し図だけ skip**（K<3 等は defensive に skip）。
+
 ### その他
 - velocity = `model.ode_model(x, velocity_t)`（GeneODE は t 無視 / fields は t 使用）。`--velocity_t` 既定 0。
   scvelo は**元 velocity_by_Superclass.py の方式を踏襲**（`layers["velocity_ode"]`・`layers["X"]`、`velocity_graph(...,n_jobs=32)`→stream/arrow）。
@@ -90,6 +107,9 @@ python plot_params.py        --model_path <ckpt.pt> --config <exp_config.json> -
 python eval_model_io.py      --model_path <ckpt.pt> --config <exp_config.json> --sample_path <npz> --data_dir <h5ad>
 python plot_velocity_umap.py --model_path <ckpt.pt> --config <exp_config.json> --data_dir <h5ad>
 python plot_loss.py          --loss_path <loss_details.csv> --output_dir <dir>
+# LinComb 専用・単体（config/checkpoint は run_dir から自動検出。出力は {run_dir}/viz/lincomb_a_embedding/<ts>_a_embedding/）:
+python plot_lincomb_a_embedding.py --run_dir <runs/lincomb__*/<ts>> --max_cells 50000 --t_values 0,499,999 \
+  --color_cols Superclass,celltype,final_annotation
 ```
 
 train→sample→viz 一気通貫（単一 config、上位ディレクトリ。出力 `runs/{model}/{YYYYMMDD_HHMMSS}/...`）:
