@@ -30,6 +30,8 @@ import sys
 import re
 import json
 import glob
+import shlex
+import atexit
 from datetime import datetime
 
 import numpy as np
@@ -48,6 +50,26 @@ import run_paths  # noqa: E402
 
 # 後で run_all_viz.py に統合しやすいよう role 定数を置いておく（今回は単独実行）。
 ROLE = "lincomb_a_embedding"
+
+
+class _Tee:
+    """stdout を複数ストリーム（端末 + run.log）に同時書き込みするための薄い wrapper。"""
+    def __init__(self, *streams):
+        self.streams = streams
+
+    def write(self, s):
+        for st in self.streams:
+            try:
+                st.write(s)
+            except Exception:
+                pass
+
+    def flush(self):
+        for st in self.streams:
+            try:
+                st.flush()
+            except Exception:
+                pass
 
 
 # ---------------------------------------------------------------------------
@@ -201,6 +223,22 @@ def main():
     base_out = args.output_dir if args.output_dir else os.path.join(run_dir, "viz", ROLE)
     out_dir = os.path.join(base_out, f"{ts}_a_embedding")
     os.makedirs(out_dir, exist_ok=True)
+
+    # 実行コマンドを記録（再現用）。command.txt は先に書く（後段が落ちても残る）。
+    cmd_str = " ".join(shlex.quote(x) for x in [sys.executable, os.path.abspath(__file__), *sys.argv[1:]])
+    with open(os.path.join(out_dir, "command.txt"), "w") as f:
+        f.write(f"# timestamp: {ts}\n# cwd: {os.getcwd()}\n{cmd_str}\n")
+    # stdout を run.log にも複製（端末表示はそのまま）。終了時/例外時に restore + close。
+    _logf = open(os.path.join(out_dir, "run.log"), "w")
+    sys.stdout = _Tee(sys.__stdout__, _logf)
+
+    def _restore_stdout():
+        sys.stdout = sys.__stdout__
+        try:
+            _logf.flush(); _logf.close()
+        except Exception:
+            pass
+    atexit.register(_restore_stdout)
 
     # ---- モデル復元（既存 _restore を使用。学習コードは触らない） ----
     cfg = R.normalize_config(R.load_config(config_path))
@@ -400,10 +438,13 @@ def main():
         "color_cols_found": color_found,
         "model_info": model_info,
         "created_at": ts,
+        "command": cmd_str,
+        "argv": sys.argv[1:],
+        "cwd": os.getcwd(),
     }
     with open(os.path.join(out_dir, "summary.json"), "w") as f:
         json.dump(summary, f, indent=2, ensure_ascii=False, default=str)
-    created_files.append("summary.json")
+    created_files += ["summary.json", "command.txt", "run.log"]
 
     # ---- 標準出力サマリ ----
     print("\n==================== DONE ====================")
@@ -414,7 +455,7 @@ def main():
     print(f"K           : {K}")
     print(f"output_dir  : {out_dir}")
     print("main files  :")
-    head = [f for f in ("summary.json", "lincomb_a_summary_by_t.csv",
+    head = [f for f in ("summary.json", "command.txt", "run.log", "lincomb_a_summary_by_t.csv",
                         "lincomb_a_mean_abs_by_t.png", "lincomb_top_expert_fraction_by_t.png")
             if f in created_files]
     per_t = [f"lincomb_a_values_t{t}.csv / lincomb_a_space_t{t}.h5ad / lincomb_a_umap_top_abs_k_t{t}.png ..."

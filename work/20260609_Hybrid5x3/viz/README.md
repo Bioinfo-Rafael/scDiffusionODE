@@ -76,6 +76,19 @@ ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}）用の作図�
   `lincomb_a_space_t{t}.h5ad` + UMAP/PCA 図（`top_abs_k`=離散、entropy・l2・各 `a_k`/`abs_a_k`=連続、`--color_cols` の annotation）。
   全 t 集計 `lincomb_a_summary_by_t.csv`（per k: mean/std a・mean/std |a|・top fraction）+ `lincomb_a_mean_abs_by_t.png` +
   `lincomb_top_expert_fraction_by_t.png` + `summary.json`。**PCA/UMAP 失敗時も CSV/h5ad は必ず残し図だけ skip**（K<3 等は defensive に skip）。
+- **実行コマンドのログ**: 出力先に `command.txt`（実行コマンド+cwd+時刻）と `run.log`（標準出力の複製）を保存し、
+  `summary.json` にも `command`/`argv`/`cwd` を記録する（再現用）。
+
+今回の run（`lincomb__none/20260617_180937`）の実行例（conda env `scdiffusion` の python を使用）:
+```bash
+cd work/20260609_Hybrid5x3/viz
+"$HOME/miniconda3/envs/scdiffusion/bin/python" plot_lincomb_a_embedding.py \
+  --run_dir ../runs/lincomb__none/20260617_180937 \
+  --max_cells 50000 --t_values 0,499,999 \
+  --color_cols Superclass,celltype,final_annotation
+# → ../runs/lincomb__none/20260617_180937/viz/lincomb_a_embedding/<ts>_a_embedding/ に保存。
+#   実行コマンドは同 dir の command.txt / run.log / summary.json("command") にも残る。
+```
 
 ### その他
 - velocity = `model.ode_model(x, velocity_t)`（GeneODE は t 無視 / fields は t 使用）。`--velocity_t` 既定 0。
