@@ -15,6 +15,7 @@ ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}）用の作図�
 | `eval_model_io.py` | **入出力評価**（ノイズ方向 metrics weighted/unweighted + 次元方向相関）。corr/ と alignment_mse/ に分離 | `{out}/eval_io/<ts>_analyze/` |
 | `plot_velocity_umap.py` | **Superclass 別 velocity UMAP**（stream/arrow、配色2通り）+ **real vs gen UMAP**（`umap_analysis.png`・凡例なし） | `{out}/velocity/` |
 | `plot_lincomb_a_embedding.py` | **単体（LinComb 専用）: 係数 a(x,t) の K 次元 cell embedding**（raw signed `a_k` の PCA/UMAP + 補助指標 abs/top_abs_k/entropy + 係数統計）。run_all_viz には未統合 | —（単体。`{run_dir}/viz/lincomb_a_embedding/<ts>_a_embedding/`） |
+| `plot_lincomb_component_velocity_umap.py` | **単体（LinComb 専用）: `V_total` と expert velocity `V_k` の Superclass 別 3×3 grid**。run_all_viz には未統合 | —（単体。`{run_dir}/viz/velocity_lincomb_components/`） |
 | `run_all_viz.py` | 上 4 つを 1 checkpoint に対し順次実行（`--skip loss,params,eval_io,velocity`。`--heatmap_*` を plot_params へ forward） | — |
 
 3 dir の checkpoint は config json（`exp_config`/`field_config`/`hybrid_config`）を渡せば全て復元可能。
@@ -90,6 +91,42 @@ cd work/20260609_Hybrid5x3/viz
 #   実行コマンドは同 dir の command.txt / run.log / summary.json("command") にも残る。
 ```
 
+### LinComb component velocity UMAP（`plot_lincomb_component_velocity_umap.py`・単体）
+
+学習済みパラメタは `--model_path <checkpoint.pt>`、保存先は `--output_dir <directory>` で明示する。
+両方を省略した場合は、`--run_dir` 以下から最大 step の EMA checkpoint を自動選択し、
+`{run_dir}/viz/velocity_lincomb_components/` へ保存する。`--model_path` と `--output_dir` の明示値が自動決定より優先される。
+
+今回の run で checkpoint と保存先を明示する例:
+
+```bash
+cd /Users/cls-lab/Git/scDiffusionODE/work/20260609_Hybrid5x3/viz
+"$HOME/miniconda3/envs/scdiffusion/bin/python" plot_lincomb_component_velocity_umap.py \
+  --run_dir ../runs/lincomb__none/20260617_180937 \
+  --model_path ../runs/lincomb__none/20260617_180937/train/20260617_180939_train/checkpoints/hybrid5x3/ema_0.9999_000002.pt \
+  --output_dir ../runs/lincomb__none/20260617_180937/viz/velocity_lincomb_components \
+  --velocity_t 0 --group_col Superclass \
+  --max_cells 0 --min_cells 15 --n_jobs 32 --batch_size 512 \
+  --component_mode expert
+```
+
+`--run_dir` だけで checkpoint 自動検出と既定の保存先を使う短縮例:
+
+```bash
+cd /Users/cls-lab/Git/scDiffusionODE/work/20260609_Hybrid5x3/viz
+"$HOME/miniconda3/envs/scdiffusion/bin/python" plot_lincomb_component_velocity_umap.py \
+  --run_dir ../runs/lincomb__none/20260617_180937
+# checkpoint: run_dir 配下の最大 step EMA（この run では ema_0.9999_000002.pt）
+# output:     ../runs/lincomb__none/20260617_180937/viz/velocity_lincomb_components/
+```
+
+優先順位:
+
+```text
+checkpoint: --model_path > --run_dir から自動検出
+保存先:     --output_dir > <run_dir>/viz/velocity_lincomb_components/
+```
+
 ### その他
 - velocity = `model.ode_model(x, velocity_t)`（GeneODE は t 無視 / fields は t 使用）。`--velocity_t` 既定 0。
   scvelo は**元 velocity_by_Superclass.py の方式を踏襲**（`layers["velocity_ode"]`・`layers["X"]`、`velocity_graph(...,n_jobs=32)`→stream/arrow）。
@@ -123,6 +160,9 @@ python plot_loss.py          --loss_path <loss_details.csv> --output_dir <dir>
 # LinComb 専用・単体（config/checkpoint は run_dir から自動検出。出力は {run_dir}/viz/lincomb_a_embedding/<ts>_a_embedding/）:
 python plot_lincomb_a_embedding.py --run_dir <runs/lincomb__*/<ts>> --max_cells 50000 --t_values 0,499,999 \
   --color_cols Superclass,celltype,final_annotation
+# LinComb component velocity 専用・単体（--model_path/--output_dir を省略すると run_dir から自動決定）:
+python plot_lincomb_component_velocity_umap.py --run_dir <runs/lincomb__*/<ts>> \
+  --velocity_t 0 --group_col Superclass --component_mode expert
 ```
 
 train→sample→viz 一気通貫（単一 config、上位ディレクトリ。出力 `runs/{model}/{YYYYMMDD_HHMMSS}/...`）:
