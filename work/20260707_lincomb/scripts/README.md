@@ -10,6 +10,11 @@
 - `common.py`: config、path、manifest、git state、model buildの共通helper
 - `../utils/regime_time.py`: AnnDataから `lambda_max` と `T_s` を推定
 
+全実験に共通する標準条件は `../configs/base.json` で指定します。現在は各モデルを
+`lr_anneal_steps=100000` で学習し、各学習済みモデルから `num_samples=3000` 細胞を
+samplingします。sampling時のミニバッチは `sample_batch_size=50` です。個別の実験
+configに同じキーを書いた場合は、個別configの値が優先されます。
+
 `run_pipeline_0707.py` は以下を扱います。
 
 - `--dry-run`: ファイルを作らずコマンドを確認
