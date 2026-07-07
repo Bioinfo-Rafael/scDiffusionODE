@@ -30,6 +30,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 import numpy as np
 import pandas as pd
 import scanpy as sc
@@ -360,6 +361,63 @@ def _plot_kwargs(adata_subset, vkey, color_col, palette, title):
     )
 
 
+def _strip_axis_legends(ax, keep_title=True):
+    """scVelo/Scanpy が panel 内に作った legend や on-data category text を消す。"""
+    leg = ax.get_legend()
+    if leg is not None:
+        leg.remove()
+
+    # panel title は ax.title なので ax.texts から除かれない。
+    for txt in list(ax.texts):
+        try:
+            txt.remove()
+        except Exception:
+            pass
+
+
+def _add_shared_legend(fig, categories, colors, title, *, max_items=80):
+    """grid 全体に1つだけ legend を図の右外へ追加する。"""
+    categories = list(categories)
+    colors = list(colors)
+    if not categories or not colors:
+        return
+
+    shown_categories = categories[:max_items]
+    shown_colors = colors[:max_items]
+    handles = [
+        Line2D(
+            [0], [0],
+            marker="o",
+            linestyle="",
+            markersize=5,
+            markerfacecolor=color,
+            markeredgecolor=color,
+            label=str(category),
+        )
+        for category, color in zip(shown_categories, shown_colors)
+    ]
+    if len(categories) > max_items:
+        handles.append(
+            Line2D(
+                [0], [0],
+                marker="",
+                linestyle="",
+                label=f"... +{len(categories) - max_items} more",
+            )
+        )
+
+    fig.legend(
+        handles=handles,
+        title=title,
+        loc="center left",
+        bbox_to_anchor=(1.01, 0.5),
+        frameon=False,
+        fontsize=7,
+        title_fontsize=8,
+        borderaxespad=0.0,
+    )
+
+
 def _plot_to_axis(kind, adata_subset, vkey, color_col, palette, title, ax):
     kwargs = _plot_kwargs(adata_subset, vkey, color_col, palette, title)
     if kind == "stream":
@@ -396,6 +454,8 @@ def _plot_to_png_buffer(kind, adata_subset, vkey, color_col, palette, title):
 def _render_panel(kind, adata_subset, vkey, color_col, palette, title, ax):
     try:
         _plot_to_axis(kind, adata_subset, vkey, color_col, palette, title, ax)
+        _strip_axis_legends(ax)
+        ax.set_title(title)
         return None
     except Exception as exc:
         print(
@@ -408,6 +468,7 @@ def _render_panel(kind, adata_subset, vkey, color_col, palette, title, ax):
                 kind, adata_subset, vkey, color_col, palette, title
             )
             ax.imshow(image)
+            _strip_axis_legends(ax)
             ax.axis("off")
             return f"direct ax failed; standalone PNG used: {type(exc).__name__}: {exc}"
         except Exception as fallback_exc:
@@ -483,7 +544,17 @@ def _mark_failed_panel(figures, panel_index, ncols, title, message):
         ax.axis("off")
 
 
-def _save_grid_figures(figures, n_panels, nrows, ncols, outdir):
+def _save_grid_figures(
+    figures,
+    n_panels,
+    nrows,
+    ncols,
+    outdir,
+    *,
+    base_legend_state=None,
+    lineage_legend_state=None,
+    color_col=None,
+):
     names = {
         "stream": "1_velocity_stream_grid.png",
         "arrow": "2_velocity_arrow_grid.png",
@@ -495,7 +566,24 @@ def _save_grid_figures(figures, n_panels, nrows, ncols, outdir):
         for panel_index in range(n_panels, nrows * ncols):
             row, col = divmod(panel_index, ncols)
             axes[row, col].axis("off")
-        fig.tight_layout()
+
+        for ax in axes.ravel():
+            _strip_axis_legends(ax)
+
+        legend_state = (
+            base_legend_state
+            if key in ("stream", "arrow")
+            else lineage_legend_state
+        )
+        if legend_state is not None and color_col is not None:
+            _add_shared_legend(
+                fig,
+                legend_state.get("categories", []),
+                legend_state.get("colors", []),
+                title=color_col,
+            )
+
+        fig.tight_layout(rect=(0.0, 0.0, 0.82, 1.0))
         path = os.path.join(outdir, names[key])
         fig.savefig(path, dpi=300, bbox_inches="tight")
         plt.close(fig)
@@ -638,7 +726,14 @@ def process_group(
 
         if plot_requested:
             created_files = _save_grid_figures(
-                figures, K + 1, nrows, ncols, outdir
+                figures,
+                K + 1,
+                nrows,
+                ncols,
+                outdir,
+                base_legend_state=base_state,
+                lineage_legend_state=lineage_state,
+                color_col=color_col,
             )
             figures = {}
     finally:
