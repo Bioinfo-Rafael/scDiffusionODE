@@ -17,6 +17,7 @@ ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}）用の作図�
 | `plot_lincomb_a_embedding.py` | **単体（LinComb 専用）: 係数 a(x,t) の K 次元 cell embedding**（raw signed `a_k` の PCA/UMAP + 補助指標 abs/top_abs_k/entropy + 係数統計）。run_all_viz には未統合 | —（単体。`{run_dir}/viz/lincomb_a_embedding/<ts>_a_embedding/`） |
 | `plot_lincomb_component_velocity_umap.py` | **単体（LinComb 専用）: `V_total` と expert velocity `V_k` の Superclass 別 3×3 grid**。run_all_viz には未統合 | —（単体。`{run_dir}/viz/velocity_lincomb_components/`） |
 | `plot_lincomb_component_velocity_paga.py` | **単体（LinComb 専用）: `V_total` と `V_k` の Superclass 別 PAGA 3×3 grid**。run_all_viz には未統合 | —（単体。`{run_dir}/viz/velocity_lincomb_component_paga/`） |
+| `plot_lincomb_superclass_coefficients.py` | **単体（LinComb 専用）: `a_k` / component contribution と Superclass の対応**（stacked bar、violin、cell/group CSV）。run_all_viz には未統合 | —（単体。`{run_dir}/viz/lincomb_superclass_coefficients/<ts>/`） |
 | `run_all_viz.py` | 上 4 つを 1 checkpoint に対し順次実行（`--skip loss,params,eval_io,velocity`。`--heatmap_*` を plot_params へ forward） | — |
 
 3 dir の checkpoint は config json（`exp_config`/`field_config`/`hybrid_config`）を渡せば全て復元可能。
@@ -162,6 +163,25 @@ viz/velocity_lincomb_component_paga/
 実際の寄与 `a_k(x,t)V_k(x)` を使う。PAGA が失敗した panel は `FAILED` と表示し、エラーを
 `component_paga_sanity.json` に保存して他の component/group は続行する。既存スクリプトと既存出力は変更しない。
 
+### LinComb coefficient × Superclass（`plot_lincomb_superclass_coefficients.py`・単体）
+
+LinComb の `a_k(x,t)` と `|a_k|·||softplus(W_kx+b_k)||` を Superclass ごとに集計し、component share/mass の
+stacked bar、細胞ごとの coefficient share/mass violin、group/cell-level table を保存する。`--run_dir` だけで
+最新 checkpoint と config を自動検出し、既定で
+`{run_dir}/viz/lincomb_superclass_coefficients/<YYYYMMDD_HHMMSS>/` へ出力する。
+
+```bash
+cd /Users/cls-lab/Git/scDiffusionODE/work/20260609_Hybrid5x3/viz
+"$HOME/miniconda3/envs/scdiffusion/bin/python" plot_lincomb_superclass_coefficients.py \
+  --run_dir /Users/cls-lab/Git/scDiffusionODE/work/20260609_Hybrid5x3/runs/lincomb__none/20260617_180937 \
+  --group_col Superclass --t 0 --max_cells 0 --batch_size 512
+```
+
+主な出力は `coeff_share_100pct_stacked_bar.png`、`coeff_mass_stacked_bar.png`、
+`contrib_share_100pct_stacked_bar.png`、`contrib_mass_stacked_bar.png`、
+`coeff_{share,mass}_violin_by_superclass.png`、`lincomb_superclass_coefficients.csv`、
+`lincomb_cell_coefficients.parquet` （parquet不可時はCSV）。`--max_cells` を正にすると Superclass 層化サンプリングを行う。
+
 ### その他
 - velocity = `model.ode_model(x, velocity_t)`（GeneODE は t 無視 / fields は t 使用）。`--velocity_t` 既定 0。
   scvelo は**元 velocity_by_Superclass.py の方式を踏襲**（`layers["velocity_ode"]`・`layers["X"]`、`velocity_graph(...,n_jobs=32)`→stream/arrow）。
@@ -201,6 +221,9 @@ python plot_lincomb_component_velocity_umap.py --run_dir <runs/lincomb__*/<ts>> 
 # LinComb component PAGA 専用・単体（出力: {run_dir}/viz/velocity_lincomb_component_paga/）:
 python plot_lincomb_component_velocity_paga.py --run_dir <runs/lincomb__*/<ts>> \
   --velocity_t 0 --group_col Superclass --component_mode expert
+# LinComb coefficient/contribution × Superclass（最新 checkpoint/config を run_dir から自動検出）:
+python plot_lincomb_superclass_coefficients.py --run_dir <runs/lincomb__*/<ts>> \
+  --group_col Superclass --t 0 --max_cells 0
 ```
 
 train→sample→viz 一気通貫（単一 config、上位ディレクトリ。出力 `runs/{model}/{YYYYMMDD_HHMMSS}/...`）:
