@@ -131,6 +131,7 @@ def main():
         hybrid_norm_mode=args.hybrid_norm_mode,
         hybrid_scale_init=args.hybrid_scale_init,
         hybrid_scale_eps=args.hybrid_scale_eps,
+        reverse_coef=_to_bool(args.reverse_coef),
     )
     hybrid_model.to(dist_util.dev())
     logger.log(f"hybrid info: {hybrid_model.get_model_info()}")
@@ -140,6 +141,7 @@ def main():
         "hybrid_norm_mode": args.hybrid_norm_mode,
         "hybrid_scale_init": args.hybrid_scale_init,
         "hybrid_scale_eps": args.hybrid_scale_eps,
+        "reverse_coef": _to_bool(args.reverse_coef),
         "SoftReg": soft,
         "ode_reg_lambda": args.ode_reg_lambda,
         "ode_reg_norm": args.ode_reg_norm,
@@ -234,6 +236,7 @@ def create_argparser():
         hybrid_norm_mode="ratio_reg",    # ratio_reg | normed_learned_scale | none
         hybrid_scale_init=1.0,           # normed_learned_scale の scale 初期値
         hybrid_scale_eps=1e-8,           # 正規化 & scale eps
+        reverse_coef=False,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

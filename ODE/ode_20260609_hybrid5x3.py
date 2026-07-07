@@ -2,7 +2,7 @@
 ode_20260609_hybrid5x3.py
 =========================
 
-5 ODE 枝 × 3 hybrid mode を 1 経路で扱う統合 hybrid。
+5 ODE 枝 × hybrid mode を 1 経路で扱う統合 hybrid。
 
 既存ファイルは無編集。以下を import 再利用する:
   - GeneODE                         : ODE/ode_20260421_regODEMLratio.py
@@ -15,10 +15,14 @@ ode_20260609_hybrid5x3.py
   - 4 math fields は t を使う → 時刻依存が保たれる
   これで GeneODE 専用だった ODE_ML_HybridNorm の「field を差すと t=0 で時刻依存が消える」問題を回避。
 
-3 hybrid mode（ODE_ML_HybridNorm と同一仕様、scale は共有 scalar 1 個）:
+hybrid mode（scale は共有 scalar 1 個）:
   - ratio_reg            : out=r·ode+(1-r)·ml、log-norm-ratio penalty を cache
   - normed_learned_scale : ode/ml を L2 正規化 → exp(log_scale) 倍 → blend。ratio penalty なし
   - none                 : raw blend、penalty なし
+  - scale_model          : 正規化した方向を learned scale で拡大
+
+`reverse_coef=False` は従来の r·ode+(1-r)·ml を厳密に維持する。
+T_s regime gate が有効な場合だけ、scheduler blend より明示 gate を優先する。
 
 train_util.py は無変更。`self.ode_model = branch` が `.soft`/`off_mask_penalty`/`_cached_ratio_reg`
 を持つので既存 hook がそのまま発火する（plain Cell_Unet には ode_model が無いので不発火）。
@@ -44,6 +48,8 @@ _ODE_BRANCHES = ("geneode",) + _FIELD_BRANCHES
 _ALL_BRANCHES = _ODE_BRANCHES + ("plain",)
 _VALID_SCALE_INPUT = ("ml_emb", "x")
 _VALID_ODE_INPUT = ("none", "x_ml_emb")
+_VALID_REGIME_GATE_MODES = ("none", "Ts_I_vs_II_III")
+_VALID_REGIME_GATE_TYPES = ("sigmoid", "hard")
 
 
 def _ode_supports_ml_emb(ode_model) -> bool:
@@ -79,6 +85,11 @@ class UnifiedODEMLHybrid(nn.Module):
         scale_input_source: str = "ml_emb",
         ode_input_source: str = "none",
         scale_eps: float = 1e-8,
+        reverse_coef: bool = False,
+        regime_gate_mode: str = "none",
+        regime_gate_type: str = "sigmoid",
+        t_s=None,
+        gate_tau: float = 20.0,
     ):
         super().__init__()
         assert timesteps > 1
@@ -92,6 +103,38 @@ class UnifiedODEMLHybrid(nn.Module):
         self.T = int(timesteps)
         self.hybrid_norm_mode = mode
         self.scale_eps = float(hybrid_scale_eps)   # normed_learned_scale 用（既存・不変）
+        self.reverse_coef = bool(reverse_coef)
+
+        regime_mode_raw = str(regime_gate_mode)
+        if regime_mode_raw.lower() == "none":
+            self.regime_gate_mode = "none"
+        elif regime_mode_raw.lower() == "ts_i_vs_ii_iii":
+            self.regime_gate_mode = "Ts_I_vs_II_III"
+        else:
+            raise ValueError(
+                f"Invalid regime_gate_mode='{regime_gate_mode}'. "
+                f"choose from {_VALID_REGIME_GATE_MODES}"
+            )
+        self.regime_gate_type = str(regime_gate_type).lower()
+        if self.regime_gate_type not in _VALID_REGIME_GATE_TYPES:
+            raise ValueError(
+                f"Invalid regime_gate_type='{regime_gate_type}'. "
+                f"choose from {_VALID_REGIME_GATE_TYPES}"
+            )
+        self.t_s = None if t_s is None else float(t_s)
+        self.gate_tau = float(gate_tau)
+        if self.gate_tau <= 0:
+            raise ValueError(f"gate_tau must be > 0, got {self.gate_tau}")
+        if self.regime_gate_mode != "none":
+            if self.reverse_coef:
+                raise ValueError(
+                    "reverse_coef=True cannot be combined with an enabled regime gate; "
+                    "regime_gate_mode is the explicit blend policy."
+                )
+            if self.t_s is None:
+                raise ValueError("t_s is required when regime_gate_mode is enabled")
+            if not (0.0 <= self.t_s <= self.T - 1):
+                raise ValueError(f"t_s must be in [0, {self.T - 1}], got {self.t_s}")
 
         if mode == "normed_learned_scale":
             init = max(float(hybrid_scale_init), self.scale_eps)
@@ -127,6 +170,42 @@ class UnifiedODEMLHybrid(nn.Module):
         t = t.to(dtype=dtype, device=device)
         return 1.0 - t / (self.T - 1)
 
+    def _blend_terms(self, ode_term, ml_term, r):
+        """既存 scheduler の係数を使い、必要な場合だけ ODE/ML weight を交換する。"""
+        if self.reverse_coef:
+            return (1.0 - r) * ode_term + r * ml_term
+        return r * ode_term + (1.0 - r) * ml_term
+
+    def _regime_ode_weight(self, t, device, dtype):
+        """T_s regime gate の ODE weight を broadcast 用 (B, 1) で返す。"""
+        if self.regime_gate_mode == "none":
+            raise RuntimeError("_regime_ode_weight called while regime_gate_mode='none'")
+        if not torch.is_tensor(t):
+            t = torch.tensor(t, device=device, dtype=dtype)
+        t = t.to(device=device, dtype=dtype)
+        if t.dim() == 0:
+            t = t.view(1, 1)
+        elif t.dim() == 1:
+            t = t.unsqueeze(-1)
+        else:
+            t = t.reshape(t.shape[0], -1)
+            if t.shape[1] != 1:
+                raise ValueError(f"t must have shape (B,) or (B,1), got {tuple(t.shape)}")
+        if self.regime_gate_type == "sigmoid":
+            return torch.sigmoid((self.t_s - t) / self.gate_tau)
+        return (t <= self.t_s).to(dtype=dtype)
+
+    def _blend_terms_regime(self, ode_term, ml_term, t):
+        w_ode = self._regime_ode_weight(t, ode_term.device, ode_term.dtype)
+        while w_ode.dim() < ode_term.dim():
+            w_ode = w_ode.unsqueeze(-1)
+        return w_ode * ode_term + (1.0 - w_ode) * ml_term
+
+    def _blend_by_policy(self, ode_term, ml_term, t, r):
+        if self.regime_gate_mode != "none":
+            return self._blend_terms_regime(ode_term, ml_term, t)
+        return self._blend_terms(ode_term, ml_term, r)
+
     def _norm_ratio_penalty(self, ode_out, ml_out):
         eps = getattr(self.ode_model, "ratio_reg_eps", 1e-8)
         ode_norm = ode_out.norm(p=2, dim=-1).clamp_min(eps)
@@ -158,10 +237,11 @@ class UnifiedODEMLHybrid(nn.Module):
             eps = self.scale_eps
             ode_unit = ode_out / (ode_out.norm(p=2, dim=-1, keepdim=True) + eps)
             ml_unit = ml_out / (ml_out.norm(p=2, dim=-1, keepdim=True) + eps)
-            out = torch.exp(self.log_scale) * (r * ode_unit + (1.0 - r) * ml_unit)
+            base = self._blend_by_policy(ode_unit, ml_unit, t, r)
+            out = torch.exp(self.log_scale) * base
             self.ode_model._cached_ratio_reg = None
         else:
-            out = r * ode_out + (1.0 - r) * ml_out
+            out = self._blend_by_policy(ode_out, ml_out, t, r)
             if mode == "ratio_reg" and self.training:
                 ratio_penalty = self._norm_ratio_penalty(ode_out, ml_out)
                 self.ode_model._cached_ratio_reg = ratio_penalty
@@ -244,7 +324,7 @@ class UnifiedODEMLHybrid(nn.Module):
         r = self._scheduler(t, device=x.device, dtype=x.dtype)
         while r.dim() < x.dim():
             r = r.unsqueeze(-1)
-        base = r * ode_unit + (1.0 - r) * ml_unit          # (B, d)
+        base = self._blend_by_policy(ode_unit, ml_unit, t, r)  # (B, d)
 
         if self.scale_input_source == "ml_emb":
             scale_in = ml_emb
@@ -281,6 +361,11 @@ class UnifiedODEMLHybrid(nn.Module):
             "has_scale_model": self.scale_model is not None,
             "scale_input_source": self.scale_input_source,
             "ode_input_source": self.ode_input_source,
+            "reverse_coef": self.reverse_coef,
+            "regime_gate_mode": self.regime_gate_mode,
+            "regime_gate_type": self.regime_gate_type,
+            "t_s": self.t_s,
+            "gate_tau": self.gate_tau,
             "timesteps": self.T,
         }
 
@@ -367,6 +452,11 @@ def build_denoiser(
     ode_input_source: str = "none",
     scale_hidden: int = 128,
     scale_eps: float = 1e-8,
+    reverse_coef: bool = False,
+    regime_gate_mode: str = "none",
+    regime_gate_type: str = "sigmoid",
+    t_s=None,
+    gate_tau: float = 20.0,
     device="cpu",
 ) -> nn.Module:
     """TrainLoop に渡す denoising model を構築する。
@@ -429,5 +519,10 @@ def build_denoiser(
         scale_input_source=scale_input_source,
         ode_input_source=ode_input_source,
         scale_eps=scale_eps,
+        reverse_coef=reverse_coef,
+        regime_gate_mode=regime_gate_mode,
+        regime_gate_type=regime_gate_type,
+        t_s=t_s,
+        gate_tau=gate_tau,
     ).to(device)
     return hybrid

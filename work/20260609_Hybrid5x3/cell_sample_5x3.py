@@ -81,6 +81,11 @@ def resolve_cfg(args):
         scale_model_type=args.scale_model_type, scale_input_source=args.scale_input_source,
         ode_input_source=args.ode_input_source, scale_hidden=args.scale_hidden,
         scale_eps=args.scale_eps,
+        reverse_coef=_to_bool(args.reverse_coef),
+        regime_gate_mode=args.regime_gate_mode,
+        regime_gate_type=args.regime_gate_type,
+        t_s=_optional_float(args.t_s),
+        gate_tau=args.gate_tau,
     )
     if args.exp_config and os.path.exists(args.exp_config):
         with open(args.exp_config) as f:
@@ -143,6 +148,9 @@ def main():
         scale_model_type=cfg["scale_model_type"], scale_input_source=cfg["scale_input_source"],
         ode_input_source=cfg["ode_input_source"], scale_hidden=cfg["scale_hidden"],
         scale_eps=cfg["scale_eps"],
+        reverse_coef=cfg["reverse_coef"], regime_gate_mode=cfg["regime_gate_mode"],
+        regime_gate_type=cfg["regime_gate_type"], t_s=cfg["t_s"],
+        gate_tau=cfg["gate_tau"],
         device=device,
     )
     model.to(device)
@@ -191,11 +199,19 @@ def create_argparser():
         hybrid_scale_init=1.0, hybrid_scale_eps=1e-8,
         scale_model_type="none", scale_input_source="ml_emb", ode_input_source="none",
         scale_hidden=128, scale_eps=1e-8,
+        reverse_coef=False, regime_gate_mode="none", regime_gate_type="sigmoid",
+        t_s="", gate_tau=20.0,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()
     add_dict_to_argparser(parser, defaults)
     return parser
+
+
+def _optional_float(v):
+    if v is None or str(v).strip().lower() in ("", "none"):
+        return None
+    return float(v)
 
 
 if __name__ == "__main__":

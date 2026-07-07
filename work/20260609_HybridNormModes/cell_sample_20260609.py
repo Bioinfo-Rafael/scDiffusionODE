@@ -80,6 +80,7 @@ def resolve_hybrid_cfg(args):
         hybrid_norm_mode=args.hybrid_norm_mode,
         hybrid_scale_init=args.hybrid_scale_init,
         hybrid_scale_eps=args.hybrid_scale_eps,
+        reverse_coef=_to_bool(args.reverse_coef),
         SoftReg=_to_bool(args.SoftReg),
     )
     if args.hybrid_config and os.path.exists(args.hybrid_config):
@@ -152,6 +153,7 @@ def main():
         hybrid_norm_mode=cfg["hybrid_norm_mode"],
         hybrid_scale_init=cfg["hybrid_scale_init"],
         hybrid_scale_eps=cfg["hybrid_scale_eps"],
+        reverse_coef=cfg["reverse_coef"],
     ).to(device)
     logger.log(f"hybrid info: {hybrid.get_model_info()}")
 
@@ -220,6 +222,7 @@ def create_argparser():
         hybrid_scale_init=1.0,
         hybrid_scale_eps=1e-8,
         SoftReg=True,
+        reverse_coef=False,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()

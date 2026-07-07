@@ -1,0 +1,7 @@
+{
+  "experiment": "lincomb_sparse_reg",
+  "denoiser_mode": "lincomb_only",
+  "gate_mode": "raw",
+  "sparse_lambda": 0.01
+}
+

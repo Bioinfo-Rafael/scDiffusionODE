@@ -124,6 +124,11 @@ def main():
         ode_input_source=args.ode_input_source,
         scale_hidden=args.scale_hidden,
         scale_eps=args.scale_eps,
+        reverse_coef=_to_bool(args.reverse_coef),
+        regime_gate_mode=args.regime_gate_mode,
+        regime_gate_type=args.regime_gate_type,
+        t_s=_optional_float(args.t_s),
+        gate_tau=args.gate_tau,
         device=dist_util.dev(),
     )
     model.to(dist_util.dev())
@@ -150,6 +155,11 @@ def main():
         "ode_input_source": args.ode_input_source,
         "scale_hidden": args.scale_hidden,
         "scale_eps": args.scale_eps,
+        "reverse_coef": _to_bool(args.reverse_coef),
+        "regime_gate_mode": args.regime_gate_mode,
+        "regime_gate_type": args.regime_gate_type,
+        "t_s": _optional_float(args.t_s),
+        "gate_tau": args.gate_tau,
         "time_dim": args.time_dim,
         "field_hidden": args.field_hidden,
         "field_dropout": args.field_dropout,
@@ -269,6 +279,11 @@ def create_argparser():
         ode_input_source="none",         # none|x_ml_emb
         scale_hidden=128,
         scale_eps=1e-8,
+        reverse_coef=False,
+        regime_gate_mode="none",
+        regime_gate_type="sigmoid",
+        t_s="",
+        gate_tau=20.0,
     )
     defaults.update(model_and_diffusion_defaults())
     parser = argparse.ArgumentParser()
@@ -285,6 +300,12 @@ def _to_bool(v):
     if s in ("false", "0", "no", "n", "f"):
         return False
     raise ValueError(f"Invalid boolean value: {v}. Use true/false.")
+
+
+def _optional_float(v):
+    if v is None or str(v).strip().lower() in ("", "none"):
+        return None
+    return float(v)
 
 
 def setup_seed(seed):

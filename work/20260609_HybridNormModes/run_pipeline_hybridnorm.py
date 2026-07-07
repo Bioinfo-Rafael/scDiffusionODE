@@ -54,6 +54,7 @@ def main():
     train = [PY, os.path.join(HERE, "cell_train_20260609.py"),
              "--data_dir", a.data_dir, "--edge_tsv_path", a.edge_tsv_path,
              "--hybrid_norm_mode", a.hybrid_norm_mode, "--SoftReg", a.SoftReg,
+             "--reverse_coef", a.reverse_coef,
              "--ode_reg_lambda", str(a.ode_reg_lambda),
              "--lr_anneal_steps", str(a.lr_anneal_steps), "--batch_size", str(a.batch_size),
              "--diffusion_steps", str(a.diffusion_steps),
@@ -88,6 +89,7 @@ def create_argparser():
     # allow_abbrev=False: `--lr` を `--lr_anneal_steps` の略記と誤認させない（extra へ正しく流す）
     p = argparse.ArgumentParser(allow_abbrev=False)
     p.add_argument("--hybrid_norm_mode", default="ratio_reg")
+    p.add_argument("--reverse_coef", default="False")
     p.add_argument("--SoftReg", default="True")
     p.add_argument("--ode_reg_lambda", type=float, default=5.0)
     p.add_argument("--lr_anneal_steps", type=int, default=4)  # >=2: loss曲線/複数ckpt用

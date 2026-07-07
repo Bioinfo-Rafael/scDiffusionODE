@@ -1,0 +1,6 @@
+{
+  "experiment": "lincomb_only_raw",
+  "denoiser_mode": "lincomb_only",
+  "gate_mode": "raw"
+}
+

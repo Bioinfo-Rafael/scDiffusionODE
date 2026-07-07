@@ -43,6 +43,7 @@ from guided_diffusion.script_util import (  # noqa: E402
     model_and_diffusion_defaults,
 )
 from ODE.ode_20260609_hybrid5x3 import build_denoiser  # noqa: E402
+from ODE.ode_20260707_lincomb import build_denoiser_0707  # noqa: E402
 from ODE.ode_20260609_mathmlp import load_hybrid_state_dict, clean_state_dict  # noqa: E402
 
 
@@ -61,7 +62,9 @@ def normalize_config(cfg, **cli_overrides):
 
     soft = cfg.get("SoftReg", cfg.get("soft", True))
     out = dict(
+        schema_version=str(cfg.get("schema_version", "legacy")),
         ode_branch=(cfg.get("ode_branch") or cfg.get("model_type") or "geneode"),
+        denoiser_mode=str(cfg.get("denoiser_mode", "hybrid")),
         hybrid_norm_mode=cfg.get("hybrid_norm_mode", "ratio_reg"),
         rank=int(cfg.get("rank", 16)),
         K=int(cfg.get("K", 8)),
@@ -82,6 +85,16 @@ def normalize_config(cfg, **cli_overrides):
         ode_input_source=str(cfg.get("ode_input_source", "none")),
         scale_hidden=int(cfg.get("scale_hidden", 128)),
         scale_eps=float(cfg.get("scale_eps", 1e-8)),
+        reverse_coef=b(cfg.get("reverse_coef", False)),
+        regime_gate_mode=str(cfg.get("regime_gate_mode", "none")),
+        regime_gate_type=str(cfg.get("regime_gate_type", "sigmoid")),
+        t_s=(None if cfg.get("t_s", None) in (None, "", "none") else float(cfg["t_s"])),
+        gate_tau=float(cfg.get("gate_tau", 20.0)),
+        gate_mode=str(cfg.get("gate_mode", "raw")),
+        gate_temperature=float(cfg.get("gate_temperature", 1.0)),
+        off_mask_lambda=float(cfg.get("off_mask_lambda", 0.0)),
+        sparse_lambda=float(cfg.get("sparse_lambda", 0.0)),
+        entropy_lambda=float(cfg.get("entropy_lambda", 0.0)),
         diffusion_steps=int(cfg.get("diffusion_steps", 1000)),
     )
     for k, v in cli_overrides.items():
@@ -104,29 +117,64 @@ def load_gene_list(data_dir):
 
 def build_model(cfg_norm, model_path, gene_list, diffusion_num_timesteps, edge_tsv_path, device):
     """build_denoiser で復元し checkpoint をロードした eval モデルを返す。"""
-    model = build_denoiser(
-        ode_branch=cfg_norm["ode_branch"],
-        gene_list=gene_list,
-        edge_tsv_path=resolve_path(edge_tsv_path),
-        timesteps=diffusion_num_timesteps,
-        hybrid_norm_mode=cfg_norm["hybrid_norm_mode"],
-        rank=cfg_norm["rank"], K=cfg_norm["K"], soft=cfg_norm["soft"],
-        ode_reg_lambda=0.0,
-        time_dim=cfg_norm["time_dim"], field_hidden=cfg_norm["field_hidden"],
-        field_dropout=cfg_norm["field_dropout"],
-        lowrank_penalty_subsample=cfg_norm["lowrank_penalty_subsample"],
-        use_decay=cfg_norm["use_decay"],
-        ratio_reg_weight=cfg_norm["ratio_reg_weight"],
-        ratio_reg_target=cfg_norm["ratio_reg_target"],
-        hybrid_scale_init=cfg_norm["hybrid_scale_init"],
-        hybrid_scale_eps=cfg_norm["hybrid_scale_eps"],
-        scale_model_type=cfg_norm["scale_model_type"],
-        scale_input_source=cfg_norm["scale_input_source"],
-        ode_input_source=cfg_norm["ode_input_source"],
-        scale_hidden=cfg_norm["scale_hidden"],
-        scale_eps=cfg_norm["scale_eps"],
-        device=device,
-    )
+    if cfg_norm["schema_version"] == "20260707":
+        model = build_denoiser_0707(
+            gene_list=gene_list,
+            edge_tsv_path=resolve_path(edge_tsv_path),
+            timesteps=diffusion_num_timesteps,
+            denoiser_mode=cfg_norm["denoiser_mode"],
+            hybrid_norm_mode=cfg_norm["hybrid_norm_mode"],
+            reverse_coef=cfg_norm["reverse_coef"],
+            regime_gate_mode=cfg_norm["regime_gate_mode"],
+            regime_gate_type=cfg_norm["regime_gate_type"],
+            t_s=cfg_norm["t_s"], gate_tau=cfg_norm["gate_tau"],
+            K=cfg_norm["K"], use_mask=cfg_norm["use_mask"],
+            soft=cfg_norm["soft"], time_dim=cfg_norm["time_dim"],
+            field_hidden=cfg_norm["field_hidden"],
+            field_dropout=cfg_norm["field_dropout"],
+            use_decay=cfg_norm["use_decay"], gate_mode=cfg_norm["gate_mode"],
+            gate_temperature=cfg_norm["gate_temperature"],
+            off_mask_lambda=cfg_norm["off_mask_lambda"],
+            sparse_lambda=cfg_norm["sparse_lambda"],
+            entropy_lambda=cfg_norm["entropy_lambda"],
+            ratio_reg_weight=cfg_norm["ratio_reg_weight"],
+            ratio_reg_target=cfg_norm["ratio_reg_target"],
+            hybrid_scale_init=cfg_norm["hybrid_scale_init"],
+            hybrid_scale_eps=cfg_norm["hybrid_scale_eps"],
+            scale_model_type=cfg_norm["scale_model_type"],
+            scale_input_source=cfg_norm["scale_input_source"],
+            ode_input_source=cfg_norm["ode_input_source"],
+            scale_hidden=cfg_norm["scale_hidden"], scale_eps=cfg_norm["scale_eps"],
+            device=device,
+        )
+    else:
+        model = build_denoiser(
+            ode_branch=cfg_norm["ode_branch"],
+            gene_list=gene_list,
+            edge_tsv_path=resolve_path(edge_tsv_path),
+            timesteps=diffusion_num_timesteps,
+            hybrid_norm_mode=cfg_norm["hybrid_norm_mode"],
+            rank=cfg_norm["rank"], K=cfg_norm["K"], soft=cfg_norm["soft"],
+            ode_reg_lambda=0.0,
+            time_dim=cfg_norm["time_dim"], field_hidden=cfg_norm["field_hidden"],
+            field_dropout=cfg_norm["field_dropout"],
+            lowrank_penalty_subsample=cfg_norm["lowrank_penalty_subsample"],
+            use_decay=cfg_norm["use_decay"],
+            ratio_reg_weight=cfg_norm["ratio_reg_weight"],
+            ratio_reg_target=cfg_norm["ratio_reg_target"],
+            hybrid_scale_init=cfg_norm["hybrid_scale_init"],
+            hybrid_scale_eps=cfg_norm["hybrid_scale_eps"],
+            scale_model_type=cfg_norm["scale_model_type"],
+            scale_input_source=cfg_norm["scale_input_source"],
+            ode_input_source=cfg_norm["ode_input_source"],
+            scale_hidden=cfg_norm["scale_hidden"],
+            scale_eps=cfg_norm["scale_eps"],
+            reverse_coef=cfg_norm["reverse_coef"],
+            regime_gate_mode=cfg_norm["regime_gate_mode"],
+            regime_gate_type=cfg_norm["regime_gate_type"],
+            t_s=cfg_norm["t_s"], gate_tau=cfg_norm["gate_tau"],
+            device=device,
+        )
     sd = dist_util.load_state_dict(model_path, map_location="cpu")
     if hasattr(model, "ode_model"):
         load_hybrid_state_dict(model, sd, strict=False, log=print)

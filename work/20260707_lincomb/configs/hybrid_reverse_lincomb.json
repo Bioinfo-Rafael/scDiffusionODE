@@ -1,0 +1,9 @@
+{
+  "experiment": "hybrid_reverse_lincomb",
+  "denoiser_mode": "hybrid",
+  "hybrid_norm_mode": "none",
+  "reverse_coef": true,
+  "regime_gate_mode": "none",
+  "gate_mode": "raw"
+}
+

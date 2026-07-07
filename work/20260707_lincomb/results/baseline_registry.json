@@ -1,0 +1,12 @@
+{
+  "hybrid_current_lincomb": {
+    "train_new_model": false,
+    "compatibility_status": "reference_only",
+    "reason": "Existing checkpoint is a short step-2 run; compare conditions before quantitative use.",
+    "run_dir": "work/20260609_Hybrid5x3/runs/lincomb__none/20260617_180937",
+    "config_path": "work/20260609_Hybrid5x3/runs/lincomb__none/20260617_180937/train/20260617_180939_train/exp_config.json",
+    "checkpoint_path": "work/20260609_Hybrid5x3/runs/lincomb__none/20260617_180937/train/20260617_180939_train/checkpoints/hybrid5x3/ema_0.9999_000002.pt",
+    "sample_path": "work/20260609_Hybrid5x3/runs/lincomb__none/20260617_180937/sample/20260617_180945_sample/SampledData/samples.npz"
+  }
+}
+

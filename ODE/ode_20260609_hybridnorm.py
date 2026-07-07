@@ -12,6 +12,8 @@ ODE_ML_Hybrid の ODE/ML 出力統合を 3 モードから選べる新クラス 
   - normed_learned_scale : ODE/ML を L2 正規化 → 共有 scalar scale 倍 → blend。ratio penalty なし
   - none                 : raw blend、penalty なし（baseline）
 
+`reverse_coef=False` は従来の係数方向を維持し、True の場合だけ ODE/ML weight を交換する。
+
 最小差分の鍵:
   既存 `GeneODE.off_mask_penalty()` は `_cached_ratio_reg is None` なら base のみを返す。
   本クラスが forward で mode 別に `ode_model._cached_ratio_reg` を出し分けるだけで、
@@ -48,6 +50,7 @@ class ODE_ML_HybridNorm(nn.Module):
         hybrid_norm_mode: str = "ratio_reg",
         hybrid_scale_init: float = 1.0,
         hybrid_scale_eps: float = 1e-8,
+        reverse_coef: bool = False,
     ):
         super().__init__()
         assert timesteps > 1
@@ -63,6 +66,7 @@ class ODE_ML_HybridNorm(nn.Module):
 
         self.hybrid_norm_mode = mode
         self.scale_eps = float(hybrid_scale_eps)
+        self.reverse_coef = bool(reverse_coef)
 
         # 学習可能 scale は normed_learned_scale のときだけ生成（他 mode は param 集合を現行と同一に保つ）
         if mode == "normed_learned_scale":
@@ -81,6 +85,11 @@ class ODE_ML_HybridNorm(nn.Module):
             t = torch.tensor(t, dtype=dtype, device=device)
         t = t.to(dtype=dtype, device=device)
         return 1.0 - t / (self.T - 1)
+
+    def _blend_terms(self, ode_term, ml_term, r):
+        if self.reverse_coef:
+            return (1.0 - r) * ode_term + r * ml_term
+        return r * ode_term + (1.0 - r) * ml_term
 
     def _norm_ratio_penalty(self, ode_out, ml_out):
         # ODE_ML_Hybrid と同一実装（GeneODE の ratio_reg_* 属性を参照）
@@ -111,12 +120,12 @@ class ODE_ML_HybridNorm(nn.Module):
             ode_unit = ode_out / (ode_out.norm(p=2, dim=-1, keepdim=True) + eps)
             ml_unit = ml_out / (ml_out.norm(p=2, dim=-1, keepdim=True) + eps)
             scale = torch.exp(self.log_scale)
-            out = scale * (r * ode_unit + (1.0 - r) * ml_unit)
+            out = scale * self._blend_terms(ode_unit, ml_unit, r)
             # ratio penalty は使わない → off_mask_penalty は base のみ
             self.ode_model._cached_ratio_reg = None
         else:
             # ratio_reg / none はともに raw blend
-            out = r * ode_out + (1.0 - r) * ml_out
+            out = self._blend_terms(ode_out, ml_out, r)
             if mode == "ratio_reg" and self.training:
                 ratio_penalty = self._norm_ratio_penalty(ode_out, ml_out)
                 self.ode_model._cached_ratio_reg = ratio_penalty
@@ -146,5 +155,6 @@ class ODE_ML_HybridNorm(nn.Module):
             "hybrid_norm_mode": self.hybrid_norm_mode,
             "scale_eps": self.scale_eps,
             "has_learnable_scale": hasattr(self, "log_scale"),
+            "reverse_coef": self.reverse_coef,
             "timesteps": self.T,
         }
