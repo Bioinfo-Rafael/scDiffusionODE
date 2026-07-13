@@ -138,6 +138,19 @@ def main():
     model = R.build_model(cfg, args.model_path, gene_list, diffusion.num_timesteps,
                           args.edge_tsv_path, device)
     has_branch = R.has_ode_branch(model)
+    denoiser_mode = str(cfg.get("denoiser_mode", "")).lower()
+    is_lincomb_only = denoiser_mode == "lincomb_only"
+    if is_lincomb_only:
+        expected = (
+            hasattr(model, "ode_model")
+            and not hasattr(model, "ml_model")
+            and not hasattr(model, "_scheduler")
+        )
+        if not expected:
+            raise RuntimeError(
+                "denoiser_mode='lincomb_only' but loaded model does not match "
+                "LinComb-only structure (expected ode_model only; no ml_model/_scheduler)."
+            )
 
     adata = sc.read_h5ad(args.data_dir)
     n = min(args.max_cells, adata.n_obs)
@@ -159,6 +172,8 @@ def main():
     is_scale = has_branch and getattr(model, "hybrid_norm_mode", None) == "scale_model"
     forward_check = {}            # is_scale のとき weighted hybrid と model() の一致度を 1 回だけ記録
     did_forward_check = False
+    lincomb_forward_check = {}
+    did_lincomb_forward_check = False
 
     rows = []
     for t in timesteps:
@@ -172,7 +187,27 @@ def main():
                 x_t = diffusion.q_sample(x0, t_raw, noise=noise)
                 model_t = diffusion._scale_timesteps(t_raw)
 
-                if has_branch:
+                if is_lincomb_only:
+                    total_pred = model(x_t, model_t)
+                    lincomb_pred = model.ode_model(x_t.float(), model_t)
+                    if not torch.isfinite(total_pred).all():
+                        raise FloatingPointError("LinComb-only total prediction contains NaN or Inf.")
+                    if args.check_forward and not did_lincomb_forward_check:
+                        max_abs = float((total_pred - lincomb_pred).abs().max().item())
+                        rel_l2 = float((total_pred - lincomb_pred).norm().item()
+                                       / (total_pred.norm().item() + 1e-12))
+                        lincomb_forward_check = {"max_abs_diff": max_abs, "rel_l2": rel_l2, "t": int(t)}
+                        did_lincomb_forward_check = True
+                        print(f"[analyze] lincomb_only forward sanity: max|delta|={max_abs:.3e} "
+                              f"rel_l2={rel_l2:.3e} (t={t})")
+                        if not torch.allclose(total_pred, lincomb_pred, rtol=1e-6, atol=1e-7):
+                            raise RuntimeError("LinComb-only model(x_t,t) differs from ode_model(x_t,t).")
+                    r = torch.ones((B,), device=x_t.device, dtype=x_t.dtype)
+                    while r.dim() < x_t.dim():
+                        r = r.unsqueeze(-1)
+                    ode_raw = total_pred
+                    ml_raw = torch.zeros_like(total_pred)
+                elif has_branch:
                     r = model._scheduler(model_t, device=x_t.device, dtype=x_t.dtype)
                     while r.dim() < x_t.dim():
                         r = r.unsqueeze(-1)
@@ -200,7 +235,14 @@ def main():
 
                 row_vals = {"effective_r": r.reshape(B, -1)[:, 0]} if has_branch else {}
                 for m in modes:
-                    if has_branch:
+                    if is_lincomb_only:
+                        if m == "weighted":
+                            ode_c, ml_c = r * ode_raw, (1.0 - r) * ml_raw
+                            hybrid = ode_c + ml_c
+                        else:
+                            ode_c, ml_c = ode_raw, ml_raw
+                            hybrid = ode_c + ml_c
+                    elif has_branch:
                         if is_scale and m == "weighted":
                             # 実 forward と一致: out = scale·(r·ode_unit + (1-r)·ml_unit)
                             ode_c, ml_c = scale * r * ode_unit, scale * (1.0 - r) * ml_unit
@@ -283,10 +325,15 @@ def main():
 
     with open(os.path.join(out_dir, "analysis_config.json"), "w") as f:
         json.dump({"args": vars(args), "cfg": cfg, "has_branch": has_branch,
+                   "denoiser_mode": denoiser_mode,
+                   "hybrid_components_available": bool(has_branch and not is_lincomb_only),
+                   "lincomb_only_decomposition": "total=ode, ml=0" if is_lincomb_only else "",
                    "hybrid_norm_mode": getattr(model, "hybrid_norm_mode", None),
-                   "component_decomposition": "scale_corrected" if is_scale else "standard",
+                   "component_decomposition": ("lincomb_only_total_as_ode" if is_lincomb_only
+                                               else "scale_corrected" if is_scale else "standard"),
                    "scale_model_corrected": bool(is_scale),
-                   "forward_check": forward_check}, f, indent=2)
+                   "forward_check": forward_check,
+                   "lincomb_forward_check": lincomb_forward_check}, f, indent=2)
     print(f"[analyze] done. Output directory: {out_dir}")
 
 
