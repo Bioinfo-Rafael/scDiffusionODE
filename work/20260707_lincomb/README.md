@@ -5,11 +5,11 @@
 ## 対象実験
 
 - `hybrid_reverse_lincomb`: 既存schedulerのODE/CellUnet係数を反転
-- `hybrid_ts_soft_lincomb`: `T_s` に基づくsoft regime gateを使用
 - `lincomb_only_raw`: raw coefficientのLinComb-only baseline
 - `lincomb_softmax_gate`: 正・総和1のsoftmax gate
 - `lincomb_sparse_reg`: raw coefficientへL1正則化
 - `lincomb_entropy_reg`: softmax gateへentropy正則化
+- `hybrid_ts_soft_lincomb`: `T_s` に基づくsoft regime gateを使用
 
 `hybrid_ts_soft_lincomb` では、次のODE側重みを使います。
 
@@ -54,6 +54,16 @@ python work/20260707_lincomb/scripts/run_matrix_0707.py \
   --config-dir work/20260707_lincomb/configs
 ```
 
+このコマンドは、各configについて `run_pipeline_0707.py` を呼び出し、1条件ごとに
+`train → sample → viz → summary` を完了してから次の条件へ進みます。実行順は次です。
+
+1. `hybrid_reverse_lincomb`
+2. `lincomb_only_raw`
+3. `lincomb_softmax_gate`
+4. `lincomb_sparse_reg`
+5. `lincomb_entropy_reg`
+6. `hybrid_ts_soft_lincomb`
+
 実ファイルを作らず、解決後の設定とコマンドを確認します。
 
 ```bash
@@ -63,4 +73,3 @@ python work/20260707_lincomb/scripts/run_pipeline_0707.py \
 ```
 
 詳細は各サブディレクトリの `README.md` を参照してください。
-

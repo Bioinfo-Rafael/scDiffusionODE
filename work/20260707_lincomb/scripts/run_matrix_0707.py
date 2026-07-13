@@ -18,9 +18,12 @@ def main():
     parser.add_argument("--skip-viz", action="store_true")
     args = parser.parse_args()
     names = (
-        "hybrid_reverse_lincomb.json", "hybrid_ts_soft_lincomb.json",
-        "lincomb_only_raw.json", "lincomb_softmax_gate.json",
-        "lincomb_sparse_reg.json", "lincomb_entropy_reg.json",
+        "hybrid_reverse_lincomb.json",
+        "lincomb_only_raw.json",
+        "lincomb_softmax_gate.json",
+        "lincomb_sparse_reg.json",
+        "lincomb_entropy_reg.json",
+        "hybrid_ts_soft_lincomb.json",
     )
     for name in names:
         command = [sys.executable, HERE / "run_pipeline_0707.py", "--config", Path(args.config_dir) / name]
@@ -38,4 +41,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

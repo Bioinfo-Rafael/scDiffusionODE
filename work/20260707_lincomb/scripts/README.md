@@ -50,11 +50,11 @@ python work/20260707_lincomb/scripts/run_matrix_0707.py \
 実行される実験:
 
 1. `hybrid_reverse_lincomb`
-2. `hybrid_ts_soft_lincomb`
-3. `lincomb_only_raw`
-4. `lincomb_softmax_gate`
-5. `lincomb_sparse_reg`
-6. `lincomb_entropy_reg`
+2. `lincomb_only_raw`
+3. `lincomb_softmax_gate`
+4. `lincomb_sparse_reg`
+5. `lincomb_entropy_reg`
+6. `hybrid_ts_soft_lincomb`
 
 全コマンドだけを事前確認する場合:
 
@@ -75,25 +75,7 @@ python work/20260707_lincomb/scripts/run_pipeline_0707.py \
   --config work/20260707_lincomb/configs/hybrid_reverse_lincomb.json
 ```
 
-### 2. `hybrid_ts_soft_lincomb`
-
-training時にAnnDataから `lambda_max` と `T_s` を推定し、sigmoid regime gateを使います。Regime IではCellUnet、Regime II/IIIではODE/LinCombを強くします。
-
-```bash
-python work/20260707_lincomb/scripts/run_pipeline_0707.py \
-  --config work/20260707_lincomb/configs/hybrid_ts_soft_lincomb.json
-```
-
-`T_s` を自動推定せず手動指定する例:
-
-```bash
-python work/20260707_lincomb/scripts/run_pipeline_0707.py \
-  --config work/20260707_lincomb/configs/hybrid_ts_soft_lincomb.json \
-  --t_s 600 \
-  --gate_tau 20
-```
-
-### 3. `lincomb_only_raw`
+### 2. `lincomb_only_raw`
 
 CellUnetと混合せず、raw signed coefficientのLinComb fieldだけをdenoiserに使います。
 
@@ -102,7 +84,7 @@ python work/20260707_lincomb/scripts/run_pipeline_0707.py \
   --config work/20260707_lincomb/configs/lincomb_only_raw.json
 ```
 
-### 4. `lincomb_softmax_gate`
+### 3. `lincomb_softmax_gate`
 
 LinComb係数を正・総和1のsoftmax gateとして使います。
 
@@ -119,7 +101,7 @@ python work/20260707_lincomb/scripts/run_pipeline_0707.py \
   --gate_temperature 0.5
 ```
 
-### 5. `lincomb_sparse_reg`
+### 4. `lincomb_sparse_reg`
 
 raw coefficientへ `mean(abs(a))` のL1正則化を加えます。
 
@@ -136,7 +118,7 @@ python work/20260707_lincomb/scripts/run_pipeline_0707.py \
   --sparse_lambda 0.005
 ```
 
-### 6. `lincomb_entropy_reg`
+### 5. `lincomb_entropy_reg`
 
 softmax gateへ正のentropy penaltyを加え、sampleごとのexpert使用を尖らせます。
 
@@ -151,6 +133,24 @@ python work/20260707_lincomb/scripts/run_pipeline_0707.py \
 python work/20260707_lincomb/scripts/run_pipeline_0707.py \
   --config work/20260707_lincomb/configs/lincomb_entropy_reg.json \
   --entropy_lambda 0.005
+```
+
+### 6. `hybrid_ts_soft_lincomb`
+
+training時にAnnDataから `lambda_max` と `T_s` を推定し、sigmoid regime gateを使います。Regime IではCellUnet、Regime II/IIIではODE/LinCombを強くします。
+
+```bash
+python work/20260707_lincomb/scripts/run_pipeline_0707.py \
+  --config work/20260707_lincomb/configs/hybrid_ts_soft_lincomb.json
+```
+
+`T_s` を自動推定せず手動指定する例:
+
+```bash
+python work/20260707_lincomb/scripts/run_pipeline_0707.py \
+  --config work/20260707_lincomb/configs/hybrid_ts_soft_lincomb.json \
+  --t_s 600 \
+  --gate_tau 20
 ```
 
 ## 1実験のdry-run
