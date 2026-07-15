@@ -234,3 +234,118 @@ work/20260707_lincomb/results/
 ```
 
 script本体は実験コードなので編集可能ですが、変更後は `tests/` とdry-runを実行してください。
+
+## `build_model_from_config` から作られる6モデルの内訳
+
+調べた範囲では、6モデルは `run_matrix_0707.py` に並んでいるこの6 configです。`run_pipeline_0707.py` 自体は各 config について `train_0707.py` を呼び、そこで `build_model_from_config()` が呼ばれます。
+
+参照箇所: `run_matrix_0707.py`, `train_0707.py`, `common.py`
+
+### 全体の流れ
+
+`train_0707.py` で、
+
+1. `base.json` と各 config を merge
+2. AnnData から `gene_list = adata.var["gene_name"]`
+3. diffusion を作って `timesteps = diffusion.num_timesteps`
+4. `hybrid_ts_soft_lincomb` だけ `t_s="auto"` を実データから整数に解決
+5. `build_model_from_config(config, gene_list, timesteps, device)` を呼ぶ
+
+という流れです。
+
+`build_model_from_config()` から `build_denoiser_0707()` に渡る主な共通値はこうです。
+
+```text
+gene_list        = AnnData の gene_name 一覧
+edge_tsv_path    = tf_target_edges.tsv
+timesteps        = 1000
+K                = 8
+use_mask         = true
+soft             = true
+time_dim         = 64
+field_hidden     = 256
+field_dropout    = 0.0
+use_decay        = true
+gate_temperature = 1.0
+off_mask_lambda  = 5.0
+ratio_reg_weight = 0.0
+ratio_reg_target = 1.0
+scale_model_type = "none"
+```
+
+重要なのは、`base.json` に `ode_branch: "lincomb"` はありますが、`build_model_from_config()` は `ode_branch` を渡していません。つまり0707の6本は全部、固定で `ConfigurableLinCombField` を使います。
+
+### 6モデルごとの差分
+
+| config | `build_denoiser_0707` に渡る差分 | できるモデル |
+|---|---|---|
+| `lincomb_only_raw` | `denoiser_mode="lincomb_only"`, `gate_mode="raw"` | `LinCombOnlyDenoiser(ConfigurableLinCombField)` |
+| `lincomb_softmax_gate` | `denoiser_mode="lincomb_only"`, `gate_mode="softmax"` | softmax係数版の LinComb-only |
+| `lincomb_sparse_reg` | `denoiser_mode="lincomb_only"`, `gate_mode="raw"`, `sparse_lambda=0.01` | raw係数 + L1 sparse gate正則化 |
+| `lincomb_entropy_reg` | `denoiser_mode="lincomb_only"`, `gate_mode="softmax"`, `entropy_lambda=0.01` | softmax係数 + entropy正則化 |
+| `hybrid_reverse_lincomb` | `denoiser_mode="hybrid"`, `hybrid_norm_mode="none"`, `reverse_coef=true`, `gate_mode="raw"` | LinComb + `Cell_Unet` の reverse blend |
+| `hybrid_ts_soft_lincomb` | `denoiser_mode="hybrid"`, `regime_gate_mode="Ts_I_vs_II_III"`, `regime_gate_type="sigmoid"`, `t_s=<auto解決された整数>`, `gate_tau=20.0`, `gate_mode="raw"` | LinComb + `Cell_Unet` の T_s sigmoid regime gate |
+
+### LinComb部分で何が起きるか
+
+`build_denoiser_0707()` はまず必ず `build_lincomb_field_0707()` を呼びます。そこで `use_mask=true` なので `tf_target_edges.tsv` から `(遺伝子数, 遺伝子数)` の mask を作り、`ConfigurableLinCombField` を作ります。
+
+中身はざっくりこれです。
+
+```text
+logits = coeff_net([x, time_emb(t)])       # (B, K)
+a_k    = logits              if gate_mode="raw"
+       = softmax(logits/T)   if gate_mode="softmax"
+
+f_k(x) = softplus(W_k x + b_k)
+out    = sum_k a_k f_k(x) - decay(x)
+```
+
+つまり各サンプル・各 timestep ごとに、8個の expert ODE field を係数 `a_k(x,t)` で混ぜるモデルです。`raw` の場合は係数が負にも大きくもなれます。`softmax` の場合は8 expertの確率的な重みになります。
+
+正則化は `off_mask_lambda=5.0` が全モデル共通なので、全6本で `expert_W` の TF-target mask 外成分に L1 penalty がかかります。さらに sparse/entropy の2本だけ、forward中に cache した gate正則化が `off_mask_penalty()` に足されます。
+
+参照: `ODE/ode_20260707_lincomb.py`, `guided_diffusion/train_util.py`
+
+### lincomb_only系
+
+`denoiser_mode="lincomb_only"` の4本は、`LinCombOnlyDenoiser` が返ります。
+
+```text
+model.forward(x,t) = ConfigurableLinCombField(x,t)
+```
+
+なので diffusion の denoiser は Cell_Unet を使わず、LinComb field だけです。
+
+### hybrid系
+
+`denoiser_mode="hybrid"` の2本は、追加で
+
+```python
+ml_model = Cell_Unet(input_dim=len(gene_list))
+```
+
+を作って、`UnifiedODEMLHybrid` になります。
+
+通常の hybrid blend は、
+
+```text
+r(t) = 1 - t / (T - 1)
+
+reverse_coef=false:
+out = r * ode_out + (1-r) * ml_out
+
+reverse_coef=true:
+out = (1-r) * ode_out + r * ml_out
+```
+
+なので `hybrid_reverse_lincomb` は通常と係数が逆です。`t=0` 付近では ML/Cell_Unet が強く、`t=999` 付近では ODE/LinComb が強くなります。
+
+`hybrid_ts_soft_lincomb` は `r(t)` ではなく、
+
+```text
+w_ode(t) = sigmoid((t_s - t) / gate_tau)
+out = w_ode * ode_out + (1-w_ode) * ml_out
+```
+
+を使います。つまり `t <= t_s` 側では LinComb が強く、`t > t_s` 側では Cell_Unet が強くなります。`t_s` は実行時に AnnData から推定され、`exp_config.json` と `ts_estimate.json` に保存されます。
