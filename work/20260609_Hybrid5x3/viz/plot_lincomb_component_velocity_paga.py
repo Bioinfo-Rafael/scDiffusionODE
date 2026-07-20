@@ -39,6 +39,7 @@ from plot_lincomb_component_velocity_umap import (  # noqa: E402
     _close_grid_figures,
     _compute_velocity_projection,
     _finalize_norm_accumulator,
+    filter_adata_to_groups,
     _prepare_palette_states,
     _safe_group_name,
     _strip_axis_legends,
@@ -406,6 +407,11 @@ def build_argparser():
         help="未指定なら {run_dir}/viz/velocity_lincomb_component_paga/",
     )
     parser.add_argument("--group_col", default="Superclass")
+    parser.add_argument(
+        "--only_groups",
+        default="",
+        help="カンマ区切りで処理対象groupを限定。空なら全group。",
+    )
     parser.add_argument("--velocity_t", type=float, default=0.0)
     parser.add_argument(
         "--max_cells",
@@ -508,6 +514,12 @@ def main():
 
     adata = sc.read_h5ad(data_dir)
     n_cells_full = int(adata.n_obs)
+    adata, requested_groups = filter_adata_to_groups(
+        adata, args.group_col, args.only_groups
+    )
+    n_cells_after_group_filter = int(adata.n_obs)
+    if requested_groups:
+        print("[lincomb-paga] only_groups : " + ", ".join(requested_groups))
     if args.max_cells > 0 and adata.n_obs > args.max_cells:
         selected = np.sort(
             np.random.choice(adata.n_obs, args.max_cells, replace=False)
@@ -516,7 +528,8 @@ def main():
     n_cells_used = int(adata.n_obs)
     print(
         f"[lincomb-paga] cells       : {n_cells_used} "
-        f"(full={n_cells_full}, max_cells={args.max_cells or 'unlimited'})"
+        f"(full={n_cells_full}, after_group_filter={n_cells_after_group_filter}, "
+        f"max_cells={args.max_cells or 'unlimited'})"
     )
 
     color_col = R.auto_label_col(adata)
@@ -648,12 +661,14 @@ def main():
         "edge_tsv_path": edge_tsv_path,
         "output_dir": output_dir,
         "n_cells_full": n_cells_full,
+        "n_cells_after_group_filter": n_cells_after_group_filter,
         "n_cells_used": n_cells_used,
         "n_cells_visualized": n_cells_visualized,
         "K": int(K),
         "velocity_t": float(args.velocity_t),
         "component_mode": args.component_mode,
         "group_col": args.group_col,
+        "only_groups": requested_groups,
         "color_col": color_col,
         "component_norms": _finalize_norm_accumulator(norm_accumulator),
         "V_total_sanity": total_sanity,

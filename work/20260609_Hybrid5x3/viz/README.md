@@ -17,6 +17,7 @@ ode_branch ∈ {geneode, lowrank, lincomb, matsum, lora, plain}）用の作図�
 | `plot_lincomb_a_embedding.py` | **単体（LinComb 専用）: 係数 a(x,t) の K 次元 cell embedding**（raw signed `a_k` の PCA/UMAP + 補助指標 abs/top_abs_k/entropy + 係数統計）。run_all_viz には未統合 | —（単体。`{run_dir}/viz/lincomb_a_embedding/<ts>_a_embedding/`） |
 | `plot_lincomb_component_velocity_umap.py` | **単体（LinComb 専用）: `V_total` と expert velocity `V_k` の Superclass 別 3×3 grid**。run_all_viz には未統合 | —（単体。`{run_dir}/viz/velocity_lincomb_components/`） |
 | `plot_lincomb_component_velocity_paga.py` | **単体（LinComb 専用）: `V_total` と `V_k` の Superclass 別 PAGA 3×3 grid**。run_all_viz には未統合 | —（単体。`{run_dir}/viz/velocity_lincomb_component_paga/`） |
+| `run_lincomb_component_velocity_times.py` | **リモート用ランチャー（LinComb 専用）: `lincomb__none` の日時最新runを選び、指定group/tのcomponent UMAP + PAGAを順次実行** | —（単体。`{selected_run}/viz/velocity_lincomb_<group>_t<t...>/`） |
 | `plot_lincomb_superclass_coefficients.py` | **単体（LinComb 専用）: `a_k` / component contribution と Superclass の対応**（stacked bar、violin、cell/group CSV）。run_all_viz には未統合 | —（単体。`{run_dir}/viz/lincomb_superclass_coefficients/<ts>/`） |
 | `run_all_viz.py` | 上 4 つを 1 checkpoint に対し順次実行（`--skip loss,params,eval_io,velocity`。`--heatmap_*` を plot_params へ forward） | — |
 
@@ -163,6 +164,80 @@ viz/velocity_lincomb_component_paga/
 実際の寄与 `a_k(x,t)V_k(x)` を使う。PAGA が失敗した panel は `FAILED` と表示し、エラーを
 `component_paga_sanity.json` に保存して他の component/group は続行する。既存スクリプトと既存出力は変更しない。
 
+UMAP/PAGAスクリプトはどちらも `--only_groups Erythropoietic` のようなカンマ区切り指定に対応する。
+group filterは `--max_cells` より先に適用され、存在しないgroup名はエラーになる。未指定時は従来どおり全groupを処理する。
+
+### Erythropoietic × t=499,999 一括実行（`run_lincomb_component_velocity_times.py`・リモート）
+
+`runs/lincomb__none/` 直下から、directory名先頭の `YYYYMMDD_HHMMSS` が最大のrunを選ぶ。
+filesystemの更新時刻やsuffixではなく、名前先頭の日時だけで判定する。現在想定している選択対象は次のrunである。
+
+```text
+/home/suzuki/Projects/scDiffusion-github/work/20260609_Hybrid5x3/runs/lincomb__none/20260618_214524_ALL100k
+```
+
+既定値は `Superclass=Erythropoietic`、`t_values=499,999`、`component_mode=expert`。
+既存の `t=0` component図と同じraw expert定義で比較するため、`V_k` panel自体はtによらず、主に `V_total` が変化する。
+各componentの時刻依存寄与 `a_k(x,t)V_k(x)` を見たい場合は `--component_mode contribution` を指定する。
+この可視化はhybrid全体ではなく `model.ode_model(x,t)` のLinComb枝を描くため、
+hybridのODE/ML混合係数は掛けない。
+
+ファイル配置:
+
+```text
+work/20260609_Hybrid5x3/viz/
+  run_lincomb_component_velocity_times.py
+  plot_lincomb_component_velocity_umap.py
+  plot_lincomb_component_velocity_paga.py
+  README.md
+```
+
+既定の出力構造（選択runの `viz/` 直下に作るdirectoryは1つ）:
+
+```text
+20260618_214524_ALL100k/viz/
+  velocity_lincomb_Erythropoietic_t499_999/
+    command.txt
+    run.log
+    summary.json
+    t499/
+      velocity_lincomb_components/
+        velocity_by_superclass/Erythropoietic/
+      velocity_lincomb_component_paga/
+        velocity_by_superclass/Erythropoietic/
+    t999/
+      velocity_lincomb_components/
+        velocity_by_superclass/Erythropoietic/
+      velocity_lincomb_component_paga/
+        velocity_by_superclass/Erythropoietic/
+```
+
+リモートで、まず選択runと4つの子コマンドだけを確認する。`--dry_run` はdirectoryを作らず描画も行わない。
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github/work/20260609_Hybrid5x3/viz
+"$HOME/.conda/envs/scdiffusion/bin/python" run_lincomb_component_velocity_times.py --dry_run
+```
+
+表示された `selected_run` が `20260618_214524_ALL100k` であることを確認して本実行する。
+4処理は同じPython processから順番に起動されるので、GPU/CPU負荷が重ならない。
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github/work/20260609_Hybrid5x3/viz
+"$HOME/.conda/envs/scdiffusion/bin/python" run_lincomb_component_velocity_times.py
+```
+
+runを固定したい場合:
+
+```bash
+"$HOME/.conda/envs/scdiffusion/bin/python" run_lincomb_component_velocity_times.py \
+  --run_dir ../runs/lincomb__none/20260618_214524_ALL100k
+```
+
+既定output rootが既に存在する場合は誤上書きを避けて停止する。途中失敗後に同じrootへ続きを実行する場合は
+`--reuse_output`、別名で保存する場合は `--output_name <name>` を指定する。実行全体の選択run・config・checkpoint・
+各子コマンド・終了状態はroot直下の `command.txt` / `run.log` / `summary.json` に保存される。
+
 ### LinComb coefficient × Superclass（`plot_lincomb_superclass_coefficients.py`・単体）
 
 LinComb の `a_k(x,t)` と `|a_k|·||softplus(W_kx+b_k)||` を Superclass ごとに集計し、component share/mass の
@@ -217,10 +292,13 @@ python plot_lincomb_a_embedding.py --run_dir <runs/lincomb__*/<ts>> --max_cells 
   --color_cols Superclass,celltype,final_annotation
 # LinComb component velocity 専用・単体（--model_path/--output_dir を省略すると run_dir から自動決定）:
 python plot_lincomb_component_velocity_umap.py --run_dir <runs/lincomb__*/<ts>> \
-  --velocity_t 0 --group_col Superclass --component_mode expert
+  --velocity_t 0 --group_col Superclass --only_groups Erythropoietic --component_mode expert
 # LinComb component PAGA 専用・単体（出力: {run_dir}/viz/velocity_lincomb_component_paga/）:
 python plot_lincomb_component_velocity_paga.py --run_dir <runs/lincomb__*/<ts>> \
-  --velocity_t 0 --group_col Superclass --component_mode expert
+  --velocity_t 0 --group_col Superclass --only_groups Erythropoietic --component_mode expert
+# LinComb component UMAP + PAGAを日時最新runに対してt=499,999で一括（既定group=Erythropoietic）:
+python run_lincomb_component_velocity_times.py --dry_run
+python run_lincomb_component_velocity_times.py
 # LinComb coefficient/contribution × Superclass（最新 checkpoint/config を run_dir から自動検出）:
 python plot_lincomb_superclass_coefficients.py --run_dir <runs/lincomb__*/<ts>> \
   --group_col Superclass --t 0 --max_cells 0

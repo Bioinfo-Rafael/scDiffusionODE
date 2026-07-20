@@ -79,6 +79,42 @@ def _safe_group_name(value):
     return re.sub(r"[\\/:*?\"<>|\s]+", "_", name)
 
 
+def _parse_only_groups(value):
+    """Comma-separated group namesを重複なしで返す。空文字は全group。"""
+    requested = []
+    for item in str(value or "").split(","):
+        name = item.strip()
+        if name and name not in requested:
+            requested.append(name)
+    return requested
+
+
+def filter_adata_to_groups(adata, group_col, only_groups):
+    """指定groupだけにAnnDataを絞る。指定なしなら入力をそのまま返す。"""
+    requested = _parse_only_groups(only_groups)
+    if not requested:
+        return adata, requested
+    if group_col not in adata.obs.columns:
+        raise SystemExit(
+            f"[ERROR] --only_groups requires group column '{group_col}', "
+            "but it is missing from adata.obs."
+        )
+
+    values = adata.obs[group_col].astype(object).to_numpy()
+    labels = np.asarray(
+        ["NA" if pd.isna(value) else str(value) for value in values],
+        dtype=object,
+    )
+    available = set(labels.tolist())
+    missing = [name for name in requested if name not in available]
+    if missing:
+        raise SystemExit(
+            f"[ERROR] --only_groups contains unknown {group_col} values: {missing}"
+        )
+    mask = np.isin(labels, requested)
+    return adata[np.asarray(mask)].copy(), requested
+
+
 def _write_json(path, payload):
     with open(path, "w") as f:
         json.dump(payload, f, indent=2, ensure_ascii=False, default=str)
@@ -793,6 +829,11 @@ def build_argparser():
         help="未指定なら {run_dir}/viz/velocity_lincomb_components/",
     )
     parser.add_argument("--group_col", default="Superclass")
+    parser.add_argument(
+        "--only_groups",
+        default="",
+        help="カンマ区切りで処理対象groupを限定。空なら全group。",
+    )
     parser.add_argument("--velocity_t", type=float, default=0.0)
     parser.add_argument(
         "--max_cells",
@@ -893,6 +934,15 @@ def main():
 
     adata = sc.read_h5ad(data_dir)
     n_cells_full = int(adata.n_obs)
+    adata, requested_groups = filter_adata_to_groups(
+        adata, args.group_col, args.only_groups
+    )
+    n_cells_after_group_filter = int(adata.n_obs)
+    if requested_groups:
+        print(
+            "[lincomb-velocity] only_groups : "
+            + ", ".join(requested_groups)
+        )
     if args.max_cells > 0 and adata.n_obs > args.max_cells:
         selected = np.sort(
             np.random.choice(adata.n_obs, args.max_cells, replace=False)
@@ -901,7 +951,8 @@ def main():
     n_cells_used = int(adata.n_obs)
     print(
         f"[lincomb-velocity] cells       : {n_cells_used} "
-        f"(full={n_cells_full}, max_cells={args.max_cells or 'unlimited'})"
+        f"(full={n_cells_full}, after_group_filter={n_cells_after_group_filter}, "
+        f"max_cells={args.max_cells or 'unlimited'})"
     )
 
     color_col = R.auto_label_col(adata)
@@ -1021,12 +1072,14 @@ def main():
         "edge_tsv_path": edge_tsv_path,
         "output_dir": output_dir,
         "n_cells_full": n_cells_full,
+        "n_cells_after_group_filter": n_cells_after_group_filter,
         "n_cells_used": n_cells_used,
         "n_cells_visualized": n_cells_visualized,
         "K": int(K),
         "velocity_t": float(args.velocity_t),
         "component_mode": args.component_mode,
         "group_col": args.group_col,
+        "only_groups": requested_groups,
         "color_col": color_col,
         "component_norms": _finalize_norm_accumulator(norm_accumulator),
         "V_total_sanity": total_sanity,
