@@ -1,0 +1,15 @@
+{
+  "experiment": "hybrid_ts_soft_gentle_tau80_softmax_gate",
+  "denoiser_mode": "hybrid",
+  "hybrid_norm_mode": "none",
+  "reverse_coef": false,
+  "regime_gate_mode": "Ts_I_vs_II_III",
+  "regime_gate_type": "sigmoid",
+  "t_s": "auto",
+  "gate_tau": 80.0,
+  "ts_n_cells": 200000,
+  "ts_layer": null,
+  "gate_mode": "softmax",
+  "gate_temperature": 1.0,
+  "regime_gate_note": "Gentler TS_soft: gate_tau is increased from 20.0 to 80.0, widening the sigmoid transition."
+}

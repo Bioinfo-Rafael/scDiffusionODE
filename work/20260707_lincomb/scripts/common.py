@@ -79,6 +79,7 @@ def create_run_dir(experiment, suffix=""):
 
 def artifact_dirs(run_dir):
     run_dir = Path(run_dir).resolve()
+    suite_root = WORK_ROOT
     try:
         relative = run_dir.relative_to((WORK_ROOT / "runs").resolve())
         if len(relative.parts) < 2:
@@ -86,16 +87,24 @@ def artifact_dirs(run_dir):
         experiment, run_id = relative.parts[0], relative.parts[1]
         external_root = None
     except ValueError:
-        # Explicit test/custom run directories stay self-contained.
-        experiment, run_id = run_dir.parent.name, run_dir.name
-        external_root = run_dir / "artifacts"
+        candidate_runs_root = run_dir.parent.parent
+        if candidate_runs_root.name == "runs":
+            relative = run_dir.relative_to(candidate_runs_root)
+            if len(relative.parts) < 2:
+                raise ValueError(f"run directory must be <suite>/runs/<experiment>/<run_id>: {run_dir}")
+            suite_root = candidate_runs_root.parent
+            experiment, run_id = relative.parts[0], relative.parts[1]
+            external_root = None
+        else:
+            experiment, run_id = run_dir.parent.name, run_dir.name
+            external_root = run_dir / "artifacts"
     paths = {
         "run": run_dir,
         "train": run_dir / "train",
-        "samples": (external_root / "samples" if external_root else WORK_ROOT / "samples" / experiment / run_id),
-        "viz": (external_root / "viz" if external_root else WORK_ROOT / "viz" / experiment / run_id),
-        "logs": (external_root / "logs" if external_root else WORK_ROOT / "logs" / experiment / run_id),
-        "results": (external_root / "results" if external_root else WORK_ROOT / "results" / experiment / run_id),
+        "samples": (external_root / "samples" if external_root else suite_root / "samples" / experiment / run_id),
+        "viz": (external_root / "viz" if external_root else suite_root / "viz" / experiment / run_id),
+        "logs": (external_root / "logs" if external_root else suite_root / "logs" / experiment / run_id),
+        "results": (external_root / "results" if external_root else suite_root / "results" / experiment / run_id),
     }
     return paths
 

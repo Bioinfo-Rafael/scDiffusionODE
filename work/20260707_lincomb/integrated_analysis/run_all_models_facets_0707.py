@@ -177,10 +177,10 @@ def inspect_manifest(run_dir):
     return ok, reason, str(manifest_path)
 
 
-def discover_latest_runs(work_root):
+def discover_latest_runs(work_root, model_order=MODEL_ORDER):
     work_root = Path(work_root).resolve()
     records = []
-    for model in MODEL_ORDER:
+    for model in model_order:
         model_records = []
         selected = None
         run_parent = work_root / "runs" / model
@@ -524,7 +524,7 @@ def run_full(args, records):
         "output_dir": str(output_dir),
         "data_dir_resolved": data_dir_resolved,
         "annotation_col": annotation_col,
-        "model_order": MODEL_ORDER,
+        "model_order": args.model_order,
         "sample_key": SAMPLE_KEY,
         "point_style": {
             "real_size": PM_SIZE_REAL,
@@ -561,6 +561,10 @@ def run_full(args, records):
 def build_parser():
     parser = argparse.ArgumentParser(description="Create 20260707 all_models_facets.png only.")
     parser.add_argument("--work_root", default="work/20260707_lincomb")
+    parser.add_argument(
+        "--models", nargs="+", default=None, metavar="EXPERIMENT",
+        help="experiment directories to facet; defaults to the 20260707 matrix",
+    )
     parser.add_argument("--data_dir", default=DEFAULT_DATA_DIR)
     parser.add_argument("--output_root", default="")
     parser.add_argument("--per_model_real_cells", type=int, default=50000)
@@ -576,9 +580,10 @@ def build_parser():
 def main():
     args = build_parser().parse_args()
     args.work_root = str(Path(args.work_root).resolve())
+    args.model_order = list(args.models) if args.models else list(MODEL_ORDER)
     if not args.output_root:
         args.output_root = str(Path(args.work_root) / "integrated_analysis" / "outputs")
-    records = discover_latest_runs(args.work_root)
+    records = discover_latest_runs(args.work_root, args.model_order)
     if args.dry_run:
         print_dry_run(records)
         return
