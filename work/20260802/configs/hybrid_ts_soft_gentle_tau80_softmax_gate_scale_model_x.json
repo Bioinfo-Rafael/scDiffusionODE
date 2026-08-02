@@ -1,0 +1,20 @@
+{
+  "experiment": "hybrid_ts_soft_gentle_tau80_softmax_gate_scale_model_x",
+  "denoiser_mode": "hybrid",
+  "hybrid_norm_mode": "scale_model",
+  "reverse_coef": false,
+  "regime_gate_mode": "Ts_I_vs_II_III",
+  "regime_gate_type": "sigmoid",
+  "t_s": "auto",
+  "gate_tau": 80.0,
+  "ts_n_cells": 200000,
+  "ts_layer": null,
+  "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+  "gate_mode": "softmax",
+  "gate_temperature": 1.0,
+  "scale_model_type": "simple",
+  "scale_input_source": "x",
+  "ode_input_source": "none",
+  "scale_hidden": 128,
+  "scale_eps": 1e-08
+}

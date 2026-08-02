@@ -1,0 +1,11 @@
+{
+  "experiment": "hybrid_softmax_gate_normed_learned_scale",
+  "denoiser_mode": "hybrid",
+  "hybrid_norm_mode": "normed_learned_scale",
+  "reverse_coef": false,
+  "regime_gate_mode": "none",
+  "gate_mode": "softmax",
+  "gate_temperature": 1.0,
+  "hybrid_scale_init": 1.0,
+  "hybrid_scale_eps": 1e-08
+}

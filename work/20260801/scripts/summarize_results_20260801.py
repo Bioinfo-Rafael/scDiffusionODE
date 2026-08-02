@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import csv
 import json
 from pathlib import Path
@@ -18,8 +19,12 @@ def read_json(path: Path):
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--suite-root", default=str(SUITE_ROOT))
+    args = parser.parse_args()
+    suite_root = Path(args.suite_root).resolve()
     rows = []
-    for path in sorted((SUITE_ROOT / "runs").glob("*/*/manifest.json")):
+    for path in sorted((suite_root / "runs").glob("*/*/manifest.json")):
         manifest = read_json(path)
         gate = manifest.get("gate_diagnostics", {})
         baseline = manifest.get("baseline_reference", {})
@@ -41,7 +46,7 @@ def main() -> None:
             "baseline_checkpoint_path": baseline.get("checkpoint_path"),
             "baseline_sample_path": baseline.get("sample_path"),
         })
-    output_dir = SUITE_ROOT / "results"
+    output_dir = suite_root / "results"
     output_dir.mkdir(parents=True, exist_ok=True)
     with open(output_dir / "comparison_summary.json", "w", encoding="utf-8") as handle:
         json.dump(rows, handle, indent=2, ensure_ascii=False)
