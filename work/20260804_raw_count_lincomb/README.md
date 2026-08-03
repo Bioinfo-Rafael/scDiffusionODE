@@ -63,7 +63,8 @@ conda run -n scdiffusion python work/20260804_raw_count_lincomb/scripts/launch.p
 
 `--prepare-data`はデータ作成が成功した場合だけ学習へ進みます。download原本または最終
 H5ADが既に存在する場合は上書きせず停止します。作成済みデータを使う再実行・resumeでは
-`--prepare-data`を外してください。
+`--prepare-data`を外してください。使用中のPython環境に`gdown`がない場合は、download前に
+同じ環境へ`gdown==5.2.0`を自動導入します。
 
 ## 目的とデータ作成
 

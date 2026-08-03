@@ -5,7 +5,10 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import importlib
 import json
+import subprocess
+import sys
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -22,6 +25,27 @@ DATA_ROOT = SUITE_ROOT / "data"
 FILE_ID = "1cProQIHN_auFCowchTcW9-wd1PEPSDjF"
 SOURCE_NAME = "Embryonic_raw_data.h5ad"
 OUTPUT_NAME = "Embryonic_raw_count.h5ad"
+GDOWN_REQUIREMENT = "gdown==5.2.0"
+
+
+def load_gdown():
+    """Import gdown, bootstrapping the pinned downloader in this environment."""
+    try:
+        return importlib.import_module("gdown")
+    except ModuleNotFoundError as exc:
+        if exc.name != "gdown":
+            raise
+    command = [sys.executable, "-m", "pip", "install", GDOWN_REQUIREMENT]
+    print(f"gdown is missing; installing {GDOWN_REQUIREMENT} with: {' '.join(command)}")
+    try:
+        subprocess.run(command, check=True)
+    except subprocess.CalledProcessError as exc:
+        raise RuntimeError(
+            "automatic gdown installation failed; run this command and retry: "
+            + " ".join(command)
+        ) from exc
+    importlib.invalidate_caches()
+    return importlib.import_module("gdown")
 
 
 def matrix_audit(matrix: Any, chunk_rows: int = 4096) -> dict:
@@ -112,7 +136,7 @@ def main():
         print(json.dumps({"file_id": FILE_ID, "download": str(source), "output": str(output), "raw_source": args.raw_source}, indent=2)); return
     root.mkdir(parents=True, exist_ok=True)
     if not args.skip_download:
-        import gdown
+        gdown = load_gdown()
         if source.exists(): raise FileExistsError(f"refusing to overwrite download: {source}")
         gdown.download(url=f"https://drive.google.com/uc?id={FILE_ID}", output=str(source), quiet=False)
     if not source.is_file(): raise FileNotFoundError(source)

@@ -13,6 +13,7 @@ import torch.nn as nn
 
 SUITE=Path(__file__).resolve().parents[1]; REPO=SUITE.parent.parent
 for path in (SUITE,SUITE/"scripts",REPO): sys.path.insert(0,str(path))
+from scripts import create_raw_count_data
 from scripts.create_raw_count_data import OUTPUT_NAME, build, matrix_audit
 from models import factory
 from guided_diffusion.cell_datasets_loader import load_data
@@ -23,6 +24,13 @@ class TinyCell(nn.Module):
     def forward(self,x,t,y=None): return self.layer(x.float())
 
 class RawCountSuiteTests(unittest.TestCase):
+    def test_missing_gdown_is_bootstrapped_in_active_python(self):
+        missing=ModuleNotFoundError("No module named 'gdown'",name="gdown"); fake=object()
+        with mock.patch.object(create_raw_count_data.importlib,"import_module",side_effect=[missing,fake]) as importer, mock.patch.object(create_raw_count_data.subprocess,"run") as runner:
+            self.assertIs(create_raw_count_data.load_gdown(),fake)
+        runner.assert_called_once_with([sys.executable,"-m","pip","install","gdown==5.2.0"],check=True)
+        self.assertEqual(importer.call_count,2)
+
     def test_raw_counts_survive_hvg_only_normalize_log(self):
         rng=np.random.default_rng(4); x=rng.poisson(2,size=(40,1100)).astype(np.float32)
         obs=pd.DataFrame({"a":range(40),"original_celltype":["A","B"]*20,"c":0},index=[f"c{i}" for i in range(40)])
