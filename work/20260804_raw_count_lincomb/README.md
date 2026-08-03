@@ -59,6 +59,13 @@ conda run -n scdiffusion python \
   work/20260804_raw_count_lincomb/scripts/create_raw_count_data.py --dry-run
 conda run -n scdiffusion python work/20260804_raw_count_lincomb/scripts/launch.py \
   --prepare-data --dry-run --batch-id 20260804_full_30000
+
+# 11. 完了したODE-only 3条件の20260802方式all_models_facets.png
+python -u work/20260804_raw_count_lincomb/integrated_analysis/run_all_models_facets.py
+
+# 選択されるrun/sampleだけ確認（UMAPは実行しない）
+python -u work/20260804_raw_count_lincomb/integrated_analysis/run_all_models_facets.py \
+  --dry-run
 ```
 
 `--prepare-data`はデータ作成が成功した場合だけ学習へ進みます。download原本または最終
@@ -150,6 +157,13 @@ real/generatedを結合した独立AnnData上で計算し、学習H5ADを変更�
 normalize/log/clipを加えずraw-count model spaceをそのまま使うため、generated負値も
 0へclipされません。負値数、real index、PCA/neighbors/seedをUMAP metadataへ保存し、
 320 dpi PNGへexperiment、step、raw-count trainingを明記します。
+
+ODE-only 3条件の統合facetは、`work/20260802/integrated_analysis`と同じ共有実装
+`run_all_models_facets_0707.py`を呼び出します。各モデルでsampling完了runのうち
+checkpoint stepが最大のもの（同stepならsample更新時刻が新しいもの）を選ぶため、expの
+retry runも自動選択されます。real 50,000、generated最大3,000、PCA 50、neighbors 15、
+min_dist 0.5、seed 0で、各panelを独立UMAPとして計算します。出力は
+`integrated_analysis/outputs/<YYYYMMDD_HHMMSS>/all_models_facets.png`です。
 
 ## run構造、smoke、数値上の注意
 
