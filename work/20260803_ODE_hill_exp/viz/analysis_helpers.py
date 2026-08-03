@@ -535,7 +535,14 @@ def _ode_weight(model: Any, t: torch.Tensor, x: torch.Tensor) -> tuple[torch.Ten
 
 
 def _moments(values: Sequence[np.ndarray]) -> tuple[float, float]:
-    array = np.concatenate([np.asarray(v).reshape(-1) for v in values])
+    # Metrics are produced as float32 tensors.  A finite value can still be as
+    # large as ~1e38; NumPy's float32 std squares centered values and may then
+    # overflow even though every input is finite.  Aggregate in float64 so the
+    # finite preflight tests the metric itself rather than an avoidable
+    # reduction overflow.  This is a dtype-only change, not clipping/sanitizing.
+    array = np.concatenate([
+        np.asarray(value, dtype=np.float64).reshape(-1) for value in values
+    ])
     assert_finite("metric accumulator", array)
     return float(array.mean()), float(array.std())
 
@@ -1290,6 +1297,7 @@ def analyze_run(
         "regularization_columns": regularizer_columns,
         "nonfinite_policy": "fail; no nan_to_num or silent replacement",
         "ratio_denominator_floor": 1e-12,
+        "metric_aggregation_dtype": "float64",
         "conditional_skips": skips,
         "parameter_summary": parameter_summary,
         "created_files": [str(Path(path).relative_to(output_dir)) for path in created],

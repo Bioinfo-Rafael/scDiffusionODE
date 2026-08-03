@@ -39,6 +39,15 @@ conda run -n scdiffusion python work/20260803_ODE_hill_exp/scripts/launch.py \
 conda run -n scdiffusion python work/20260803_ODE_hill_exp/scripts/launch.py \
   --resume auto --batch-id 20260803_full_30000
 
+# 7a. 第6条件の解析失敗を直した後、解析だけ再開して第7〜12条件をbackground実行
+bash work/20260803_ODE_hill_exp/resume_after_analysis_failure.sh \
+  20260803_full_30000
+
+# 上記の実行予定だけを確認（runやcheckpointは変更しない）
+conda run -n scdiffusion python \
+  work/20260803_ODE_hill_exp/scripts/resume_after_analysis_failure.py \
+  --batch-id 20260803_full_30000 --dry-run
+
 # 8. samplingだけ
 conda run -n scdiffusion python work/20260803_ODE_hill_exp/scripts/launch.py \
   --sample-only --batch-id 20260803_full_30000
@@ -315,6 +324,13 @@ ODE別には次を作ります。
 黙った挙動変更ではありません。初期forward/backwardのfiniteは全12条件でsmoke
 検証します。
 
+model I/O指標はmodelとbranchの出力自体をfloat32のまま評価しますが、mean/stdの
+集約だけはfloat64で行います。Standard Hybridの`t=0`ではCellUnetのweighted norm
+が厳密に0となり、分母floor `1e-12`を使ったODE/Cell比率が有限でも非常に大きく
+なります。そのfloat32標準偏差が内部の二乗でoverflowすることを防ぐためです。
+値のclip、`nan_to_num`、非有限値の置換は行わず、本当にNaN/Infの入力は従来どおり
+preflightで停止します。
+
 ## smoke test
 
 smokeは小さなsynthetic AnnDataとtoy directed edgeをsuite内に作り、各12構成で
@@ -362,6 +378,31 @@ smokeは小さなsynthetic AnnDataとtoy directed edgeをsuite内に作り、各
 途中失敗時はまず`runs/<experiment>/<batch-id>/manifest.json`、`logs/`、
 `raw_checkpoint_path`、`optimizer_checkpoint_path`を確認し、上記`--resume auto`を
 使います。既存保護状態は次で再検査できます。
+
+`standard_hybrid_lincomb__exp`のtrain/sampling完了後にanalysisだけ失敗し、
+第7〜12条件が未開始の状態には`resume_after_analysis_failure.sh`を使えます。
+このwrapperは第6条件のanalysisだけを再実行した後、次の6条件をcanonical順で
+train→sample→analysisします。各stageはmanifestのcompleted状態だけでなく、対応
+checkpoint/sample/analysis manifestが実在する場合だけskipします。途中で再度停止
+しても同じコマンドを実行でき、未完了trainingは`--resume auto`になります。
+
+defaultはbackground実行で、ログとPIDは次へ保存・表示されます。
+
+```text
+batches/20260803_full_30000/resume_after_analysis_failure.log
+batches/20260803_full_30000/resume_after_analysis_failure.json
+```
+
+foregroundで確認しながら実行する場合は次を使います。
+
+```bash
+RUN_MODE=foreground bash \
+  work/20260803_ODE_hill_exp/resume_after_analysis_failure.sh \
+  20260803_full_30000
+```
+
+有効化済みconda環境以外のPythonを使う場合は、`PYTHON_BIN`へ対象environmentの
+Python絶対パスを指定します。
 
 ```bash
 python work/20260803_ODE_hill_exp/scripts/verify_protected.py --write-report
