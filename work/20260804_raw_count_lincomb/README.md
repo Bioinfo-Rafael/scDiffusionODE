@@ -6,7 +6,11 @@
 `Embryonic_raw_count.h5ad`です。
 
 ```bash
-# 1. Drive download → raw判定 → filter → HVG選定 → raw-count H5AD保存
+# 0. 初回データ作成 → 6条件のtrain → sample → UMAPを一括実行
+conda run -n scdiffusion python work/20260804_raw_count_lincomb/scripts/launch.py \
+  --prepare-data --batch-id 20260804_full_30000
+
+# 1. Drive download → raw判定 → filter → HVG選定 → raw-count H5AD保存だけ
 conda run -n scdiffusion python \
   work/20260804_raw_count_lincomb/scripts/create_raw_count_data.py
 
@@ -54,8 +58,12 @@ conda run -n scdiffusion python work/20260804_raw_count_lincomb/scripts/launch.p
 conda run -n scdiffusion python \
   work/20260804_raw_count_lincomb/scripts/create_raw_count_data.py --dry-run
 conda run -n scdiffusion python work/20260804_raw_count_lincomb/scripts/launch.py \
-  --dry-run --batch-id 20260804_full_30000
+  --prepare-data --dry-run --batch-id 20260804_full_30000
 ```
+
+`--prepare-data`はデータ作成が成功した場合だけ学習へ進みます。download原本または最終
+H5ADが既に存在する場合は上書きせず停止します。作成済みデータを使う再実行・resumeでは
+`--prepare-data`を外してください。
 
 ## 目的とデータ作成
 
