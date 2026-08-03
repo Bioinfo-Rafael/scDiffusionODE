@@ -24,6 +24,16 @@ class TinyCell(nn.Module):
     def forward(self,x,t,y=None): return self.layer(x.float())
 
 class RawCountSuiteTests(unittest.TestCase):
+    def test_notebook_column_rename_allows_source_gene_duplicates(self):
+        value=ad.AnnData(
+            np.ones((2,2),dtype=np.float32),
+            obs=pd.DataFrame({"a":[0,1],"original_celltype":["A","B"]}),
+            var=pd.DataFrame({"a":[0,1],"b":[0,1],"original_gene":["same","same"]}),
+        )
+        create_raw_count_data.rename_columns(value)
+        self.assertIn("celltype",value.obs.columns)
+        self.assertEqual(value.var["gene_name"].tolist(),["same","same"])
+
     def test_missing_gdown_is_bootstrapped_in_active_python(self):
         missing=ModuleNotFoundError("No module named 'gdown'",name="gdown"); fake=object()
         with mock.patch.object(create_raw_count_data.importlib,"import_module",side_effect=[missing,fake]) as importer, mock.patch.object(create_raw_count_data.subprocess,"run") as runner:

@@ -64,11 +64,13 @@ def matrix_audit(matrix: Any, chunk_rows: int = 4096) -> dict:
 
 
 def rename_columns(adata):
-    if adata.obs.shape[1] < 2 or adata.var.shape[1] < 3:
-        raise ValueError("Notebook positional rename requires >=2 obs and >=3 var columns")
-    obs = list(adata.obs.columns); obs[1] = "celltype"; adata.obs.columns = obs
-    var = list(adata.var.columns); var[2] = "gene_name"; adata.var.columns = var
-    if adata.var["gene_name"].astype(str).duplicated().any(): raise ValueError("gene_name duplicates")
+    columns_rename = list(adata.obs.columns)
+    columns_rename[1] = "celltype"
+    adata.obs.columns = columns_rename
+
+    columns_rename = list(adata.var.columns)
+    columns_rename[2] = "gene_name"
+    adata.var.columns = columns_rename
 
 
 def build(source_path: Path, output_path: Path, metadata_dir: Path, raw_source: str = "X") -> dict:
@@ -135,10 +137,11 @@ def main():
     if args.dry_run:
         print(json.dumps({"file_id": FILE_ID, "download": str(source), "output": str(output), "raw_source": args.raw_source}, indent=2)); return
     root.mkdir(parents=True, exist_ok=True)
-    if not args.skip_download:
+    if not args.skip_download and not source.exists():
         gdown = load_gdown()
-        if source.exists(): raise FileExistsError(f"refusing to overwrite download: {source}")
         gdown.download(url=f"https://drive.google.com/uc?id={FILE_ID}", output=str(source), quiet=False)
+    elif source.exists():
+        print(f"Reusing downloaded source: {source}")
     if not source.is_file(): raise FileNotFoundError(source)
     if output.exists(): raise FileExistsError(f"refusing to overwrite final data: {output}")
     print(json.dumps(build(source, output, root / "metadata", args.raw_source), indent=2, default=str))
