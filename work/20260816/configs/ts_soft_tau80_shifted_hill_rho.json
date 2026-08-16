@@ -1,0 +1,9 @@
+{
+  "experiment": "ts_soft_tau80_shifted_hill_rho",
+  "model_family": "ts_soft_tau80_hybrid_lincomb",
+  "ode_type": "shifted_hill_rho",
+  "regime_gate_mode": "Ts_I_vs_II_III",
+  "regime_gate_type": "sigmoid",
+  "t_s": "auto",
+  "gate_tau": 80.0
+}
