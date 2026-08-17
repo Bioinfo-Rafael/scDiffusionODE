@@ -69,7 +69,8 @@ python work/20260816/scripts/launch.py --train-only --background \
   --batch-id hill_variants_20260816
 ```
 
-学習、sampling、通常解析を一括実行する場合は `--train-only` を外します。
+学習、sampling、通常解析、20-timestep解析を一括実行する場合は
+`--train-only` を外します。
 出力は `work/20260816/runs/<experiment>/<batch-id>/`、launcher状態とlogは
 `work/20260816/batches/<batch-id>/` に保存されます。
 
@@ -80,7 +81,15 @@ python work/20260816/scripts/sample.py \
   --run-dir work/20260816/runs/linear_centered_signed_hill/hill_variants_20260816
 ```
 
-学習済みcheckpointの20-timestep post-hoc解析:
+学習済みcheckpointにsampling後の全解析（通常解析 + 20-timestep解析）だけを
+実行:
+
+```bash
+python work/20260816/scripts/launch.py --analysis-only \
+  --batch-id hill_variants_20260816
+```
+
+20-timestep post-hoc解析だけを単独実行する場合:
 
 ```bash
 python work/20260816/scripts/analyze_corr_norm_grid.py \

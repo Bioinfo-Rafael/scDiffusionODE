@@ -28,6 +28,7 @@ from common import (  # noqa: E402
     generate_batch_id,
     load_experiment_config,
     now_iso,
+    read_json,
     run_dir_for,
     select_experiments,
     validate_path_component,
@@ -47,6 +48,26 @@ def _stage_commands(
     run_dir = run_dir_for(experiment, batch_id)
     config = CONFIG_ROOT / f"{experiment}.json"
     python = sys.executable
+
+    def analysis_commands(resolved: dict[str, Any]) -> list[tuple[str, list[str]]]:
+        common_args = [
+            "--max-cells", str(resolved.get("analysis_max_cells", 2000)),
+            "--batch-size", str(resolved.get("analysis_batch_size", 128)),
+            "--device", str(resolved.get("device", "auto")),
+        ]
+        standard = [
+            python, str(HERE / "analyze.py"), "--run-dir", str(run_dir),
+            *common_args,
+            "--t-values", str(resolved.get("analysis_t_values", "")),
+        ]
+        timestep_grid = [
+            python, str(HERE / "analyze_corr_norm_grid.py"),
+            "--run-dir", str(run_dir),
+            *common_args,
+            "--step", "20",
+        ]
+        return [("analysis", standard), ("analysis_step20", timestep_grid)]
+
     if args.smoke:
         return [("smoke", [
             python, str(SUITE_ROOT / "tests" / "smoke.py"),
@@ -56,9 +77,13 @@ def _stage_commands(
     if args.sample_only:
         return [("sample", [python, str(HERE / "sample.py"), "--run-dir", str(run_dir)])]
     if args.analysis_only:
-        return [("analysis", [
-            python, str(HERE / "analyze.py"), "--run-dir", str(run_dir),
-        ])]
+        stored_config = run_dir / "exp_config.json"
+        resolved = (
+            read_json(stored_config)
+            if stored_config.is_file()
+            else load_experiment_config(config)
+        )
+        return analysis_commands(resolved)
 
     train = [
         python, str(HERE / "train.py"),
@@ -73,14 +98,7 @@ def _stage_commands(
         return [("train", train)]
     sample = [python, str(HERE / "sample.py"), "--run-dir", str(run_dir)]
     resolved = apply_set_overrides(load_experiment_config(config), args.set_values)
-    analysis = [
-        python, str(HERE / "analyze.py"), "--run-dir", str(run_dir),
-        "--max-cells", str(resolved.get("analysis_max_cells", 2000)),
-        "--batch-size", str(resolved.get("analysis_batch_size", 128)),
-        "--t-values", str(resolved.get("analysis_t_values", "")),
-        "--device", str(resolved.get("device", "auto")),
-    ]
-    return [("train", train), ("sample", sample), ("analysis", analysis)]
+    return [("train", train), ("sample", sample), *analysis_commands(resolved)]
 
 
 def _print_plan(experiments: Sequence[str], batch_id: str, args: argparse.Namespace) -> None:
