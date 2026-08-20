@@ -39,7 +39,6 @@ from analyze_hill_branch_diagnostics import (  # noqa: E402
     _select_device,
 )
 from viz.analysis_helpers import (  # noqa: E402
-    _call_ml,
     _checkpoint_label,
     _sample_corr,
     _sample_norm,
@@ -127,6 +126,9 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
     model = load_model(config, genes, diffusion, checkpoint, device)
     if not hasattr(model, "ode_model") or not hasattr(model, "ml_model"):
         raise RuntimeError("restored model is not a hybrid with ODE and ML branches")
+    if not hasattr(model, "branch_outputs"):
+        raise RuntimeError("restored model does not expose exact weighted branch outputs")
+    model.eval()
 
     torch.manual_seed(seed)
     if torch.cuda.is_available():
@@ -143,10 +145,19 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
             noise = torch.randn_like(x0)
             x_t = diffusion.q_sample(x0, t_raw, noise=noise)
             model_t = diffusion._scale_timesteps(t_raw)
+            branches = model.branch_outputs(x_t, model_t)
+            model_output = model(x_t, model_t)
+            if not torch.allclose(
+                model_output, branches["output"], rtol=1e-5, atol=1e-6
+            ):
+                raise AssertionError(
+                    "weighted ODE and CellUnet branch contributions do not sum "
+                    "to the model output"
+                )
             outputs = {
-                "model": model(x_t, model_t),
-                "ode": model.ode_model(x_t, model_t),
-                "ml": _call_ml(model, x_t, model_t),
+                "model": model_output,
+                "ode": branches["ode_raw"],
+                "ml": branches["ml_raw"],
             }
             for name, output in outputs.items():
                 assert_finite(f"{name} output at t={raw_t}", output)
@@ -162,6 +173,15 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
             noise_norm = _sample_norm(noise)
             assert_finite(f"noise_norm at t={raw_t}", noise_norm)
             accum.setdefault("noise_norm", []).append(noise_norm.cpu().numpy())
+            weighted_metrics = {
+                "ode_weighted_norm": _sample_norm(branches["ode_contribution"]),
+                "ml_weighted_norm": _sample_norm(branches["ml_contribution"]),
+                "ode_weight": branches["ode_weight"].reshape(len(x0), -1).mean(dim=1),
+                "ml_weight": branches["ml_weight"].reshape(len(x0), -1).mean(dim=1),
+            }
+            for metric_name, values in weighted_metrics.items():
+                assert_finite(f"{metric_name} at t={raw_t}", values)
+                accum.setdefault(metric_name, []).append(values.cpu().numpy())
 
         row: dict[str, float] = {"t": float(raw_t)}
         for name, chunks in accum.items():
@@ -201,6 +221,13 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
             title=f"Model, branch, and noise norms\n{common_title}",
             path=output_dir / f"norm_every_{args.step}_steps.png",
         ),
+        _plot_metric(
+            rows,
+            ("ode_weighted_norm", "ml_weighted_norm"),
+            ylabel="Weighted branch L2 norm per cell",
+            title=f"Weighted ODE and CellUnet branch norms\n{common_title}",
+            path=output_dir / "branch_weighted_norm.png",
+        ),
     ]
     result = {
         "status": "completed",
@@ -222,6 +249,10 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
         "created_files": [str(Path(path).relative_to(output_dir)) for path in created],
         "correlation": "per-cell Pearson correlation across genes",
         "norm": "per-cell L2 norm across genes",
+        "weighted_norm": (
+            "per-cell L2 norm of the exact ODE and CellUnet contributions "
+            "used by the hybrid forward pass"
+        ),
         "metrics": rows,
     }
     with (output_dir / "diagnostic_manifest.json").open("w", encoding="utf-8") as handle:

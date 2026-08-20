@@ -213,6 +213,30 @@ class ODEModelTests(unittest.TestCase):
             expected = torch.sigmoid((10.0 - t) / 80.0)
             self.assertTrue(torch.equal(actual, expected))
 
+    def test_weighted_branch_outputs_are_exact_forward_contributions(self):
+        x = torch.randn(3, len(self.genes))
+        t = torch.tensor([[0.0], [10.0], [19.0]])
+        with mock.patch.object(factory, "Cell_Unet", TinyCellUnet):
+            for family in ("standard_hybrid_single", "standard_hybrid_lincomb"):
+                with self.subTest(family=family):
+                    model = factory.build_model_from_config(
+                        self.config(family, "hill_after_linear"),
+                        self.genes,
+                        20,
+                        "cpu",
+                    ).eval()
+                    branches = model.branch_outputs(x, t)
+                    expected_ode = branches["ode_weight"] * branches["ode_raw"]
+                    expected_ml = branches["ml_weight"] * branches["ml_raw"]
+                    self.assertTrue(torch.equal(branches["ode_contribution"], expected_ode))
+                    self.assertTrue(torch.equal(branches["ml_contribution"], expected_ml))
+                    self.assertTrue(torch.allclose(
+                        model(x, t),
+                        branches["ode_contribution"] + branches["ml_contribution"],
+                        rtol=1e-6,
+                        atol=1e-7,
+                    ))
+
     def test_minimal_checkpoint_sampling_all_twelve(self):
         diffusion = create_gaussian_diffusion(steps=20, noise_schedule="cosine")
         with mock.patch.object(factory, "Cell_Unet", TinyCellUnet):
