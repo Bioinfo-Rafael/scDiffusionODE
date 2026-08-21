@@ -153,6 +153,8 @@ def main() -> int:
             "8",
             "--max-generated-cells",
             "8",
+            "--umap-n-jobs",
+            "2",
             "--jacobian-cells",
             "2",
             "--sensitivity-cells",
