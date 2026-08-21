@@ -1,0 +1,29 @@
+{
+  "mode": "full",
+  "seed": 1234,
+  "max_cells": 0,
+  "selection": {"obs_key": "Superclass", "value": "Erythropoietic", "celltype_key": "celltype"},
+  "umap": {"n_components": 50, "n_neighbors": 15, "n_pcs": 40, "min_dist": 0.5, "n_jobs": 32},
+  "dynamo": {"version": "1.4.1", "M": 1000, "grid_num": 100, "topography_samples": 250, "restart_num": 5, "restart_seeds": [0, 100, 200, 300, 400], "min_velocity_correlation": 0.6, "cores": 8},
+  "sde": {
+    "parameterization": "umap_calibrated",
+    "paper_literal_reference": {"dt": [0.1, 0.2, 0.5], "D": [0.05, 0.1, 0.2]},
+    "dt": null,
+    "D": null,
+    "drift_step_fraction": 0.05,
+    "noise_step_fraction": 0.15,
+    "dt_min": 0.0001,
+    "dt_max": 1.0,
+    "trajectories": 400,
+    "steps": 1000000,
+    "burn_in": 100000,
+    "grid_size": 100,
+    "bounds_quantile": 0.005,
+    "bounds_margin": 0.1,
+    "checkpoint_every": 10000,
+    "resume": true,
+    "potential_cap_above_max": 2.0
+  },
+  "lap": {"enabled": true, "minimum_cells_per_state": 20, "max_states": 4, "max_pairs": 12, "n_points": 25, "D_scale": 1.0, "minimize_time": false, "EM_steps": 2, "endpoint_labels": []},
+  "plot": {"dpi": 300, "quiver_stride": 5, "cell_size": 12, "alpha": 0.7}
+}
