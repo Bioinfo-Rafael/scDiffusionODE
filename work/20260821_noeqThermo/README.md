@@ -161,3 +161,149 @@ outputs/<analysis>/
 - probability fluxはconstant isotropic diffusionを仮定します。state-dependent diffusionは対象外です。
 - LAPはmetadataにdistinct Erythropoietic stateがない場合、またはDynamo最適化が全pairで失敗した場合は図10を作りません。失敗理由は`least_action_metadata.json`へ保存します。
 - MFPT、transition matrix、loop-flux decompositionは、endpoint方向とtime scaleを正当化できないため自動生成しません。
+
+
+---------------------------------------
+
+今回 `scdiffusion` 環境に起きた変更は、インストールログから正確に追えます。
+
+## バージョンが変更されたもの
+
+| パッケージ | 変更前 | 変更後 |
+|---|---:|---:|
+| `matplotlib` | 3.7.0 | 3.7.5 |
+| `igraph` | 0.11.9 | 1.0.0 |
+
+特に注意が必要なのは `igraph` です。`leidenalg 0.12.0` の依存関係を解決する過程で、`igraph 1.0.0` に更新されました。
+
+## 新規インストールされたもの
+
+以下は以前は入っておらず、今回追加されたものです。
+
+```text
+dynamo-release==1.4.1
+leidenalg==0.12.0
+colorcet==3.1.0
+numdifftools==0.9.41
+get-version==3.5.5
+dunamai==1.26.2
+openpyxl==3.1.5
+et-xmlfile==2.0.0
+pre-commit==4.3.0
+cfgv==3.4.0
+identify==2.6.15
+nodeenv==1.10.0
+virtualenv==21.7.4
+distlib==0.4.3
+python-discovery==1.5.2
+```
+
+このうち、解析に直接必要なのは主に次です。
+
+```text
+dynamo-release
+leidenalg
+colorcet
+numdifftools
+get-version
+openpyxl
+```
+
+`pre-commit` 以下は Dynamo の依存関係として入ってきた開発支援系パッケージです。
+
+## 変更されなかった主要パッケージ
+
+ログ上、以下は既存バージョンがそのまま使われています。
+
+```text
+numpy==1.24.0
+scipy==1.10.0
+pandas==2.0.0
+anndata==0.8.0
+scikit-learn==1.2.0
+seaborn==0.12.0
+numba==0.60.0
+llvmlite==0.43.0
+umap-learn==0.5.7
+scvelo==0.2.5
+setuptools==80.9.0
+```
+
+PyTorchやCUDA関連を変更した形跡もありません。
+
+## 表示された警告について
+
+今回の2種類の警告は、現時点ではエラーではありません。
+
+`pkg_resources is deprecated` は、Dynamo 1.4.1の内部コードが古いAPIを利用しているという警告です。環境が壊れたという意味ではありません。
+
+`NumbaWarning: Compilation requested for previously compiled argument types` も、同じ型の関数を重複コンパイルしようとしたという警告です。通常は無視できます。
+
+今回解析が停止した直接原因は、これらではなく `.npz` の生成サンプルが見つからなかったことです。
+
+## 現在の状態を保存する
+
+今の環境を記録しておくことを強くおすすめします。
+
+```bash
+conda activate scdiffusion
+
+conda env export --no-builds \
+  > ~/scdiffusion_after_noeqthermo_20260821.yml
+
+python -m pip freeze \
+  > ~/scdiffusion_after_noeqthermo_20260821_pip.txt
+
+conda list --explicit \
+  > ~/scdiffusion_after_noeqthermo_20260821_explicit.txt
+```
+
+## 今回の変更だけを戻す場合
+
+将来戻す必要が出た場合のコマンドは以下です。ただし、今すぐ実行する必要はありません。
+
+まず追加されたものを削除します。
+
+```bash
+conda activate scdiffusion
+
+python -m pip uninstall -y \
+  dynamo-release leidenalg colorcet numdifftools get-version dunamai \
+  openpyxl et-xmlfile pre-commit cfgv identify nodeenv virtualenv \
+  distlib python-discovery
+```
+
+その後、変更された2パッケージを元に戻します。
+
+```bash
+python -m pip install \
+  matplotlib==3.7.0 \
+  igraph==0.11.9
+```
+
+確認します。
+
+```bash
+python -m pip check
+
+python -c '
+import matplotlib, igraph, scvelo
+print("matplotlib:", matplotlib.__version__)
+print("igraph:", igraph.__version__)
+print("scvelo:", scvelo.__version__)
+'
+```
+
+期待値は次です。
+
+```text
+matplotlib: 3.7.0
+igraph: 0.11.9
+scvelo: 0.2.5
+```
+
+ただし、元の `igraph` がconda経由で入っていた可能性があります。その場合、完全に元の導入方式へ戻すには `conda list igraph` の結果も必要です。実際に戻す段階になったら、先に以下の結果を確認してから復旧方法を決めるのが安全です。
+
+```bash
+conda list | grep -E '^(igraph|python-igraph|matplotlib|dynamo|leidenalg)[[:space:]]'
+```
