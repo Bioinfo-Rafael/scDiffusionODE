@@ -207,15 +207,29 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
         )
 
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    output_prefix = (
+        "hill_weighted_norm_ratio" if args.ratio_only else "hill_corr_norm"
+    )
     output_dir = run_dir / "analysis" / (
-        f"hill_corr_norm_step{args.step}_{_slug(_checkpoint_label(checkpoint))}_{stamp}"
+        f"{output_prefix}_step{args.step}_"
+        f"{_slug(_checkpoint_label(checkpoint))}_{stamp}"
     )
     output_dir.mkdir(parents=True, exist_ok=False)
     common_title = (
         f"{config.get('experiment', family)} | every {args.step} steps | "
         f"checkpoint={checkpoint.name}"
     )
-    created = [
+    ratio_plot = _plot_metric(
+        rows,
+        (
+            "ode_weighted_norm_to_noise_ratio",
+            "ml_weighted_norm_to_noise_ratio",
+        ),
+        ylabel="Weighted branch norm / true noise norm",
+        title=f"Weighted branch-to-noise norm ratios\n{common_title}",
+        path=output_dir / "branch_weighted_norm_to_noise_ratio.png",
+    )
+    created = [ratio_plot] if args.ratio_only else [
         _plot_metric(
             rows,
             ("model_corr", "ode_corr", "ml_corr"),
@@ -237,16 +251,7 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
             title=f"Weighted ODE and CellUnet branch norms\n{common_title}",
             path=output_dir / "branch_weighted_norm.png",
         ),
-        _plot_metric(
-            rows,
-            (
-                "ode_weighted_norm_to_noise_ratio",
-                "ml_weighted_norm_to_noise_ratio",
-            ),
-            ylabel="Weighted branch norm / true noise norm",
-            title=f"Weighted branch-to-noise norm ratios\n{common_title}",
-            path=output_dir / "branch_weighted_norm_to_noise_ratio.png",
-        ),
+        ratio_plot,
     ]
     result = {
         "status": "completed",
@@ -264,6 +269,7 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
         "max_cells": args.max_cells,
         "n_cells": len(real),
         "step": args.step,
+        "ratio_only": args.ratio_only,
         "t_values": t_values,
         "created_files": [str(Path(path).relative_to(output_dir)) for path in created],
         "correlation": "per-cell Pearson correlation across genes",
@@ -302,6 +308,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--step", type=int, default=20)
     parser.add_argument("--max-cells", type=int, default=2000)
     parser.add_argument("--batch-size", type=int, default=128)
+    parser.add_argument(
+        "--ratio-only",
+        action="store_true",
+        help="write only branch_weighted_norm_to_noise_ratio.png",
+    )
     parser.add_argument(
         "--device", choices=("auto", "cpu", "cuda", "mps"), default="auto"
     )
