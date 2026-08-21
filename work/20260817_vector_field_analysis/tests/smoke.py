@@ -44,6 +44,15 @@ REQUIRED = {
     "speed_pca.png",
     "real_vs_generated_metrics.png",
     "analysis_manifest.json",
+    "umap_by_superclass/Erythropoietic/1_velocity_stream.png",
+    "umap_by_superclass/Erythropoietic/2_velocity_arrow.png",
+    "umap_by_superclass/Erythropoietic/3_velocity_stream_lineage.png",
+    "umap_by_superclass/Erythropoietic/4_velocity_arrow_lineage.png",
+    "umap_by_superclass/Erythropoietic/5_speed_umap.png",
+    "umap_by_superclass/Erythropoietic/6_divergence_umap.png",
+    "umap_by_superclass/Erythropoietic/7_acceleration_norm_umap.png",
+    "umap_by_superclass/Erythropoietic/8_cosine_velocity_acceleration_umap.png",
+    "umap_by_superclass/Erythropoietic/erythropoietic_umap_metrics.csv",
 }
 
 
@@ -54,13 +63,29 @@ def _fixture(root: Path) -> tuple[Path, Path]:
     train_dir.mkdir(parents=True)
     samples_dir.mkdir(parents=True)
     rng = np.random.default_rng(20260817)
-    genes = [f"gene_{index}" for index in range(5)]
-    real = rng.lognormal(mean=0.1, sigma=0.35, size=(12, 5)).astype(np.float32)
-    generated = rng.lognormal(mean=0.15, sigma=0.4, size=(10, 5)).astype(np.float32)
+    genes = [f"gene_{index}" for index in range(52)]
+    real = rng.lognormal(mean=0.1, sigma=0.35, size=(64, 52)).astype(np.float32)
+    generated = rng.lognormal(mean=0.15, sigma=0.4, size=(10, 52)).astype(np.float32)
     data_path = root / "synthetic.h5ad"
     edge_path = root / "edges.tsv"
+    erythroid_celltypes = (
+        "HSC",
+        "Early precursor/BFU-E",
+        "Precursor/CFU-E",
+        "Erythroblast",
+        "Cycling erythroblast",
+        "Reticulocyte/RBC",
+        "ChP Reticulocyte/RBC",
+    )
     obs = pd.DataFrame(
-        {"Superclass": ["class_A", "class_B"] * 6},
+        {
+            "Superclass": ["Erythropoietic"] * 60 + ["class_B"] * 4,
+            "celltype": [
+                erythroid_celltypes[index % len(erythroid_celltypes)]
+                for index in range(60)
+            ]
+            + ["other"] * 4,
+        },
         index=[f"cell_{index}" for index in range(len(real))],
     )
     var = pd.DataFrame(
@@ -166,7 +191,25 @@ def main() -> int:
             raise AssertionError(f"analysis did not complete: {manifest}")
         if manifest.get("dynamo_refit_performed") is not False:
             raise AssertionError("manifest does not prove the no-refit policy")
-        for csv_path in output_dir.glob("*.csv"):
+        umap_status = manifest["methods"]["erythropoietic_umap"]
+        if umap_status["source_cell_count"] != 60 or umap_status["n_cells"] != 60:
+            raise AssertionError(f"Erythropoietic extraction failed: {umap_status}")
+        if umap_status["umap_fit_count"] != 1:
+            raise AssertionError(f"UMAP must be fit once: {umap_status}")
+        if umap_status["velocity_ode_shape"] != [60, 52]:
+            raise AssertionError(f"velocity_ode shape mismatch: {umap_status}")
+        if set(umap_status["metric_lengths"].values()) != {60}:
+            raise AssertionError(f"metric/cell row mismatch: {umap_status}")
+        metrics_path = (
+            output_dir
+            / "umap_by_superclass"
+            / "Erythropoietic"
+            / "erythropoietic_umap_metrics.csv"
+        )
+        metrics = pd.read_csv(metrics_path)
+        if len(metrics) != 60 or set(metrics["Superclass"]) != {"Erythropoietic"}:
+            raise AssertionError("UMAP metrics CSV is not the direct Erythropoietic subset")
+        for csv_path in output_dir.rglob("*.csv"):
             table = pd.read_csv(csv_path)
             numeric = table.select_dtypes(include=[np.number]).to_numpy()
             if not np.isfinite(numeric).all():

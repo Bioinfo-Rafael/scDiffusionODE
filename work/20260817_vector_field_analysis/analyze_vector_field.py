@@ -58,6 +58,7 @@ from dynamo_analysis import (  # noqa: E402
     sensitivity_aggregates,
     summarize_metrics,
 )
+from erythropoietic_umap import run_erythropoietic_umap  # noqa: E402
 from vector_field_adapter import TrainedODEVectorField, assert_finite  # noqa: E402
 
 
@@ -569,6 +570,16 @@ def analyze(args: argparse.Namespace) -> dict[str, Any]:
             explained_variance_ratio=pca.explained_variance_ratio_.astype(np.float32),
         )
 
+        erythropoietic_umap = run_erythropoietic_umap(
+            data_dir=inputs["data_path"],
+            adapter=adapter,
+            expected_genes=genes,
+            analysis_output=output_dir,
+            max_cells=args.umap_max_cells,
+            seed=seed,
+            n_jobs=args.umap_n_jobs,
+        )
+
         completed = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
         manifest.update(
             {
@@ -585,6 +596,7 @@ def analyze(args: argparse.Namespace) -> dict[str, Any]:
                     "divergence": "exact trace of original-space Hill Jacobian",
                     "acceleration": "J(x) @ V(x) in original gene space",
                     "pca": "fit on real X; velocity projected as V @ components.T",
+                    "erythropoietic_umap": erythropoietic_umap,
                     "sensitivity": sensitivity_status,
                     "fixed_points": fixed_status,
                     "cosine_zero_convention": (
@@ -629,6 +641,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--output-dir", default="", help="must not already exist")
     parser.add_argument("--max-real-cells", type=int, default=2000)
     parser.add_argument("--max-generated-cells", type=int, default=2000)
+    parser.add_argument(
+        "--umap-max-cells",
+        type=int,
+        default=0,
+        help="Erythropoietic UMAP cell limit; 0 uses every Erythropoietic real cell",
+    )
+    parser.add_argument("--umap-n-jobs", type=int, default=32)
     parser.add_argument("--jacobian-cells", type=int, default=200)
     parser.add_argument(
         "--jacobian-method",
@@ -665,6 +684,7 @@ def _validate_args(args: argparse.Namespace) -> None:
     for name in (
         "max_real_cells",
         "max_generated_cells",
+        "umap_n_jobs",
         "jacobian_cells",
         "batch_size",
         "top_interactions",
@@ -679,6 +699,8 @@ def _validate_args(args: argparse.Namespace) -> None:
             raise ValueError(f"--{name.replace('_', '-')} must be positive")
     if args.fixed_point_seeds < 0 or args.sensitivity_cells < 0:
         raise ValueError("fixed-point and sensitivity cell counts must be non-negative")
+    if args.umap_max_cells < 0:
+        raise ValueError("--umap-max-cells must be non-negative")
     for name in (
         "fixed_point_residual_tol",
         "fixed_point_redundant_tol",

@@ -121,6 +121,61 @@ python work/20260817_vector_field_analysis/analyze_vector_field.py \
 
 fixed-point探索を省略したい場合は `--fixed-point-seeds 0` を指定します。
 
+## Erythropoietic UMAP visualization
+
+既存解析に `erythropoietic_umap.py` を追加し、
+`work/20260609_Hybrid5x3/viz/plot_velocity_umap.py` の
+`_plot_stream_arrow()` と `apply_lineage_palette()`（Erythropoieticの既存celltype順、
+`magma` paletteを含む）を直接再利用します。既存のPCA、Jacobian、fixed point、
+real/generated解析はそのまま残します。
+
+処理は元h5adを `sc.read_h5ad(data_dir)` で改めて読み、最初に
+`Superclass == "Erythropoietic"` を抽出します。したがって
+`--max-real-cells` で全Superclassから選んだreal cellは使いません。必要な場合だけ
+`--umap-max-cells N` で、この抽出後の集団を固定seedでsubsampleできます（既定値
+`0` は全Erythropoietic cell）。そのsubsetに対して旧実装と同じ
+PCA (`arpack`, 50 components) → neighbors (`n_neighbors=15`, `n_pcs=40`) → UMAPを
+1回だけ行い、同一の `X_umap` を8図で共有します。
+
+subsetのcell順を確定してから同じ `adata_sub.X` を
+`TrainedODEVectorField.evaluate()` に1回渡し、返った `V(x)`、`||V||`、`tr(J)`、
+`||JV||`、`cosine(V,JV)` を位置で `layers` / `obs` に代入します。代入前に
+gene順、cell ID順、metric長、`velocity_ode.shape == adata_sub.X.shape` を検証します。
+metricは1024次元expression空間で計算し、UMAP空間では再計算しません。velocity
+だけは旧実装と同じ `scv.tl.velocity_graph(..., xkey="X", backend="loky")` →
+`scv.tl.velocity_embedding(..., basis="umap")` で投影します。
+
+通常の実行コマンドに追加引数は不要です。全Erythropoietic cellを使うことを明示する
+場合は次のように指定します。
+
+```bash
+python work/20260817_vector_field_analysis/analyze_vector_field.py \
+  --run-dir "$RUN_DIR" \
+  --max-real-cells 2000 \
+  --max-generated-cells 2000 \
+  --umap-max-cells 0 \
+  --jacobian-cells 200 \
+  --device cuda
+```
+
+生成物はanalysis output以下の次のdirectoryに保存します。
+
+```text
+umap_by_superclass/Erythropoietic/
+├── 1_velocity_stream.png
+├── 2_velocity_arrow.png
+├── 3_velocity_stream_lineage.png
+├── 4_velocity_arrow_lineage.png
+├── 5_speed_umap.png
+├── 6_divergence_umap.png
+├── 7_acceleration_norm_umap.png
+├── 8_cosine_velocity_acceleration_umap.png
+└── erythropoietic_umap_metrics.csv
+```
+
+変更対象は `analyze_vector_field.py`、新規 `erythropoietic_umap.py`、このREADME、
+および新しい成果物を検証する `tests/smoke.py` です。
+
 ## 生成物
 
 各analysis directoryには少なくとも次を保存します。
