@@ -173,9 +173,18 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
             noise_norm = _sample_norm(noise)
             assert_finite(f"noise_norm at t={raw_t}", noise_norm)
             accum.setdefault("noise_norm", []).append(noise_norm.cpu().numpy())
+            ode_weighted_norm = _sample_norm(branches["ode_contribution"])
+            ml_weighted_norm = _sample_norm(branches["ml_contribution"])
+            noise_norm_denominator = noise_norm.clamp_min(1e-12)
             weighted_metrics = {
-                "ode_weighted_norm": _sample_norm(branches["ode_contribution"]),
-                "ml_weighted_norm": _sample_norm(branches["ml_contribution"]),
+                "ode_weighted_norm": ode_weighted_norm,
+                "ml_weighted_norm": ml_weighted_norm,
+                "ode_weighted_norm_to_noise_ratio": (
+                    ode_weighted_norm / noise_norm_denominator
+                ),
+                "ml_weighted_norm_to_noise_ratio": (
+                    ml_weighted_norm / noise_norm_denominator
+                ),
                 "ode_weight": branches["ode_weight"].reshape(len(x0), -1).mean(dim=1),
                 "ml_weight": branches["ml_weight"].reshape(len(x0), -1).mean(dim=1),
             }
@@ -228,6 +237,16 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
             title=f"Weighted ODE and CellUnet branch norms\n{common_title}",
             path=output_dir / "branch_weighted_norm.png",
         ),
+        _plot_metric(
+            rows,
+            (
+                "ode_weighted_norm_to_noise_ratio",
+                "ml_weighted_norm_to_noise_ratio",
+            ),
+            ylabel="Weighted branch norm / true noise norm",
+            title=f"Weighted branch-to-noise norm ratios\n{common_title}",
+            path=output_dir / "branch_weighted_norm_to_noise_ratio.png",
+        ),
     ]
     result = {
         "status": "completed",
@@ -252,6 +271,10 @@ def _analyze_one_run(args: argparse.Namespace, run_dir_value: str) -> dict[str, 
         "weighted_norm": (
             "per-cell L2 norm of the exact ODE and CellUnet contributions "
             "used by the hybrid forward pass"
+        ),
+        "weighted_norm_to_noise_ratio": (
+            "per-cell weighted branch L2 norm divided by true noise L2 norm; "
+            "denominator floor=1e-12"
         ),
         "metrics": rows,
     }
