@@ -221,5 +221,53 @@ checkpoints/segment_NNN/model/{model,ema,opt}*.pt
 checkpoints/segment_NNN/model/loss_details.csv
 checkpoints/segment_NNN/model/loss_components_20260830.csv
 samples/*.npz
-analysis/sample_summary.json
+analysis/detailed_20260830/{analysis_config.json,cell_indices.npy}
+analysis/detailed_20260830/csv/*.csv
+analysis/detailed_20260830/figures/*.png
 ```
+
+## Detailed post-hoc analysis
+
+training/optimizer/samplingコードを変更せず、checkpointを復元して解析する実装を
+`analysis/` に追加しています。通常metricは `torch.no_grad()`、gradient解析は
+`torch.autograd.grad()` のみを使い、optimizerを作成・更新しません。詳細なmetric、
+loss weightの定義、16 figure一覧は
+`work/20260830/analysis/README.md` を参照してください。
+
+同一12条件では同じdataset cell index、noise seed、diffusion timestepを使います。
+defaultは2,048 cellsと既存timestep grid `0,249,499,616,749,999`、quickは128 cells、
+fullは最大4,096 cellsと全diffusion timestepです。
+metricとgradient CSVはdiffusion timestep/checkpoint groupごとに途中保存され、同じ
+analysis条件で再実行すると完了済みgroupをskipします。loss historyの時間解像度は
+既存trainingがcheckpoint時に保存した `loss_components_20260830.csv` の行に限られ、
+analysis追加のためにtraining時logging頻度は変更していません。
+
+```bash
+# analysis smoke test
+/path/to/scdiffusion/bin/python work/20260830/tests/analysis_smoke.py
+
+# single run analysis
+/path/to/scdiffusion/bin/python work/20260830/scripts/analyze.py \
+  --run-dir work/20260830/runs/01_centered_signed_hill_lambda0p1/main-20260830
+
+# all 12 conditions quick
+/path/to/scdiffusion/bin/python work/20260830/scripts/analyze.py \
+  --all-runs --batch-id main-20260830 --quick
+
+# all 12 conditions full (4096 cells, diffusion_timestep 0..999)
+/path/to/scdiffusion/bin/python work/20260830/scripts/analyze.py \
+  --all-runs --batch-id main-20260830 --full
+
+# completed per-run CSVからsummaryだけ再生成
+/path/to/scdiffusion/bin/python work/20260830/scripts/analyze.py \
+  --all-runs --batch-id main-20260830 --summary-only
+
+# checkpoint gradient analysisだけ再実行
+/path/to/scdiffusion/bin/python work/20260830/scripts/analyze.py \
+  --run-dir work/20260830/runs/01_centered_signed_hill_lambda0p1/main-20260830 \
+  --gradient-only --gradient-timesteps 0,499,999 --force
+```
+
+custom timestepは `--timesteps 0,1,2,5-100:5,200-999:25` のように指定できます。
+CSVではoptimizer軸を `training_step`、forward diffusion軸を
+`diffusion_timestep` と明記しています。
