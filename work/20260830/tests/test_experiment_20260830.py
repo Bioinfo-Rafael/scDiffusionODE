@@ -17,6 +17,7 @@ for path in (REPO_ROOT, SUITE_ROOT, SUITE_ROOT / "scripts"):
         sys.path.insert(0, str(path))
 
 from common import EXPERIMENT_ORDER, load_experiment_config  # noqa: E402
+from launch import background_child_command  # noqa: E402
 from models import build_ode_from_config  # noqa: E402
 from models.cellunet_ode_regularized_20260830 import CellUNetODERegularized20260830  # noqa: E402
 from training import (  # noqa: E402
@@ -66,6 +67,12 @@ def ode(ode_type, d=4, mask=None):
 
 
 class ExperimentTests(unittest.TestCase):
+    def test_background_launcher_uses_python_interpreter(self):
+        child = background_child_command(["--batch-id", "test", "--background"])
+        self.assertEqual(Path(child[0]).resolve(), Path(sys.executable).resolve())
+        self.assertEqual(Path(child[1]).resolve(), SUITE_ROOT / "scripts" / "launch.py")
+        self.assertNotIn("--background", child)
+
     def test_shared_files_are_byte_identical_to_preimplementation_baseline(self):
         expected = {
             "guided_diffusion/gaussian_diffusion.py": "eeb83640dc140f91e3519976fa5cf031076d7713d049d2a1b9debc8b0390b9ab",

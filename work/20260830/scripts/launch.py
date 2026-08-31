@@ -55,6 +55,15 @@ def summary_command(batch_id):
     ]
 
 
+def background_child_command(argv=None):
+    values = list(sys.argv[1:] if argv is None else argv)
+    return [
+        sys.executable,
+        str(Path(__file__).resolve()),
+        *(value for value in values if value != "--background"),
+    ]
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--experiment", action="append", choices=EXPERIMENT_ORDER)
@@ -94,7 +103,7 @@ def main(argv=None):
         log_dir = SUITE_ROOT / "runs" / "_launcher_logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log = log_dir / f"{batch_id}.log"
-        child = [value for value in sys.argv if value != "--background"]
+        child = background_child_command()
         if "--batch-id" not in child:
             child.extend(["--batch-id", batch_id])
         with log.open("ab", buffering=0) as handle:
