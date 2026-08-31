@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import csv
 from pathlib import Path
 
 import torch
@@ -97,30 +98,48 @@ def main():
             lr=1e-4,
             ema_rate="0.9999",
             log_interval=1,
-            save_interval=1,
+            save_interval=100,
             resume_checkpoint="",
             schedule_sampler=None,
             weight_decay=1e-4,
-            lr_anneal_steps=1,
+            lr_anneal_steps=3,
             model_name="smoke",
             save_dir=directory,
             ode_reg_lambda=1.0,
             ode_reg_norm="l1",
             save_loss_details=True,
             cell_ode_reg_lambda_20260830=0.1,
+            detailed_loss_flush_interval=2,
         )
         loop.run_loop()
         detail = Path(directory) / "smoke" / "loss_components_20260830.csv"
-        header = detail.read_text(encoding="utf-8").splitlines()[0]
+        with detail.open(encoding="utf-8", newline="") as handle:
+            rows = list(csv.DictReader(handle))
+        header = set(rows[0])
         required = {
-            "diffusion_loss",
-            "ode_soft_constraint",
-            "cell_ode_consistency_20260830",
-            "total_loss",
+            "training_step", "diffusion_loss", "ode_offmask_base_raw",
+            "ode_offmask_after_internal_lambda", "ode_regularization_final_weighted",
+            "cell_ode_consistency_raw_20260830",
+            "cell_ode_consistency_sampler_weighted_20260830",
+            "cell_ode_consistency_final_weighted_20260830", "total_loss",
+            "off_mask_lambda", "ode_reg_lambda", "cell_ode_reg_lambda_20260830",
+            "learning_rate",
         }
-        if not required.issubset(set(header.split(","))):
+        if not required.issubset(header):
             raise AssertionError("component CSV is missing independent loss columns")
-        if not (Path(directory) / "smoke" / "model000000.pt").is_file():
+        if [int(row["training_step"]) for row in rows] != [1, 2, 3]:
+            raise AssertionError("detailed loss CSV must contain every optimizer step")
+        for row in rows:
+            reconstructed = (
+                float(row["diffusion_loss"])
+                + float(row["ode_regularization_final_weighted"])
+                + float(row["cell_ode_consistency_final_weighted_20260830"])
+            )
+            if abs(float(row["total_loss"]) - reconstructed) > 1e-5:
+                raise AssertionError("total loss identity failed")
+        if loop.opt.param_groups[0]["lr"] != 0.0:
+            raise AssertionError("linear LR annealing must finish at zero")
+        if not (Path(directory) / "smoke" / "model000003.pt").is_file():
             raise AssertionError("inherited checkpoint save did not run")
     print("PASS TrainLoop20260830: microbatch/optimizer/EMA/checkpoint/log CSV")
     print("SMOKE_20260830=PASS")

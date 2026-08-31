@@ -27,14 +27,31 @@ def commands(experiment, batch_id, args):
     if args.sample_only:
         return [[python, str(HERE / "sample.py"), "--run-dir", str(target)]]
     if args.analysis_only:
-        return [[python, str(HERE / "analyze.py"), "--run-dir", str(target)]]
+        analysis = [python, str(HERE / "analyze.py"), "--run-dir", str(target)]
+        if args.analysis_full:
+            analysis.append("--full")
+        return [analysis]
     train = [python, str(HERE / "train.py"), "--config", str(config), "--run-dir", str(target)]
     if args.resume:
         train.extend(["--resume", args.resume])
+    analysis = [python, str(HERE / "analyze.py"), "--run-dir", str(target)]
+    if args.analysis_full:
+        analysis.append("--full")
     return [
         train,
         [python, str(HERE / "sample.py"), "--run-dir", str(target)],
-        [python, str(HERE / "analyze.py"), "--run-dir", str(target)],
+        analysis,
+    ]
+
+
+def summary_command(batch_id):
+    return [
+        sys.executable,
+        str(HERE / "analyze.py"),
+        "--all-runs",
+        "--batch-id",
+        batch_id,
+        "--summary-only",
     ]
 
 
@@ -47,9 +64,16 @@ def main(argv=None):
     mode.add_argument("--sample-only", action="store_true")
     mode.add_argument("--analysis-only", action="store_true")
     mode.add_argument("--smoke", action="store_true")
+    parser.add_argument(
+        "--analysis-full",
+        action="store_true",
+        help="run per-condition analysis over all diffusion timesteps",
+    )
     parser.add_argument("--background", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
+    if args.analysis_full and (args.sample_only or args.smoke):
+        parser.error("--analysis-full requires the normal pipeline or --analysis-only")
     selected = tuple(args.experiment or EXPERIMENT_ORDER)
     if args.resume not in ("", "auto") and len(selected) != 1:
         raise ValueError("an explicit resume checkpoint requires exactly one experiment")
@@ -59,8 +83,12 @@ def main(argv=None):
         for experiment in selected
         for command_list in [commands(experiment, batch_id, args)]
     ]
+    run_summary = (
+        selected == EXPERIMENT_ORDER and not args.sample_only and not args.smoke
+    )
+    summary = summary_command(batch_id) if run_summary else None
     if args.dry_run:
-        print(json.dumps({"batch_id": batch_id, "runs": plan}, indent=2))
+        print(json.dumps({"batch_id": batch_id, "runs": plan, "summary": summary}, indent=2))
         return 0
     if args.background:
         log_dir = SUITE_ROOT / "runs" / "_launcher_logs"
@@ -88,6 +116,9 @@ def main(argv=None):
         print(f"[{index}/{len(plan)}] {item['experiment']}", flush=True)
         for command in item["commands"]:
             subprocess.run(command, cwd=SUITE_ROOT.parent.parent, check=True)
+    if summary is not None:
+        print("[summary] all 12 conditions", flush=True)
+        subprocess.run(summary, cwd=SUITE_ROOT.parent.parent, check=True)
     return 0
 
 

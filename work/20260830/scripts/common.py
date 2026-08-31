@@ -77,6 +77,14 @@ def validate_config(config):
         raise ValueError("off_mask_lambda is inherited and fixed at 5.0")
     if float(config.get("ode_reg_lambda", 1.0)) != 1.0:
         raise ValueError("ode_reg_lambda is inherited and fixed at 1.0")
+    if int(config.get("total_steps", 0)) != 100000:
+        raise ValueError("all 20260830 conditions must use total_steps=100000")
+    if int(config.get("lr_anneal_steps", 0)) != 100000:
+        raise ValueError("all 20260830 conditions must use lr_anneal_steps=100000")
+    if int(config.get("total_steps")) != int(config.get("lr_anneal_steps")):
+        raise ValueError("total_steps and lr_anneal_steps must be identical")
+    if int(config.get("detailed_loss_flush_interval", 0)) <= 0:
+        raise ValueError("detailed_loss_flush_interval must be positive")
 
 
 def load_experiment_config(experiment_or_path):

@@ -51,15 +51,7 @@ def load_loss_history(
         frame["loss_source_path"] = str(path.resolve())
         frames.append(frame)
     source = pd.concat(frames, ignore_index=True)
-    required = {
-        "step",
-        "diffusion_loss",
-        "ode_soft_constraint",
-        "ode_soft_constraint_weighted",
-        "cell_ode_consistency_20260830",
-        "cell_ode_consistency_weighted_20260830",
-        "total_loss",
-    }
+    required = {"diffusion_loss", "total_loss"}
     missing = sorted(required.difference(source.columns))
     if missing:
         raise KeyError("loss component CSV is missing: " + ", ".join(missing))
@@ -67,29 +59,77 @@ def load_loss_history(
     off_mask_lambda = float(config.get("off_mask_lambda", 5.0))
     ode_reg_lambda = float(config.get("ode_reg_lambda", 1.0))
     cell_lambda = float(config["cell_ode_reg_lambda_20260830"])
-    ode_base = (
-        source["ode_soft_constraint"].astype(float) / off_mask_lambda
-        if off_mask_lambda > 0 else source["ode_soft_constraint"].astype(float) * 0.0
+    training_step_column = "training_step" if "training_step" in source else "step"
+    ode_internal_column = (
+        "ode_offmask_after_internal_lambda"
+        if "ode_offmask_after_internal_lambda" in source
+        else "ode_soft_constraint"
+    )
+    ode_final_column = (
+        "ode_regularization_final_weighted"
+        if "ode_regularization_final_weighted" in source
+        else "ode_soft_constraint_weighted"
+    )
+    consistency_sampler_column = (
+        "cell_ode_consistency_sampler_weighted_20260830"
+        if "cell_ode_consistency_sampler_weighted_20260830" in source
+        else "cell_ode_consistency_20260830"
+    )
+    consistency_final_column = (
+        "cell_ode_consistency_final_weighted_20260830"
+        if "cell_ode_consistency_final_weighted_20260830" in source
+        else "cell_ode_consistency_weighted_20260830"
+    )
+    compatibility_columns = {
+        training_step_column,
+        ode_internal_column,
+        ode_final_column,
+        consistency_sampler_column,
+        consistency_final_column,
+    }
+    missing = sorted(compatibility_columns.difference(source.columns))
+    if missing:
+        raise KeyError("loss component CSV is missing: " + ", ".join(missing))
+    if "ode_offmask_base_raw" in source:
+        ode_base = source["ode_offmask_base_raw"].astype(float)
+    else:
+        ode_base = (
+            source[ode_internal_column].astype(float) / off_mask_lambda
+            if off_mask_lambda > 0
+            else source[ode_internal_column].astype(float) * 0.0
+        )
+    consistency_raw_column = (
+        "cell_ode_consistency_raw_20260830"
+        if "cell_ode_consistency_raw_20260830" in source
+        else consistency_sampler_column
     )
     history = pd.DataFrame({
-        "training_step": source["step"].astype(np.int64),
+        "training_step": source[training_step_column].astype(np.int64),
         "diffusion_loss_raw": source["diffusion_loss"].astype(float),
         "ode_regularization_base_before_off_mask_lambda": ode_base,
         "ode_regularization_raw": ode_base,
         "ode_regularization_weighted_once_by_off_mask_lambda": source[
-            "ode_soft_constraint"
+            ode_internal_column
         ].astype(float),
-        "ode_regularization_weighted": source["ode_soft_constraint_weighted"].astype(float),
+        "ode_regularization_weighted": source[ode_final_column].astype(float),
         "cell_ode_consistency_raw_20260830": source[
-            "cell_ode_consistency_20260830"
+            consistency_raw_column
+        ].astype(float),
+        "cell_ode_consistency_sampler_weighted_20260830": source[
+            consistency_sampler_column
         ].astype(float),
         "cell_ode_consistency_weighted_20260830": source[
-            "cell_ode_consistency_weighted_20260830"
+            consistency_final_column
         ].astype(float),
         "total_loss": source["total_loss"].astype(float),
         "off_mask_lambda_internal": off_mask_lambda,
         "ode_reg_lambda_outer": ode_reg_lambda,
         "cell_ode_reg_lambda_20260830": cell_lambda,
+        "learning_rate": (
+            source["learning_rate"].astype(float)
+            if "learning_rate" in source
+            else np.nan
+        ),
         "loss_source_path": source["loss_source_path"],
     })
     history = (

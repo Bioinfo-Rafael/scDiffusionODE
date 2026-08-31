@@ -134,13 +134,14 @@ def main(argv=None):
         fp16_scale_growth=float(config["fp16_scale_growth"]),
         schedule_sampler=sampler,
         weight_decay=float(config["weight_decay"]),
-        lr_anneal_steps=int(config["total_steps"]),
+        lr_anneal_steps=int(config["lr_anneal_steps"]),
         model_name="model",
         save_dir=str(segment),
         ode_reg_lambda=float(config["ode_reg_lambda"]),
         ode_reg_norm=str(config["ode_reg_norm"]),
         save_loss_details=bool(config["save_loss_details"]),
         cell_ode_reg_lambda_20260830=float(config["cell_ode_reg_lambda_20260830"]),
+        detailed_loss_flush_interval=int(config["detailed_loss_flush_interval"]),
     ).run_loop()
     return 0
 

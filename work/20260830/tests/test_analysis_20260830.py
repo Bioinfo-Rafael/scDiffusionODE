@@ -135,12 +135,75 @@ class AnalysisTests(unittest.TestCase):
             "cell_ode_contribution_fraction_20260830",
         ]].iloc[0].sum()), 1.0)
 
+    def test_loss_mapping_prefers_explicit_every_step_schema(self):
+        config = load_experiment_config("01_centered_signed_hill_lambda0p1")
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "checkpoints/segment_000/model"
+            output.mkdir(parents=True)
+            pd.DataFrame([{
+                "training_step": 1,
+                "diffusion_loss": 2.0,
+                "ode_offmask_base_raw": 0.4,
+                "ode_offmask_after_internal_lambda": 2.0,
+                "ode_regularization_final_weighted": 2.0,
+                "cell_ode_consistency_raw_20260830": 7.0,
+                "cell_ode_consistency_sampler_weighted_20260830": 3.0,
+                "cell_ode_consistency_final_weighted_20260830": 0.3,
+                "total_loss": 4.3,
+                "learning_rate": 1e-4,
+            }]).to_csv(output / "loss_components_20260830.csv", index=False)
+            history, _ = load_loss_history(root, config, rolling_window=2)
+        self.assertEqual(float(history.loc[0, "ode_regularization_raw"]), 0.4)
+        self.assertEqual(
+            float(history.loc[0, "cell_ode_consistency_raw_20260830"]), 7.0
+        )
+        self.assertEqual(
+            float(history.loc[0, "cell_ode_consistency_sampler_weighted_20260830"]),
+            3.0,
+        )
+        self.assertEqual(float(history.loc[0, "learning_rate"]), 1e-4)
+
+    def test_loss_history_handles_100k_optimizer_steps(self):
+        config = load_experiment_config("01_centered_signed_hill_lambda0p1")
+        count = 100000
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / "checkpoints/segment_000/model"
+            output.mkdir(parents=True)
+            values = np.linspace(1.0, 0.1, count)
+            pd.DataFrame({
+                "training_step": np.arange(1, count + 1),
+                "diffusion_loss": values,
+                "ode_offmask_base_raw": np.full(count, 0.2),
+                "ode_offmask_after_internal_lambda": np.full(count, 1.0),
+                "ode_regularization_final_weighted": np.full(count, 1.0),
+                "cell_ode_consistency_raw_20260830": np.full(count, 0.5),
+                "cell_ode_consistency_sampler_weighted_20260830": np.full(count, 0.5),
+                "cell_ode_consistency_final_weighted_20260830": np.full(count, 0.05),
+                "total_loss": values + 1.05,
+                "learning_rate": np.linspace(1e-4, 0.0, count),
+            }).to_csv(output / "loss_components_20260830.csv", index=False)
+            history, fractions = load_loss_history(root, config, rolling_window=100)
+        self.assertEqual(len(history), count)
+        self.assertEqual(len(fractions), count)
+        self.assertEqual(int(history.iloc[-1]["training_step"]), count)
+        self.assertTrue(np.isfinite(history.filter(like="rolling_median").to_numpy()).all())
+
     def test_checkpoint_selection_and_timestep_parser(self):
         paths = [Path(f"model{step:06d}.pt") for step in (100, 300, 700, 1000)]
         selected = select_analysis_checkpoints(paths)
         self.assertEqual(selected[-1]["checkpoint_training_step"], 1000)
         self.assertTrue(any("early_10pct" in row["checkpoint_stage"] for row in selected))
         self.assertEqual(parse_timestep_spec("0,1,5-9:2", 1000), (0, 1, 5, 7, 9))
+
+    def test_checkpoint_selection_for_100k_training(self):
+        paths = [Path(f"model{step:06d}.pt") for step in range(5000, 100001, 5000)]
+        selected = select_analysis_checkpoints(paths)
+        self.assertEqual(
+            [row["checkpoint_training_step"] for row in selected],
+            [10000, 35000, 65000, 100000],
+        )
 
     def test_canonical_lambda_mapping_is_four_by_three(self):
         observed = [
@@ -264,8 +327,8 @@ class AnalysisTests(unittest.TestCase):
         expected = {
             "guided_diffusion/gaussian_diffusion.py": "eeb83640dc140f91e3519976fa5cf031076d7713d049d2a1b9debc8b0390b9ab",
             "guided_diffusion/train_util.py": "8aba336eee5240a788d5c2de46092a91d1c5f21a0e215e46106e5b28fe710c19",
-            "work/20260830/training/train_loop_20260830.py": "22201b5aa59ba484d2a428951b54eb50f0f2ec265741c2a3622bec9a5e92f3ab",
-            "work/20260830/scripts/train.py": "1e6b339d0de6cb100cac3e9b77df2f1e3d436d746be2b31bdc8667c52f92c04d",
+            "work/20260830/training/train_loop_20260830.py": "95c1cc9cd39eda5db2d54d635e69b0383bc83193d7e5083174d9e430985ebc06",
+            "work/20260830/scripts/train.py": "5fc976c5a4b23a67bf5d4c6389968e2e0b25ceb78b1d22544e9feb000f51f5db",
             "work/20260830/scripts/sample.py": "e313f830131dded178bad9a34229c80f3109503f545a8bb92ba1310d5e68ea8c",
         }
         for relative, digest in expected.items():

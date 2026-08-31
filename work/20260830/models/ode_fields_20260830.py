@@ -79,7 +79,9 @@ class SingleODEBase20260830(nn.Module):
     def penalty_parameter(self) -> torch.Tensor:
         raise NotImplementedError
 
-    def off_mask_penalty(self, norm: str = "l1") -> torch.Tensor:
+    def off_mask_penalty_base(self, norm: str = "l1") -> torch.Tensor:
+        """Return the unweighted off-mask penalty for this ODE's edge parameter."""
+
         parameter = self.penalty_parameter()
         selected = parameter if self.mask is None else parameter * (1.0 - self.mask)
         normalized = str(norm).lower()
@@ -89,6 +91,10 @@ class SingleODEBase20260830(nn.Module):
             base = selected.square().mean()
         else:
             raise ValueError("norm must be 'l1' or 'l2'")
+        return base
+
+    def off_mask_penalty(self, norm: str = "l1") -> torch.Tensor:
+        base = self.off_mask_penalty_base(norm)
         # Preserve the inherited internal weighting.  TrainLoop applies its
         # separate ode_reg_lambda outside this method.
         return self.off_mask_lambda * base

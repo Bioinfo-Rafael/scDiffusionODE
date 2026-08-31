@@ -33,10 +33,13 @@ ode_regularization_weighted
   = final total-loss contribution
 
 cell_ode_consistency_raw_20260830
-  = sampler-weighted per-cell gene MSE
+  = sampler weight適用前のper-cell gene MSE平均
+
+cell_ode_consistency_sampler_weighted_20260830
+  = schedule sampler weight適用後
 
 cell_ode_consistency_weighted_20260830
-  = cell_ode_reg_lambda_20260830 * raw consistency
+  = cell_ode_reg_lambda_20260830 * sampler-weighted consistency
 ```
 
 `training_step` はoptimizer/training軸、`diffusion_timestep` はforward diffusionの

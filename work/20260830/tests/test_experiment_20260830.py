@@ -19,7 +19,11 @@ for path in (REPO_ROOT, SUITE_ROOT, SUITE_ROOT / "scripts"):
 from common import EXPERIMENT_ORDER, load_experiment_config  # noqa: E402
 from models import build_ode_from_config  # noqa: E402
 from models.cellunet_ode_regularized_20260830 import CellUNetODERegularized20260830  # noqa: E402
-from training import TrainLoop20260830, loss_components_20260830  # noqa: E402
+from training import (  # noqa: E402
+    DETAILED_LOSS_COLUMNS_20260830,
+    TrainLoop20260830,
+    loss_components_20260830,
+)
 from guided_diffusion.cell_model import Cell_Unet  # noqa: E402
 from guided_diffusion.train_util import TrainLoop  # noqa: E402
 
@@ -108,6 +112,7 @@ class ExperimentTests(unittest.TestCase):
         model = ode("simple_softplus", d=2)
         with torch.no_grad():
             model.W.fill_(1.0)
+        self.assertEqual(float(model.off_mask_penalty_base("l1")), 1.0)
         self.assertEqual(float(model.off_mask_penalty("l1")), 5.0)
 
     def test_matrix_entries_are_target_source(self):
@@ -176,6 +181,10 @@ class ExperimentTests(unittest.TestCase):
         zero = loss_components_20260830(diffusion, soft, 1.0, consistency, weights, 0.0)
         self.assertEqual(float(zero["total_loss"]), 5.0)
         self.assertEqual(float(zero["cell_ode_consistency_20260830"]), 2.0)
+        self.assertEqual(float(zero["cell_ode_consistency_raw_20260830"]), 2.5)
+        self.assertEqual(
+            float(zero["cell_ode_consistency_sampler_weighted_20260830"]), 2.0
+        )
         no_regularizers = loss_components_20260830(
             diffusion, torch.tensor(0.0), 0.0, consistency, weights, 0.0
         )
@@ -185,14 +194,104 @@ class ExperimentTests(unittest.TestCase):
         values = loss_components_20260830(
             torch.tensor(1.0), torch.tensor(2.0), 1.0,
             torch.tensor([3.0]), torch.tensor([1.0]), 0.1,
+            ode_offmask_base_raw=torch.tensor(0.4),
         )
         self.assertTrue({
             "diffusion_loss",
-            "ode_soft_constraint",
-            "cell_ode_consistency_20260830",
+            "ode_offmask_base_raw",
+            "ode_offmask_after_internal_lambda",
+            "ode_regularization_final_weighted",
+            "cell_ode_consistency_raw_20260830",
+            "cell_ode_consistency_sampler_weighted_20260830",
+            "cell_ode_consistency_final_weighted_20260830",
             "total_loss",
         }.issubset(values))
         self.assertAlmostEqual(float(values["total_loss"]), 3.3, places=6)
+        self.assertAlmostEqual(float(values["ode_offmask_base_raw"]), 0.4, places=6)
+        reconstructed = (
+            values["diffusion_loss"]
+            + values["ode_regularization_final_weighted"]
+            + values["cell_ode_consistency_final_weighted_20260830"]
+        )
+        self.assertTrue(torch.allclose(values["total_loss"], reconstructed))
+
+    def test_detailed_loss_schema_contains_required_columns(self):
+        required = {
+            "training_step", "diffusion_loss", "ode_offmask_base_raw",
+            "ode_offmask_after_internal_lambda", "ode_regularization_final_weighted",
+            "cell_ode_consistency_raw_20260830",
+            "cell_ode_consistency_sampler_weighted_20260830",
+            "cell_ode_consistency_final_weighted_20260830", "total_loss",
+            "off_mask_lambda", "ode_reg_lambda", "cell_ode_reg_lambda_20260830",
+            "learning_rate",
+        }
+        self.assertTrue(required.issubset(DETAILED_LOSS_COLUMNS_20260830))
+
+    def test_local_lr_annealing_reaches_zero_at_training_end(self):
+        loop = object.__new__(TrainLoop20260830)
+        loop.lr = 1e-4
+        loop.lr_anneal_steps = 100000
+        loop.step = 99999
+        loop.resume_step = 0
+        loop.opt = type("Opt", (), {"param_groups": [{"lr": 1e-4}]})()
+        loop._anneal_lr()
+        self.assertEqual(loop.opt.param_groups[0]["lr"], 0.0)
+
+    def test_microbatch_logging_aggregates_the_whole_optimizer_step(self):
+        class DeterministicDiffusion:
+            num_timesteps = 1000
+
+            @staticmethod
+            def training_losses(model, micro, timesteps, model_kwargs=None):
+                model(micro, timesteps, **(model_kwargs or {}))
+                return {"loss": micro[:, 0]}
+
+        class FixedSampler:
+            @staticmethod
+            def sample(size, device):
+                return (
+                    torch.zeros(size, dtype=torch.long, device=device),
+                    torch.ones(size, device=device),
+                )
+
+        wrapper = CellUNetODERegularized20260830(
+            DummyCell(4), ode("simple_softplus")
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            loop = TrainLoop20260830(
+                model=wrapper,
+                diffusion=DeterministicDiffusion(),
+                data=iter(()),
+                batch_size=3,
+                microbatch=2,
+                lr=1e-4,
+                ema_rate="0.9999",
+                log_interval=1000,
+                save_interval=5000,
+                resume_checkpoint="",
+                schedule_sampler=FixedSampler(),
+                weight_decay=1e-4,
+                lr_anneal_steps=100000,
+                model_name="model",
+                save_dir=directory,
+                ode_reg_lambda=1.0,
+                ode_reg_norm="l1",
+                save_loss_details=True,
+                cell_ode_reg_lambda_20260830=0.1,
+            )
+            batch = torch.tensor([
+                [1.0, 0.2, 0.3, 0.4],
+                [3.0, 0.2, 0.3, 0.4],
+                [9.0, 0.2, 0.3, 0.4],
+            ])
+            loop.forward_backward(batch, {})
+        # Microbatch means are 2 and 9; full-step sample-weighted mean is 13/3.
+        self.assertAlmostEqual(
+            loop._current_loss_components_20260830["diffusion_loss"], 13.0 / 3.0
+        )
+        self.assertNotEqual(
+            loop._current_loss_components_20260830["diffusion_loss"], 9.0
+        )
 
     def test_twelve_configs_in_canonical_order(self):
         self.assertEqual(len(EXPERIMENT_ORDER), 12)
@@ -200,6 +299,28 @@ class ExperimentTests(unittest.TestCase):
         for name in EXPERIMENT_ORDER:
             config = load_experiment_config(name)
             observed.append((config["ode_type"], config["cell_ode_reg_lambda_20260830"]))
+            self.assertEqual(config["total_steps"], 100000)
+            self.assertEqual(config["lr_anneal_steps"], 100000)
+            self.assertEqual(config["total_steps"], config["lr_anneal_steps"])
+            expected_fixed = {
+                "cell_unet_hidden_num": [2000, 1000, 500, 500],
+                "diffusion_steps": 1000,
+                "noise_schedule": "linear",
+                "schedule_sampler": "uniform",
+                "lr": 1e-4,
+                "weight_decay": 1e-4,
+                "batch_size": 128,
+                "microbatch": -1,
+                "ema_rate": "0.9999",
+                "save_interval": 5000,
+                "seed": 1234,
+                "num_samples": 3000,
+                "sample_batch_size": 50,
+                "use_ddim": False,
+                "clip_denoised": False,
+            }
+            for key, expected_value in expected_fixed.items():
+                self.assertEqual(config[key], expected_value, f"{name}: {key}")
         expected = [
             (ode_type, value)
             for ode_type in ODE_TYPES

@@ -33,10 +33,24 @@ L_total = L_diffusion
 `lambda=0` では consistency の loss 寄与は厳密に 0 です。今回の12条件は
 `0.1, 1.0, 10.0` を使用します。
 
-ログ名は `diffusion_loss`、`ode_soft_constraint`、
-`ode_soft_constraint_weighted`、`cell_ode_consistency_20260830`、
-`cell_ode_consistency_weighted_20260830`、`total_loss` です。checkpoint 保存時に
-`loss_components_20260830.csv` にも独立列で記録します。
+詳細lossは各optimizer stepでmemory bufferへ記録し、既定100 stepごと、および
+checkpoint・正常終了・例外終了時に `loss_components_20260830.csv` へappend/flush
+します。console loggerは従来どおり `log_interval=1000` で、CSV頻度とは独立です。
+CSV列は以下です（末尾に旧analysis互換aliasも保持します）。
+
+| CSV column | definition |
+|---|---|
+| `training_step` | 完了したoptimizer step（1始まり） |
+| `diffusion_loss` | sampler-weighted diffusion loss |
+| `ode_offmask_base_raw` | edge parameterのoff-mask base $R_{base}$ |
+| `ode_offmask_after_internal_lambda` | $5R_{base}$ |
+| `ode_regularization_final_weighted` | $1\times5R_{base}$ |
+| `cell_ode_consistency_raw_20260830` | sampler weight適用前のconsistency |
+| `cell_ode_consistency_sampler_weighted_20260830` | sampler weight適用後 |
+| `cell_ode_consistency_final_weighted_20260830` | $\lambda_{cons}$ 適用後 |
+| `total_loss` | 3つの最終寄与の和 |
+| `off_mask_lambda`, `ode_reg_lambda`, `cell_ode_reg_lambda_20260830` | 各係数 |
+| `learning_rate` | そのoptimizer updateで使用したLR |
 
 ## 既存 soft constraint の weight 構造
 
@@ -48,7 +62,16 @@ L_ODE_soft = off_mask_lambda * base                           # ODE 内部: 5.0
 total contribution = ode_reg_lambda * L_ODE_soft              # TrainLoop: 1.0
 ```
 
-従って既定値では off-mask base に対する実効係数は `5.0 * 1.0` です。
+従って既定値では **edge parameter off-mask regularization** のbaseに対する実効係数は
+`5.0 * 1.0 = 5.0` です。対象parameterはODEごとに異なり、centeredは`alpha`、
+shiftedは`rho`、hill/simpleは`W`です。
+
+| ODE family | off-mask regularization対象 |
+|---|---|
+| `centered_signed_hill` | `alpha` |
+| `shifted_hill_rho` | `rho` |
+| `hill_after_linear` | `W` |
+| `simple_softplus` | `W` |
 新しい consistency 係数はこの二つから独立で、既存 soft constraint を消したり
 置き換えたりしません。
 
@@ -115,11 +138,89 @@ soft constraint 対象は `W` です。`ODE/ode_20260421_regODEMLratio.py::GeneO
 - diffusion 1000 step、linear beta、epsilon prediction、MSE、fixed variance
 - uniform sampler、batch 128、microbatch `-1`
 - AdamW、LR `1e-4`、weight decay `1e-4`
-- EMA `0.9999`、30,000 steps、seed 1234
+- EMA `0.9999`、seed 1234
 - ancestral sampling、3,000 samples、sample batch 50、clip off
 
 データ、HVG/preprocessing、diffusion/model mean/loss、architecture、optimizer、
 sampling、seed は比較軸として変更していません。
+
+今回の共通かつ意図的な変更は、全12条件のtraining lengthを30,000から100,000へ
+延長することだけです。local TrainLoopのlinear annealingは最初のupdateで`1e-4`を
+使い、100,000番目のupdate完了後にoptimizer LRが厳密に0になります。
+
+## Training / sampling条件の再監査
+
+`20260817` は現在branchの作業treeにはsourceがないため、local branch
+`work/20260817-singleODE` のcommit `ed376ec`にあるbase configを直接比較しました。
+3 suite共通の完全なpathは次のとおりです。
+
+- `data_dir=/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad`
+- `edge_tsv_path=/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv`
+
+| condition | 20260803_ODE_hill_exp | 20260817_singleODE | 20260830 final |
+|---|---|---|---|
+| `data_dir` | Embryonic.h5ad | 同左 | 同左 |
+| `edge_tsv_path` | tf_target_edges.tsv | 同左 | 同左 |
+| `cell_unet_hidden_num` | `[2000,1000,500,500]` | 同左 | 同左 |
+| `diffusion_steps` | 1000 | 1000 | 1000 |
+| `noise_schedule` | linear | linear | linear |
+| `timestep_respacing` | `""` | `""` | `""` |
+| `learn_sigma` | false | false | false |
+| `use_kl` | false | false | false |
+| `predict_xstart` | false | false | false |
+| `rescale_timesteps` | false | false | false |
+| `rescale_learned_sigmas` | false | false | false |
+| `schedule_sampler` | uniform | uniform | uniform |
+| `lr` | 1e-4 | 1e-4 | 1e-4 |
+| `weight_decay` | 1e-4 | 1e-4 | 1e-4 |
+| `batch_size` | 128 | 128 | 128 |
+| `microbatch` | -1 | -1 | -1 |
+| `ema_rate` | 0.9999 | 0.9999 | 0.9999 |
+| `use_fp16` | false | false | false |
+| `total_steps` | 30,000 | 30,000 | **100,000** |
+| `lr_anneal_steps` | 30,000 | 30,000 | **100,000** |
+| `log_interval` | 1000 | 1000 | 1000 |
+| `save_interval` | 5000 | 5000 | 5000 |
+| `seed` | 1234 | 1234 | 1234 |
+| `SoftReg` / `use_mask_reg` | true / true | true / true | true / true |
+| `off_mask_lambda` | 5.0 | 5.0 | 5.0 |
+| `ode_reg_lambda` / norm | 1.0 / l1 | 1.0 / l1 | 1.0 / l1 |
+| `positive_epsilon` | 1e-6 | 1e-6 | 1e-6 |
+| `raw_delta_init` | 0.1 | 0.1 | 0.1 |
+| `num_samples` | 3000 | 3000 | 3000 |
+| `sample_batch_size` | 50 | 50 | 50 |
+| `use_ddim` | false | false | false |
+| `clip_denoised` | false | false | false |
+
+20260830のODE固有値は、centered/shiftedについて20260817の
+`K=1`, `gate_mode=none`, `regulation_A_init=1`, `theta_init=1`,
+`target_chunk_size=16`, `hill_n=2`を維持します。hill-after-linearは20260803由来の
+`hill_n=2`, `hill_K_init=1`, `hill_V_init=1`、simple-softplusは歴史的な
+`gamma=0.1`, input scale `1/sqrt(d)`を維持します。
+
+### Final fixed conditions
+
+| setting | value |
+|---|---:|
+| Training steps | **100000** |
+| LR | **1e-4** |
+| LR anneal steps | **100000** |
+| Batch / microbatch | **128 / -1** |
+| Diffusion steps | **1000** |
+| EMA | **0.9999** |
+| `off_mask_lambda` | **5.0** |
+| `ode_reg_lambda` | **1.0** |
+| Cell–ODE lambda | **0.1 / 1 / 10** |
+
+### Checkpoint容量概算
+
+`save_interval=5000`は変更していません。step 0を含め最終100,000まで約21組です。
+FP32では1組（raw model + EMA + Adamの2 moment）は概ねparameter byte数の4倍です。
+入力gene数を`d=2000`と仮定すると、centered/shiftedは約0.78 GiB/組（約16.4
+GiB/run）、hill/simpleは約0.66 GiB/組（約13.9 GiB/run）、12 run合計は概ね
+182 GiB + serialization overheadです。実容量はAnnDataの`n_vars`に依存します。
+容量が問題なら`save_interval=10000`で概ね半減できますが、比較条件維持のため今回は
+5000のままです。
 
 ## Canonical 12条件
 
@@ -149,11 +250,14 @@ launcher と config validator の両方がこの順序・ODE・lambda の組を�
   --batch-id main-20260830
 ```
 
+全diffusion timestepのanalysisを行う本番pipelineでは `--analysis-full` を追加します。
+全12条件のper-run analysis後、launcherは12条件summaryも自動生成します。
+
 background 実行:
 
 ```bash
 /path/to/scdiffusion/bin/python work/20260830/scripts/launch.py \
-  --batch-id main-20260830 --background
+  --batch-id main-20260830 --analysis-full --background
 ```
 
 1条件のみ:
@@ -238,9 +342,8 @@ loss weightの定義、16 figure一覧は
 defaultは2,048 cellsと既存timestep grid `0,249,499,616,749,999`、quickは128 cells、
 fullは最大4,096 cellsと全diffusion timestepです。
 metricとgradient CSVはdiffusion timestep/checkpoint groupごとに途中保存され、同じ
-analysis条件で再実行すると完了済みgroupをskipします。loss historyの時間解像度は
-既存trainingがcheckpoint時に保存した `loss_components_20260830.csv` の行に限られ、
-analysis追加のためにtraining時logging頻度は変更していません。
+analysis条件で再実行すると完了済みgroupをskipします。loss historyは各optimizer
+stepの最大100,000行を読み、rolling median/Q25/Q75を計算します。
 
 ```bash
 # analysis smoke test
