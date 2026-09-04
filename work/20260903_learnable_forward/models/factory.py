@@ -115,11 +115,6 @@ def build_experiment_components(
         raise ValueError(
             f"input_dim={configured_dim} does not match gene count {dim}"
         )
-    dtype_name = str(config.get("forward_dtype", "float64")).lower()
-    if dtype_name not in DTYPES:
-        raise ValueError(f"forward_dtype must be one of {tuple(DTYPES)}, got {dtype_name!r}")
-    forward_dtype = DTYPES[dtype_name]
-
     time_map = PhysicalTimeMap.from_named_schedule(
         str(config.get("noise_schedule", "linear")),
         int(config.get("diffusion_steps", 1000)),
@@ -131,33 +126,12 @@ def build_experiment_components(
             dropout=float(config.get("dropout", 0.0)),
         )
 
-    family = str(config.get("forward_model", "")).lower()
-    if family not in FORWARD_MODELS:
-        raise ValueError(f"forward_model must be one of {FORWARD_MODELS}, got {family!r}")
-    if family == "stationary_qd":
-        mask = target_source_mask(config, genes, explicit_mask)
-        process = StationaryQDForward(
-            dim,
-            d_parameterization=str(config.get("d_parameterization", "psd")),
-            d_diagonal_floor=float(config.get("d_diagonal_floor", 0.0)),
-            initial_d_diagonal=float(config.get("initial_d_diagonal", 0.5)),
-            covariance_jitter=float(config.get("covariance_jitter", 0.0)),
-            grn_mask_target_source=mask,
-            allow_self_edges=_bool(config.get("allow_self_edges", True)),
-            grn_penalty_weight=float(config.get("grn_penalty_weight", 0.0)),
-            grn_penalty_norm=str(config.get("grn_penalty_norm", "l1")),
-            device=device,
-            dtype=forward_dtype,
-        )
-    else:
-        if _bool(config.get("use_grn_mask", False)):
-            raise ValueError("GRN mask regularization is only defined for stationary_qd")
-        process = FreeAffineForward(
-            dim,
-            covariance_jitter=float(config.get("covariance_jitter", 0.0)),
-            device=device,
-            dtype=forward_dtype,
-        )
+    process = build_forward_process(
+        config,
+        genes,
+        device,
+        explicit_mask=explicit_mask,
+    )
 
     model = LearnableForwardModel(denoiser, process).to(device)
     diffusion = LearnableForwardTrainingDiffusion(
@@ -174,11 +148,65 @@ def build_experiment_components(
     return ExperimentComponents(model, diffusion, sampler, time_map)
 
 
+def build_forward_process(
+    config: Mapping,
+    genes: Sequence[str],
+    device,
+    *,
+    explicit_mask: Optional[torch.Tensor] = None,
+) -> nn.Module:
+    """Construct only the dense forward process for read-only analysis."""
+
+    dim = len(genes)
+    configured_dim = int(config.get("input_dim", dim))
+    if configured_dim != dim:
+        raise ValueError(
+            f"input_dim={configured_dim} does not match gene count {dim}"
+        )
+    dtype_name = str(config.get("forward_dtype", "float64")).lower()
+    if dtype_name not in DTYPES:
+        raise ValueError(
+            f"forward_dtype must be one of {tuple(DTYPES)}, got {dtype_name!r}"
+        )
+    forward_dtype = DTYPES[dtype_name]
+    family = str(config.get("forward_model", "")).lower()
+    if family not in FORWARD_MODELS:
+        raise ValueError(
+            f"forward_model must be one of {FORWARD_MODELS}, got {family!r}"
+        )
+    mask = target_source_mask(config, genes, explicit_mask)
+    common_grn = dict(
+        grn_mask_target_source=mask,
+        allow_self_edges=_bool(config.get("allow_self_edges", True)),
+        grn_penalty_weight=float(config.get("grn_penalty_weight", 0.0)),
+        grn_penalty_norm=str(config.get("grn_penalty_norm", "l1")),
+    )
+    if family == "stationary_qd":
+        return StationaryQDForward(
+            dim,
+            d_parameterization=str(config.get("d_parameterization", "psd")),
+            d_diagonal_floor=float(config.get("d_diagonal_floor", 0.0)),
+            initial_d_diagonal=float(config.get("initial_d_diagonal", 0.5)),
+            covariance_jitter=float(config.get("covariance_jitter", 0.0)),
+            **common_grn,
+            device=device,
+            dtype=forward_dtype,
+        )
+    return FreeAffineForward(
+        dim,
+        covariance_jitter=float(config.get("covariance_jitter", 0.0)),
+        **common_grn,
+        device=device,
+        dtype=forward_dtype,
+    )
+
+
 __all__ = [
     "DTYPES",
     "ExperimentComponents",
     "FORWARD_MODELS",
     "build_experiment_components",
+    "build_forward_process",
     "target_source_mask",
     "validate_training_policy",
 ]

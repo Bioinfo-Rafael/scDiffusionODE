@@ -25,6 +25,8 @@ from typing import Optional, Tuple
 import torch
 from torch import nn
 
+from .grn import effective_grn_mask, off_mask_penalty, validate_penalty_norm
+
 
 @dataclass(frozen=True)
 class FreeAffineTransition:
@@ -88,6 +90,10 @@ class FreeAffineForward(nn.Module):
         dim: int,
         *,
         covariance_jitter: float = 0.0,
+        grn_mask_target_source: Optional[torch.Tensor] = None,
+        allow_self_edges: bool = True,
+        grn_penalty_weight: float = 0.0,
+        grn_penalty_norm: str = "l1",
         device=None,
         dtype: Optional[torch.dtype] = torch.float64,
     ) -> None:
@@ -103,6 +109,11 @@ class FreeAffineForward(nn.Module):
                 f"{covariance_jitter!r}"
             )
         self.covariance_jitter = covariance_jitter
+        self.grn_penalty_weight = self._finite_nonnegative(
+            "grn_penalty_weight", grn_penalty_weight
+        )
+        self.grn_penalty_norm = validate_penalty_norm(grn_penalty_norm)
+        self.allow_self_edges = bool(allow_self_edges)
 
         factory_kwargs = {"device": device, "dtype": dtype}
         self.raw_w = nn.Parameter(
@@ -114,6 +125,20 @@ class FreeAffineForward(nn.Module):
             torch.eye(self.dim, **factory_kwargs),
             persistent=False,
         )
+        mask, self._has_grn_mask = effective_grn_mask(
+            grn_mask_target_source,
+            dim=self.dim,
+            allow_self_edges=self.allow_self_edges,
+            reference=self.raw_w,
+        )
+        self.register_buffer("grn_mask_target_source", mask)
+
+    @staticmethod
+    def _finite_nonnegative(name: str, value: float) -> float:
+        value = float(value)
+        if not math.isfinite(value) or value < 0.0:
+            raise ValueError(f"{name} must be finite and nonnegative, got {value!r}")
+        return value
 
     def drift_matrix(self) -> torch.Tensor:
         """Return the unconstrained matrix ``W = -0.5 I + raw_W``."""
@@ -129,6 +154,22 @@ class FreeAffineForward(nn.Module):
         """Return ``a = g g^T = I`` for the identity-diffusion SDE."""
 
         return self._identity
+
+    def diffusion_factor(self) -> torch.Tensor:
+        """Return the fixed identity diffusion factor ``G``."""
+
+        return self._identity
+
+    def drift(self, states: torch.Tensor) -> torch.Tensor:
+        """Evaluate row-vector forward drift ``Wy+b``."""
+
+        if states.shape[-1] != self.dim:
+            raise ValueError("states have an incompatible final dimension")
+        states = states.to(device=self.raw_w.device, dtype=self.raw_w.dtype)
+        return (
+            states @ self.drift_matrix().transpose(-1, -2)
+            + self.drift_bias()
+        )
 
     def drift_divergence(self) -> torch.Tensor:
         """Return ``div_y(W y + b) = tr(W)``."""
@@ -374,10 +415,32 @@ class FreeAffineForward(nn.Module):
         normalizer = dimension * math.log(2.0 * math.pi)
         return 0.5 * (mean_squared + covariance_trace + normalizer)
 
-    def additional_regularization(self) -> torch.Tensor:
-        """Generic wrapper hook; unconstrained Model B has no extra penalty."""
+    def grn_penalty_base(self, norm: Optional[str] = None) -> torch.Tensor:
+        """Return the unweighted off-mask penalty on free drift matrix ``W``."""
 
-        return self.raw_w.new_zeros(())
+        if not self._has_grn_mask:
+            return self.raw_w.new_zeros(())
+        selected_norm = (
+            self.grn_penalty_norm
+            if norm is None
+            else validate_penalty_norm(norm)
+        )
+        return off_mask_penalty(
+            self.drift_matrix(),
+            self.grn_mask_target_source,
+            norm=selected_norm,
+        )
+
+    def grn_penalty(
+        self, norm: Optional[str] = None, *, weighted: bool = True
+    ) -> torch.Tensor:
+        base = self.grn_penalty_base(norm)
+        return self.grn_penalty_weight * base if weighted else base
+
+    def additional_regularization(self) -> torch.Tensor:
+        """Return the weighted external GRN prior, matching Model A semantics."""
+
+        return self.grn_penalty(weighted=True)
 
 
 __all__ = ["FreeAffineForward", "FreeAffineTransition"]

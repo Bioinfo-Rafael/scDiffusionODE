@@ -184,6 +184,21 @@ class TrainingIntegrationTests(unittest.TestCase):
             "boundary_nll",
             "forward_regularization",
             "plain_epsilon_mse",
+            "total_loss",
+            "path_loss_raw",
+            "terminal_kl_raw",
+            "boundary_nll_raw",
+            "path_after_duration",
+            "path_final_per_dim",
+            "terminal_final_per_dim",
+            "boundary_final_per_dim",
+            "paper_elbo_per_dim",
+            "grn_penalty_raw",
+            "grn_penalty_weight",
+            "grn_penalty_final_weighted",
+            "sampled_physical_time",
+            "fractional_diffusion_timestep",
+            "dimension",
         }
         for forward_model in ("stationary_qd", "free_affine"):
             for loss_mode in ("paper_elbo", "epsilon_surrogate"):

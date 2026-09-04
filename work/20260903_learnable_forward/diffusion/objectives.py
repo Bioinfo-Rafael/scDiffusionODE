@@ -21,6 +21,36 @@ import torch
 LOG_TWO_PI = math.log(2.0 * math.pi)
 
 
+def per_dimension(value: torch.Tensor, dimension: int) -> torch.Tensor:
+    """Apply one dynamic ``1/d`` factor to a sum-form ELBO quantity.
+
+    Objective primitives remain mathematically defined as sums.  This helper
+    is the only normalization point used by the training facade, preventing
+    path, terminal, and boundary terms from silently receiving different
+    coordinate reductions.
+    """
+
+    dimension = int(dimension)
+    if dimension <= 0:
+        raise ValueError(f"dimension must be positive, got {dimension}")
+    return value / float(dimension)
+
+
+def per_dimension_elbo_terms(
+    path_after_duration: torch.Tensor,
+    terminal_kl_raw: torch.Tensor,
+    boundary_nll_raw: torch.Tensor,
+    *,
+    dimension: int,
+) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+    """Normalize all three paper-ELBO contributions with the same ``1/d``."""
+
+    return tuple(
+        per_dimension(value, dimension)
+        for value in (path_after_duration, terminal_kl_raw, boundary_nll_raw)
+    )
+
+
 def _check_shared_cholesky(cholesky: torch.Tensor) -> int:
     if cholesky.ndim != 2 or cholesky.shape[0] != cholesky.shape[1]:
         raise ValueError(
@@ -168,17 +198,16 @@ def standard_normal_kl(
     )
 
 
-def boundary_gaussian_nll(
+def boundary_gaussian_parameters(
     *,
-    x_start: torch.Tensor,
     y_boundary: torch.Tensor,
     model_score: torch.Tensor,
     transition_matrix: torch.Tensor,
     affine_shift: Optional[torch.Tensor],
     covariance: torch.Tensor,
     cholesky: torch.Tensor,
-) -> torch.Tensor:
-    """Appendix-I Gaussian decoder negative log likelihood.
+) -> tuple[torch.Tensor, torch.Tensor]:
+    """Return Appendix-I decoder mean and a covariance square root.
 
     For ``q(y_delta|x)=N(Phi x+h, Sigma)``, Theorem 3 uses
 
@@ -191,11 +220,7 @@ def boundary_gaussian_nll(
     """
 
     dim = _check_shared_cholesky(cholesky)
-    for name, value in (
-        ("x_start", x_start),
-        ("y_boundary", y_boundary),
-        ("model_score", model_score),
-    ):
+    for name, value in (("y_boundary", y_boundary), ("model_score", model_score)):
         _check_batch_vectors(value, dim, name)
     if transition_matrix.shape != (dim, dim):
         raise ValueError(
@@ -207,7 +232,7 @@ def boundary_gaussian_nll(
             f"covariance must have shape {(dim, dim)}, got {tuple(covariance.shape)}"
         )
     if affine_shift is None:
-        affine_shift = x_start.new_zeros(dim)
+        affine_shift = y_boundary.new_zeros(dim)
     if affine_shift.shape != (dim,):
         raise ValueError(
             f"affine_shift must have shape {(dim,)}, got {tuple(affine_shift.shape)}"
@@ -222,6 +247,31 @@ def boundary_gaussian_nll(
         transition_matrix, rhs.transpose(0, 1)
     ).transpose(0, 1)
     decoder_root = torch.linalg.solve(transition_matrix, cholesky)
+    return decoder_mean, decoder_root
+
+
+def boundary_gaussian_nll(
+    *,
+    x_start: torch.Tensor,
+    y_boundary: torch.Tensor,
+    model_score: torch.Tensor,
+    transition_matrix: torch.Tensor,
+    affine_shift: Optional[torch.Tensor],
+    covariance: torch.Tensor,
+    cholesky: torch.Tensor,
+) -> torch.Tensor:
+    """Appendix-I Gaussian decoder negative log likelihood."""
+
+    dim = _check_shared_cholesky(cholesky)
+    _check_batch_vectors(x_start, dim, "x_start")
+    decoder_mean, decoder_root = boundary_gaussian_parameters(
+        y_boundary=y_boundary,
+        model_score=model_score,
+        transition_matrix=transition_matrix,
+        affine_shift=affine_shift,
+        covariance=covariance,
+        cholesky=cholesky,
+    )
     residual = x_start - decoder_mean
     whitened = torch.linalg.solve(
         decoder_root, residual.transpose(0, 1)

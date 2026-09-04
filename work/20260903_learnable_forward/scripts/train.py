@@ -23,6 +23,7 @@ for search_path in (REPO_ROOT, SUITE_ROOT, HERE):
 
 from common import (  # noqa: E402
     ConfigurationError,
+    gene_order_sha256,
     load_experiment_config,
     model_metadata,
     new_batch_id,
@@ -188,6 +189,44 @@ def _write_status(path: Path, payload: Mapping[str, Any], rank: int) -> None:
         write_json(path, dict(payload))
 
 
+def _save_initial_forward_state(
+    path: Path,
+    model,
+    config: Mapping[str, Any],
+    genes: Sequence[str],
+) -> None:
+    """Persist the exact pre-optimizer forward state without overwriting it."""
+
+    import torch
+
+    expected = {
+        "format_version": 1,
+        "forward_model": str(config["forward_model"]),
+        "dimension": len(genes),
+        "gene_order_sha256": gene_order_sha256(genes),
+    }
+    if path.exists():
+        payload = torch.load(path, map_location="cpu")
+        observed = {name: payload.get(name) for name in expected}
+        if observed != expected:
+            raise RuntimeError(
+                f"existing initial forward state has different provenance: {path}"
+            )
+        return
+    payload = {
+        **expected,
+        "ordered_gene_names": list(genes),
+        "state_dict": {
+            name: value.detach().cpu().clone()
+            for name, value in model.forward_process.state_dict().items()
+        },
+        "semantics": "pre-training forward-process state before any optimizer update",
+    }
+    temporary = path.with_name(f".{path.name}.tmp")
+    torch.save(payload, temporary)
+    temporary.replace(path)
+
+
 def run_training(args: argparse.Namespace) -> int:
     config, provenance = load_experiment_config(
         args.config,
@@ -236,8 +275,8 @@ def run_training(args: argparse.Namespace) -> int:
 
     from guided_diffusion import dist_util, logger
     from guided_diffusion.cell_datasets_loader import load_data
-    from guided_diffusion.train_util import TrainLoop
     from models.factory import build_experiment_components
+    from training.train_loop import LearnableForwardTrainLoop
 
     device = _select_device(torch, dist_util, str(config.get("device", "auto")))
     rank = dist_util.get_rank()
@@ -283,6 +322,17 @@ def run_training(args: argparse.Namespace) -> int:
                 file_manager.close()
 
         components = build_experiment_components(config, genes, device)
+        _collective_rank_zero(
+            lambda: _save_initial_forward_state(
+                run_path / "initial_forward_state.pt",
+                components.model,
+                config,
+                genes,
+            ),
+            rank=rank,
+            dist_util=dist_util,
+            description="save initial forward-process state",
+        )
         metadata = model_metadata(components.model, config)
         metadata.update(
             {
@@ -321,7 +371,7 @@ def run_training(args: argparse.Namespace) -> int:
             f"loss_mode={config.get('loss_mode', 'paper_elbo')}, "
             f"genes={len(genes)}, device={device}"
         )
-        TrainLoop(
+        LearnableForwardTrainLoop(
             model=components.model,
             diffusion=components.diffusion,
             data=data,
@@ -346,6 +396,10 @@ def run_training(args: argparse.Namespace) -> int:
             # The core CSV schema is ODE-specific and cannot represent the
             # new decomposed ELBO. Generic logger keys remain enabled.
             save_loss_details=False,
+            loss_components_path=segment_path / "loss_components.csv",
+            loss_log_flush_interval=int(
+                config.get("loss_log_flush_interval", 100)
+            ),
         ).run_loop()
         finished_at = datetime.now().astimezone().isoformat()
         _write_status(

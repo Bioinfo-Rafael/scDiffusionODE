@@ -26,9 +26,9 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+from .grn import effective_grn_mask, off_mask_penalty, validate_penalty_norm
 
 _D_PARAMETERIZATIONS = ("psd", "spd_softplus")
-_PENALTY_NORMS = ("l1", "l2")
 
 
 @dataclass(frozen=True)
@@ -163,13 +163,7 @@ class StationaryQDForward(nn.Module):
                 "initial_d_diagonal must be positive in spd_softplus mode"
             )
 
-        norm = str(grn_penalty_norm).lower()
-        if norm not in _PENALTY_NORMS:
-            raise ValueError(
-                f"grn_penalty_norm must be one of {_PENALTY_NORMS}, "
-                f"got {grn_penalty_norm!r}"
-            )
-        self.grn_penalty_norm = norm
+        self.grn_penalty_norm = validate_penalty_norm(grn_penalty_norm)
         self.grn_penalty_weight = self._finite_nonnegative(
             "grn_penalty_weight", grn_penalty_weight
         )
@@ -209,28 +203,12 @@ class StationaryQDForward(nn.Module):
             raw_d[is_diagonal] = _inverse_softplus(target)
         self.raw_d_lower = nn.Parameter(raw_d)
 
-        if grn_mask_target_source is None:
-            mask = self.raw_q_upper.new_empty(0)
-            self._has_grn_mask = False
-        else:
-            mask = torch.as_tensor(
-                grn_mask_target_source,
-                device=self.raw_q_upper.device,
-                dtype=self.raw_q_upper.dtype,
-            )
-            if tuple(mask.shape) != (self.dim, self.dim):
-                raise ValueError(
-                    "grn_mask_target_source must have shape "
-                    f"{(self.dim, self.dim)}, got {tuple(mask.shape)}"
-                )
-            if not torch.isfinite(mask).all():
-                raise ValueError("grn_mask_target_source must be finite")
-            if ((mask < 0) | (mask > 1)).any():
-                raise ValueError("grn_mask_target_source values must be in [0, 1]")
-            mask = mask.clone().contiguous()
-            if self.allow_self_edges:
-                mask.diagonal().fill_(1.0)
-            self._has_grn_mask = True
+        mask, self._has_grn_mask = effective_grn_mask(
+            grn_mask_target_source,
+            dim=self.dim,
+            allow_self_edges=self.allow_self_edges,
+            reference=self.raw_q_upper,
+        )
         self.register_buffer("grn_mask_target_source", mask)
 
     @staticmethod
@@ -282,6 +260,19 @@ class StationaryQDForward(nn.Module):
         """Return a=g g^T=2D without constructing a matrix square root."""
 
         return 2.0 * self.d_matrix()
+
+    def diffusion_factor(self) -> torch.Tensor:
+        """Return ``G=sqrt(2) C`` so that ``G G^T = 2D`` exactly."""
+
+        return math.sqrt(2.0) * self.d_factor()
+
+    def drift(self, states: torch.Tensor) -> torch.Tensor:
+        """Evaluate row-vector forward drift ``-(Q+D)y``."""
+
+        if states.shape[-1] != self.dim:
+            raise ValueError("states have an incompatible final dimension")
+        states = states.to(device=self.raw_q_upper.device, dtype=self.raw_q_upper.dtype)
+        return states @ self.drift_matrix().transpose(-1, -2)
 
     def drift_divergence(self) -> torch.Tensor:
         """Return div_y f=-tr(D); skew-symmetry gives tr(Q)=0."""
@@ -517,15 +508,16 @@ class StationaryQDForward(nn.Module):
 
         if not self._has_grn_mask:
             return self.raw_q_upper.new_zeros(())
-        selected_norm = self.grn_penalty_norm if norm is None else str(norm).lower()
-        if selected_norm not in _PENALTY_NORMS:
-            raise ValueError(f"norm must be one of {_PENALTY_NORMS}")
-        off_mask = self.stationary_operator() * (
-            1.0 - self.grn_mask_target_source
+        selected_norm = (
+            self.grn_penalty_norm
+            if norm is None
+            else validate_penalty_norm(norm)
         )
-        if selected_norm == "l1":
-            return off_mask.abs().mean()
-        return off_mask.square().mean()
+        return off_mask_penalty(
+            self.stationary_operator(),
+            self.grn_mask_target_source,
+            norm=selected_norm,
+        )
 
     def grn_penalty(
         self, norm: Optional[str] = None, *, weighted: bool = True

@@ -6,6 +6,7 @@ from typing import Mapping, Optional
 
 import torch
 
+from .objectives import per_dimension_elbo_terms
 from .time_mapping import PhysicalTimeMap
 
 
@@ -44,6 +45,52 @@ class LearnableForwardTrainingDiffusion:
             raise ValueError("surrogate_terminal_kl_weight must be finite")
         if self.surrogate_terminal_kl_weight < 0:
             raise ValueError("surrogate_terminal_kl_weight must be nonnegative")
+        self._training_context: Optional[dict[str, float | int]] = None
+        self._last_loss_record: Optional[dict[str, float | int]] = None
+
+    def set_training_context(self, *, training_step: int, learning_rate: float) -> None:
+        """Attach work-local logging metadata for the next loss evaluation."""
+
+        self._training_context = {
+            "training_step": int(training_step),
+            "learning_rate": float(learning_rate),
+        }
+
+    def consume_loss_record(self) -> Optional[dict[str, float | int]]:
+        record = self._last_loss_record
+        self._last_loss_record = None
+        self._training_context = None
+        return record
+
+    def _capture_loss_record(self, losses: Mapping[str, torch.Tensor]) -> None:
+        if self._training_context is None:
+            return
+        fields = (
+            "sampled_physical_time",
+            "fractional_diffusion_timestep",
+            "dimension",
+            "total_loss",
+            "path_loss_raw",
+            "terminal_kl_raw",
+            "boundary_nll_raw",
+            "path_after_duration",
+            "path_final_per_dim",
+            "terminal_final_per_dim",
+            "boundary_final_per_dim",
+            "paper_elbo_per_dim",
+            "grn_penalty_raw",
+            "grn_penalty_weight",
+            "grn_penalty_final_weighted",
+            "plain_epsilon_mse",
+        )
+        record: dict[str, float | int] = dict(self._training_context)
+        for name in fields:
+            value = losses[name].detach().mean()
+            if name == "dimension":
+                record[name] = int(value.cpu().item())
+            else:
+                record[name] = float(value.cpu().item())
+        self._last_loss_record = record
 
     def _shared_physical_time(self, timesteps: torch.Tensor) -> torch.Tensor:
         if timesteps.ndim != 1 or timesteps.numel() == 0:
@@ -89,31 +136,69 @@ class LearnableForwardTrainingDiffusion:
         )
 
         batch_size, dimension = x_start.shape
+        grn_penalty_raw = components["grn_penalty_raw"].expand(batch_size)
+        grn_penalty_weight = components["grn_penalty_weight"].expand(batch_size)
         regularization = components["forward_regularization"].expand(batch_size)
         if exact:
-            normalizer = float(dimension) if self.normalize_elbo_by_dimension else 1.0
-            path = self.time_map.duration * components["weighted_mismatch"] / normalizer
-            terminal = components["terminal_kl"] / normalizer
-            boundary = components["boundary_nll"] / normalizer
-            total = path + terminal + boundary + regularization
+            path_loss_raw = components["weighted_mismatch"]
+            terminal_kl_raw = components["terminal_kl"]
+            boundary_nll_raw = components["boundary_nll"]
+            path_after_duration = self.time_map.duration * path_loss_raw
+            if self.normalize_elbo_by_dimension:
+                path, terminal, boundary = per_dimension_elbo_terms(
+                    path_after_duration,
+                    terminal_kl_raw,
+                    boundary_nll_raw,
+                    dimension=dimension,
+                )
+            else:
+                path, terminal, boundary = (
+                    path_after_duration,
+                    terminal_kl_raw,
+                    boundary_nll_raw,
+                )
         else:
+            path_loss_raw = components["plain_epsilon_mse"]
+            terminal_kl_raw = components["terminal_kl"]
+            boundary_nll_raw = components["boundary_nll"]
+            path_after_duration = path_loss_raw
             path = components["plain_epsilon_mse"]
             terminal = (
                 self.surrogate_terminal_kl_weight
-                * components["terminal_kl"]
+                * terminal_kl_raw
                 / float(dimension)
             )
             boundary = path.new_zeros(path.shape)
-            total = path + terminal + regularization
-
-        return {
+        paper_elbo = path + terminal + boundary
+        total = paper_elbo + regularization
+        repeated_time = total.new_full(total.shape, float(physical_time.detach().cpu()))
+        repeated_timestep = t.to(device=total.device, dtype=total.dtype)
+        repeated_dimension = total.new_full(total.shape, float(dimension))
+        losses = {
             "loss": total,
+            "total_loss": total,
             "path_loss": path,
             "terminal_kl": terminal,
             "boundary_nll": boundary,
             "forward_regularization": regularization,
+            "path_loss_raw": path_loss_raw,
+            "terminal_kl_raw": terminal_kl_raw,
+            "boundary_nll_raw": boundary_nll_raw,
+            "path_after_duration": path_after_duration,
+            "path_final_per_dim": path,
+            "terminal_final_per_dim": terminal,
+            "boundary_final_per_dim": boundary,
+            "paper_elbo_per_dim": paper_elbo,
+            "grn_penalty_raw": grn_penalty_raw,
+            "grn_penalty_weight": grn_penalty_weight,
+            "grn_penalty_final_weighted": regularization,
             "plain_epsilon_mse": components["plain_epsilon_mse"],
+            "sampled_physical_time": repeated_time,
+            "fractional_diffusion_timestep": repeated_timestep,
+            "dimension": repeated_dimension,
         }
+        self._capture_loss_record(losses)
+        return losses
 
     # This object intentionally cannot be passed to existing DDPM sampling
     # scripts.  Those use scalar beta posterior identities that are false for

@@ -2,5 +2,9 @@
   "experiment": "model_b_free_affine_dense",
   "forward_model": "free_affine",
   "covariance_jitter": 0.0,
-  "use_grn_mask": false
+  "use_grn_mask": true,
+  "mask_orientation": "target_source_from_transposed_existing_src_tgt_mask",
+  "allow_self_edges": true,
+  "grn_penalty_weight": 5.0,
+  "grn_penalty_norm": "l1"
 }

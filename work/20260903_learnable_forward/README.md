@@ -1,7 +1,8 @@
 # Dense learnable forward diffusion
 
-This work directory contains a training-only experiment for learning a dense
-linear forward diffusion together with the existing cell denoiser.  It is
+This work directory contains an end-to-end experiment for learning a dense
+linear forward diffusion together with the existing cell denoiser, sampling
+it with its own reverse SDE, and running read-only post-hoc analyses.  It is
 isolated from `guided_diffusion/`: no file outside this directory is modified.
 
 Two forward processes are implemented:
@@ -42,11 +43,12 @@ exact derivation and the implementation convention are given below.
 
 ## Scope
 
-The experiment implements training, mathematical tests, integration tests, and
-an opt-in dense \(d=1024\) forward/backward benchmark.  It deliberately does
-not implement generation.  The standard `GaussianDiffusion` posterior and
-reverse sampler assume a scalar beta schedule and an isotropic transition, so
-they are mathematically invalid for the full-covariance processes here.
+The experiment implements training, a model-specific reverse-SDE generator,
+post-hoc analysis, mathematical and integration tests, and an opt-in dense
+\(d=1024\) forward/backward benchmark.  The standard `GaussianDiffusion`
+posterior, DDPM sampler, and DDIM sampler are still never used: they assume a
+scalar beta schedule and an isotropic transition and are mathematically
+invalid for the full-covariance processes here.
 
 The existing training infrastructure remains responsible for:
 
@@ -70,16 +72,22 @@ part of the loss outside DDP.
 | --- | --- |
 | `diffusion/stationary_qd.py` | Dense Model A parameterization, exact transition, sampling, and GRN hook |
 | `diffusion/free_affine.py` | Dense Model B parameterization and augmented Van Loan transition |
+| `diffusion/grn.py` | Common target/source mask and off-mask penalty semantics for Model A/B |
 | `diffusion/objectives.py` | Score/noise transforms, weighted quadratic, endpoint KL, and Appendix-I likelihood |
 | `diffusion/training_diffusion.py` | Training-only `training_losses` facade and the two explicitly named loss modes |
 | `diffusion/time_mapping.py`, `timestep_sampler.py` | VP-compatible physical clock and one-time-per-rank sampler |
 | `models/wrapper.py` | Top-level denoiser + forward-process `nn.Module` used by DDP/optimizer/EMA/checkpoints |
 | `models/factory.py` | Config validation, existing denoiser construction, and GRN mask orientation conversion |
-| `scripts/train.py`, `launch.py` | One-run and two-model entrypoints using the unchanged core `TrainLoop` |
+| `training/train_loop.py`, `loss_logging.py` | Work-local `TrainLoop` subclass and buffered common-schema component CSV |
+| `sampling/reverse_sde.py`, `artifacts.py` | Custom Euler--Maruyama reverse SDE, Appendix-I decode, and provenance-safe archives |
+| `analysis/` | Loss, parameter, timestep, learned-drift/scVelo, and generated-cell UMAP analyses |
+| `scripts/train.py`, `launch.py` | One-run and two-model training entrypoints using the unchanged core `TrainLoop` contract |
+| `scripts/sample.py`, `analyze.py` | Standalone sampling and read-only analysis entrypoints |
+| `scripts/run_full_pipeline.py` | Resumable Model A/B training -> sampling -> analysis orchestration |
 | `scripts/benchmark_dense.py` | Opt-in exact dense forward/backward benchmark; no fallback |
 | `scripts/verify_protected.py` | Read-only hash check for the seven protected core files |
 | `configs/` | Shared training defaults and one dense config per model |
-| `tests/` | Mathematical, gradient, transition, policy, and core training-state tests |
+| `tests/` | Mathematical, gradient, transition, sampling, provenance, analysis, pipeline, and core training-state tests |
 
 ## Notation
 
@@ -598,6 +606,28 @@ In `paper_elbo`, this is a core ELBO term rather than an independently weighted
 regularizer.  Adding it to the direct expression (1) without removing the
 forward-score/divergence entropy terms would double-count entropy.
 
+Model B uses the same loaded GRN mask, one-time legacy transpose, diagonal
+exemption, norm, and default weight as Model A.  Its external prior is
+
+\[
+R_{\mathrm{GRN},B}
+=\operatorname{mean}
+\left|(1-M_{\mathrm{effective}})\odot W\right|.
+\tag{16}
+\]
+
+Thus the controlled comparison changes the stationary parameterization, not
+whether a GRN prior is present:
+
+\[
+\mathcal J_{B,\mathrm{total}}
+=\mathcal J_{\mathrm{paper\_elbo}}
++\lambda_{\mathrm{GRN}}R_{\mathrm{GRN},B}.
+\]
+
+For both models, the phrase `paper ELBO` refers only to the first term.  The
+GRN contribution is an external experimental prior.
+
 ## Monte Carlo time estimator
 
 The coefficients are time-independent in this experiment, but transition
@@ -619,6 +649,53 @@ NLL, terminal KL, and GRN regularization are not multiplied by it.
 separate matrix-statistics evaluations.  Cross-step autograd caches are
 forbidden: every optimizer step changes the forward parameters.  Detached
 caches are evaluation-only.
+
+## Dynamic dimension normalization and recorded loss
+
+Every Gaussian quadratic, KL, and likelihood primitive above remains in its
+mathematical sum-over-dimensions form.  The implementation then applies one
+common dynamic factor, obtained from `x_start.shape[-1]`, to the three compact
+ELBO contributions:
+
+\[
+\begin{aligned}
+L_{\mathrm{path,final}}
+  &=\frac{(T-\delta)L_{\mathrm{path,raw}}}{d},\\
+L_{\mathrm{terminal,final}}
+  &=\frac{L_{\mathrm{terminal,raw}}}{d},\\
+L_{\mathrm{boundary,final}}
+  &=\frac{L_{\mathrm{boundary,raw}}}{d}.
+\end{aligned}
+\tag{17}
+\]
+
+The external GRN mean penalty has its own scale and is not divided by the
+state dimension.  The exact minimized scalar is therefore
+
+\[
+\boxed{
+L_{\mathrm{total}}
+=L_{\mathrm{path,final}}
++L_{\mathrm{terminal,final}}
++L_{\mathrm{boundary,final}}
++\lambda_{\mathrm{GRN}}R_{\mathrm{GRN}}.}
+\tag{18}
+\]
+
+There is no hard-coded gene count, including no objective-level constant
+`1024`.  `diffusion.objectives.per_dimension` and
+`per_dimension_elbo_terms` centralize this operation; tests exercise
+\(d=2,3,7\).  In particular, the full-covariance quadratic is never rewritten
+as an elementwise `.mean()`.
+
+The work-local training-loop subclass writes
+`segments/segment_NNN/loss_components.csv` with a common Model A/B schema.  A
+row records training step, learning rate, physical and fractional time,
+dynamic \(d\), total loss, all raw quantities, path-after-duration, all final
+per-dimension quantities, raw/weight/final GRN values, and diagnostic plain
+epsilon MSE.  Rows are buffered and flushed at the configured interval, every
+checkpoint, and loop exit.  Validation reconstructs (18) before a row is
+written.  The inherited ODE-specific `loss_details.csv` is disabled.
 
 ## Loss modes and gradient semantics
 
@@ -664,12 +741,214 @@ still missing.
 | model | exact paper-derived loss (`paper_elbo`) | additional regularization | difference from plain epsilon MSE |
 | --- | --- | --- | --- |
 | Model A: stationary Q/D | Appendix-I boundary NLL + terminal `KL(q_phi(y_T\|x) \| N(0,I))` + `integral r_s^T L_s^{-1} D L_s^{-T} r_s ds` | Off-mask penalty on `Q+D`; external to the ELBO | Full matrix weighting through both `D` and `Sigma_s`, plus boundary and terminal terms |
-| Model B: free affine | Appendix-I boundary NLL + terminal `KL(q_phi(y_T\|x) \| N(0,I))` + `1/2 integral r_s^T L_s^{-1}L_s^{-T}r_s ds` | None by default; terminal KL is an ELBO term, not an extra penalty | Full Cholesky-coordinate metric `L_s^{-1}L_s^{-T}` (generally not `Sigma_s^{-1}`), plus boundary and terminal terms |
+| Model B: free affine | Appendix-I boundary NLL + terminal `KL(q_phi(y_T\|x) \| N(0,I))` + `1/2 integral r_s^T L_s^{-1}L_s^{-T}r_s ds` | Off-mask penalty on `W`; external to the ELBO and matched to Model A | Full Cholesky-coordinate metric `L_s^{-1}L_s^{-T}` (generally not `Sigma_s^{-1}`), plus boundary and terminal terms |
 
 Only the `paper_elbo` column is the paper-derived objective: Equation (7)
 truncated to \([\delta,T]\), made valid by Appendix I / Theorem 3, and written
 in its exactly entropy-cancelled compact form.  `epsilon_surrogate` is
 deliberately outside that claim.
+
+## Custom reverse-SDE generation
+
+Let the learned forward process be
+
+\[
+dy_s=f_\phi(y_s,s)\,ds+G_\phi(s)\,dB_s,
+\qquad a_\phi=G_\phi G_\phi^\top.
+\]
+
+In increasing generative time \(\tau=T-s\), the reverse SDE used here is
+
+\[
+\boxed{
+dz_\tau=
+\left[a_\phi(s)s_\theta(z_\tau,s)-f_\phi(z_\tau,s)\right]d\tau
++G_\phi(s)d\bar B_\tau.}
+\tag{19}
+\]
+
+Sampling starts from \(z_0\sim N(0,I)\).  This matches the declared prior; the
+terminal KL in the training objective is what encourages the learned
+finite-time forward marginal to match that prior.
+
+For Model A,
+
+\[
+f_A(z)=-(Q+D)z,
+\quad a_A=2D,
+\quad G_A=\sqrt2C,
+\]
+
+so the reverse drift is
+
+\[
+2D\,s_\theta(z,s)+(Q+D)z.
+\tag{20}
+\]
+
+For Model B,
+
+\[
+f_B(z)=Wz+b,
+\quad a_B=I,
+\quad G_B=I,
+\]
+
+and the reverse drift is
+
+\[
+s_\theta(z,s)-(Wz+b).
+\tag{21}
+\]
+
+At each visited physical-grid index the sampler recomputes the current
+full-covariance transition and uses exactly the training score map
+
+\[
+s_\theta(z,s)=-L_s^{-\top}\xi_\theta(z,s).
+\]
+
+The grid \(s_t=-\log\bar\alpha_t\) is traversed in descending index order.
+For \(s_i>s_{i-1}\), Euler--Maruyama uses the positive increment
+
+\[
+\Delta\tau=s_i-s_{i-1}>0
+\]
+
+and the row-vector implementation is
+
+\[
+z_{i-1}=z_i+
+\left[a_i s_\theta(z_i,s_i)-f_\phi(z_i,s_i)\right]\Delta\tau
++\sqrt{\Delta\tau}\,\eta_iG_i^\top,
+\qquad \eta_i\sim N(0,I).
+\tag{22}
+\]
+
+This sign and covariance convention is covered by unit tests.  Model A uses
+the actual learned factor \(\sqrt2C\), including its sign and triangular
+orientation; no new Cholesky of \(2D\) changes the declared diffusion factor.
+
+The reverse integration stops at \(s=\delta\), not at the data directly.  Its
+last operation is the same Appendix-I decoder (6) used in `paper_elbo`:
+
+\[
+x\sim p_\theta(x\mid y_\delta)
+=\mathcal N(\mu_{\theta,\delta},
+            \Phi_\delta^{-1}\Sigma_\delta\Phi_\delta^{-\top}).
+\tag{23}
+\]
+
+Decoder sampling is the default; `decoder_sampling_mode="mean"` is an
+explicit deterministic diagnostic option.  Sampling always defaults to the
+highest-step checkpoint at the highest configured EMA rate and refuses to
+reuse the standard DDPM/DDIM reverse code.
+
+Each `.npz` archive and JSON sidecar contains `cell_gen`, ordered gene names,
+their order-sensitive SHA256, checkpoint path and step, EMA rate, model
+family, seed, sampler name, executed reverse-step count, and boundary decoder
+mode.  A matching completed archive is skipped; a conflicting artifact at the
+same path is never overwritten.
+
+## Post-hoc analyses
+
+All analyses are read-only with respect to checkpoints and write only below
+the run's `analysis/` directory.  Completion metadata is trusted only when its
+raw-source list or selected final EMA still matches the current run.
+
+### Loss history
+
+Segment CSVs are concatenated by training step and checked against (18).
+Three plots and machine-readable tables separate:
+
+- raw path, terminal KL, boundary NLL, and GRN quantities;
+- the actual weighted/per-dimension contributions added to the optimizer
+  loss; and
+- signed contribution fractions.
+
+Each curve is summarized by a rolling median and rolling 25th/75th
+percentiles, following `work/20260830/analysis/loss_history.py`.
+
+### Parameter evolution
+
+`initial_forward_state.pt` is written before any optimizer update.  It is
+combined with 5--10 automatically selected chronological **raw** checkpoints;
+EMA files are not used.  Histograms follow the legacy layout of parameter
+type by row, training stage by column, 60 bins, and mean/std annotations.
+
+Model A reconstructs \(Q,D,A=Q+D,F=-A\), separates known/unknown GRN entries,
+and records skew-symmetry, minimum-\(D\)-eigenvalue, and stationarity
+residuals.  Model B reconstructs \(W,b\) and reports all/diagonal/off-diagonal
+and exact-mask known/unknown values.  CSV summaries include count, mean, std,
+median, q05, q95, Frobenius norm, and maximum absolute value.
+
+### Diffusion-time diagnostics
+
+The final EMA is evaluated on the same real-cell subset and the same fixed
+Gaussian noise matrix at every selected timestep.  The default grid is
+\(0,20,40,\ldots,999\), with the final index always included.  Statistics are
+per-cell MSE, Pearson correlation across genes, L2 norms, and norm ratios for:
+
+- predicted epsilon versus the true reparameterization epsilon;
+- forward drift versus true epsilon;
+- forward drift versus predicted epsilon; and
+- predicted conditional score versus true conditional score.
+
+The sum-form paper integrand diagnostic
+
+\[
+\frac12(s_\theta-s_\phi)^\top a_s(s_\theta-s_\phi)
+\]
+
+is also stored.  Every drift/noise figure and its metadata states:
+`diagnostic comparison; forward drift and Gaussian noise have different
+semantics`.  Drift/noise MSE must not be interpreted as denoising accuracy.
+
+### Learned drift field and generated-cell UMAP
+
+For clean saved training values, Model A writes
+\(v(x)=-(Q+D)x\) and Model B writes \(v(x)=Wx+b\) to the AnnData layer
+`learned_forward_drift`.  It is called a **Learned forward-diffusion drift
+field**, never RNA velocity, and its direction is not reversed.  The
+hematopoietic subset is the same default union as the historical work:
+`Erythropoietic` + `Immune`.
+
+The scVelo workflow follows `work/20260830/hematopoietic_viz/`: construct the
+real-cell embedding once with PCA (`arpack`, 50 components), neighbors
+(15 neighbors, 40 PCs), and seeded UMAP; preserve that `X_umap`; store saved
+training values in `layers["X"]`; run `velocity_graph` with `xkey="X"`,
+`backend="loky"`, and default `n_jobs=32`; then run `velocity_embedding` and
+write stream, arrow, and grid figures.  Small-data safety caps only reduce
+impossible PCA/neighbors values.  The historical lineage palette and scVelo
+0.2.5 compatibility shims are retained.
+
+Generated-vs-real UMAP concatenates sampled and real hematopoietic matrices in
+the saved training representation.  It performs no renormalization, log
+transform, or scaling.  Generated cells are labelled only
+`Generated (unconditional)` and receive no inferred cell type.
+
+The resulting run tree is:
+
+```text
+<run_dir>/
+├── initial_forward_state.pt
+├── samples/
+│   ├── samples_ema_*.npz
+│   └── samples_ema_*.json
+└── analysis/
+    ├── loss/
+    ├── parameter_evolution/
+    ├── diffusion_diagnostics/
+    ├── drift_velocity/
+    └── hematopoietic_umap/
+```
+
+`scripts/run_full_pipeline.py` gives Model A and Model B the same batch ID and
+runs training, sampling, and these five analyses in order.  Either model may
+be selected alone.  It records running/completed/failed status per stage,
+safe-resumes an incomplete training run from a complete raw/optimizer/EMA
+bundle, skips provenance-matching completed work, offers `--force-analysis`,
+and never overwrites a completed sample archive.
 
 ## Numerical policy
 
@@ -740,7 +1019,19 @@ The test suite covers:
 9. optimizer, EMA, raw/EMA/optimizer checkpoint, and resume through the actual
    unchanged core `TrainLoop`, plus DDP-compatible ownership of all trainable
    parameters; and
-10. confirmation that no subspace/low-rank model is present.
+10. dynamic ELBO normalization at \(d=2,3,7\), loss-row reconstruction, and
+    absence of a hard-coded objective dimension;
+11. common Model A/B mask semantics, Model B off-mask behavior, and identical
+    GRN weighting;
+12. reverse score transformation, reverse-drift sign, \(GG^\top=2D\) for
+    Model A, \(G=I\) for Model B, fixed-seed reproducibility, Appendix-I decode,
+    generated shape, and sample gene/provenance integrity;
+13. 1D/2D Euler--Maruyama Gaussian mean/covariance sanity checks;
+14. checkpoint ordering, Model A/B parameter extraction, every timestep
+    metric family, loss rolling/fraction calculations, and the historical
+    hematopoietic selection; and
+15. full-pipeline dry-run plus training run/resume/skip decisions, while also
+    confirming that no subspace/low-rank model is present.
 
 The equivalence in item 3 is expectation-level.  Its small-dimensional float64
 test evaluates Gaussian expectations and a high-accuracy time quadrature; it
@@ -803,23 +1094,37 @@ conda run -n scdiffusion python -m unittest discover \
 conda run -n scdiffusion python \
   work/20260903_learnable_forward/scripts/verify_protected.py
 
-# Inspect resolved commands/configs without starting training.
+# Inspect the complete two-model execution plan without writing a run.
 conda run -n scdiffusion python \
-  work/20260903_learnable_forward/scripts/launch.py --dry-run
+  work/20260903_learnable_forward/scripts/run_full_pipeline.py \
+  --models stationary_qd,free_affine \
+  --batch-id DRY_RUN_ID \
+  --device cuda \
+  --dry-run
 
-# Train one model, or launch both sequentially.
+# Full training -> custom sampling -> all analyses for both models.
 conda run -n scdiffusion python \
-  work/20260903_learnable_forward/scripts/train.py \
-  --config model_a_stationary_qd_dense
-conda run -n scdiffusion python \
-  work/20260903_learnable_forward/scripts/launch.py
+  work/20260903_learnable_forward/scripts/run_full_pipeline.py \
+  --models stationary_qd,free_affine \
+  --batch-id RUN_ID \
+  --device cuda
 
-# Resume the latest complete raw + optimizer + every configured EMA bundle.
+# One model is also valid; rerunning safely resumes/skips completed stages.
 conda run -n scdiffusion python \
-  work/20260903_learnable_forward/scripts/train.py \
-  --config model_a_stationary_qd_dense \
+  work/20260903_learnable_forward/scripts/run_full_pipeline.py \
+  --models stationary_qd \
+  --batch-id RUN_ID \
+  --device cuda
+
+# Standalone sample or analysis of an existing run.
+conda run -n scdiffusion python \
+  work/20260903_learnable_forward/scripts/sample.py \
   --run-dir work/20260903_learnable_forward/runs/model_a_stationary_qd_dense/RUN_ID \
-  --resume auto
+  --device cuda
+conda run -n scdiffusion python \
+  work/20260903_learnable_forward/scripts/analyze.py \
+  --run-dir work/20260903_learnable_forward/runs/model_a_stationary_qd_dense/RUN_ID \
+  --stage all --device cuda
 
 # Reproduce the dense benchmark. Output files are ignored runtime artifacts.
 conda run -n scdiffusion python \
@@ -833,22 +1138,8 @@ conda run -n scdiffusion python \
 Training outputs are constrained to this suite's `runs/<experiment>/<run-id>/`
 tree.  The two provided configs are dense-only and default to `paper_elbo`.
 The Model A config uses `d_parameterization="psd"`, zero diagonal floor, and
-zero covariance jitter.
-
-## Generation is intentionally unavailable
-
-The repository's `q_posterior_mean_variance`,
-`_predict_xstart_from_eps`, `p_mean_variance`, and `p_sample_loop` use scalar
-standard-beta identities.  They are not called here.  A future generation
-implementation must integrate the model-specific reverse SDE
-
-\[
-d z_t=
-\left[a_\phi(T-t)s_\theta(z_t,T-t)
-      -f_\phi(z_t,T-t)\right]dt
-+g_\phi(T-t)dB_t,
-\]
-
-including the affine bias in Model B.  Until that sampler exists, this work
-directory is training-only and must not expose the standard reverse API as if
-it were valid.
+zero covariance jitter.  Both configs use the same target/source GRN prior and
+default weight 5.0.  Generation uses only the custom sampler described above;
+the repository's `q_posterior_mean_variance`, `_predict_xstart_from_eps`,
+`p_mean_variance`, `p_sample_loop`, and DDIM paths remain outside this
+experiment.

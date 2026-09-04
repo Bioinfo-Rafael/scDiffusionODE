@@ -30,6 +30,7 @@
   "ema_rate": "0.9999",
   "log_interval": 1000,
   "save_interval": 5000,
+  "loss_log_flush_interval": 100,
   "resume_checkpoint": "",
   "use_fp16": false,
   "fp16_scale_growth": 0.001,
@@ -37,5 +38,17 @@
   "ode_reg_lambda": 0.0,
   "seed": 1234,
   "device": "auto",
-  "training_only": true
+  "training_only": false,
+  "sample_count": 2000,
+  "sample_batch_size": 128,
+  "sampling_seed": 1234,
+  "decoder_sampling_mode": "sample",
+  "reverse_stride": 1,
+  "analysis_timestep_step": 20,
+  "analysis_max_cells": 2000,
+  "analysis_batch_size": 128,
+  "loss_rolling_window": 100,
+  "velocity_n_jobs": 32,
+  "hematopoietic_max_cells": 0,
+  "celltype_column": "celltype"
 }

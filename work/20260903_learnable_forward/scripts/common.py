@@ -33,6 +33,9 @@ MODEL_ORDER = ("stationary_qd", "free_affine")
 
 _SAFE_COMPONENT = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 _RAW_CHECKPOINT = re.compile(r"^model(?P<step>[0-9]+)\.pt$")
+_EMA_CHECKPOINT = re.compile(
+    r"^ema_(?P<rate>[^_]+)_(?P<step>[0-9]+)\.pt$"
+)
 
 
 class ConfigurationError(ValueError):
@@ -64,6 +67,18 @@ def file_sha256(path: os.PathLike[str] | str) -> str:
     with Path(path).open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
             digest.update(chunk)
+    return digest.hexdigest()
+
+
+def gene_order_sha256(genes: Sequence[str]) -> str:
+    """Hash ordered names with explicit indices and separators."""
+
+    digest = hashlib.sha256()
+    for index, gene in enumerate(genes):
+        digest.update(str(index).encode("ascii"))
+        digest.update(b"\0")
+        digest.update(str(gene).encode("utf-8"))
+        digest.update(b"\n")
     return digest.hexdigest()
 
 
@@ -282,6 +297,85 @@ def checkpoint_step(path: os.PathLike[str] | str) -> Optional[int]:
     return int(match.group("step")) if match is not None else None
 
 
+def ema_checkpoint_metadata(
+    path: os.PathLike[str] | str,
+) -> Optional[tuple[float, str, int]]:
+    match = _EMA_CHECKPOINT.fullmatch(Path(path).name)
+    if match is None:
+        return None
+    label = match.group("rate")
+    try:
+        rate = float(label)
+    except ValueError:
+        return None
+    return rate, label, int(match.group("step"))
+
+
+def requested_config(run_path: os.PathLike[str] | str) -> dict[str, Any]:
+    run = validate_run_directory(run_path)
+    path = run / "requested_config.json"
+    if not path.is_file():
+        raise FileNotFoundError(f"requested config is missing: {path}")
+    payload = read_json(path)
+    if not isinstance(payload, Mapping) or not isinstance(payload.get("config"), Mapping):
+        raise ConfigurationError(f"invalid requested config payload: {path}")
+    return dict(payload["config"])
+
+
+def all_raw_checkpoints(run_path: os.PathLike[str] | str) -> list[Path]:
+    """Return raw checkpoints ordered by numeric step and modification time."""
+
+    run = validate_run_directory(run_path)
+    candidates = []
+    for raw in run.glob("segments/segment_*/model/model*.pt"):
+        step = checkpoint_step(raw)
+        if raw.is_file() and step is not None:
+            candidates.append(raw.resolve())
+    return sorted(
+        candidates,
+        key=lambda path: (checkpoint_step(path), path.stat().st_mtime_ns, str(path)),
+    )
+
+
+def resolve_sampling_checkpoint(
+    run_path: os.PathLike[str] | str,
+    ema_rate: str | float | None = None,
+) -> tuple[Path, int, str]:
+    """Choose the highest-step EMA checkpoint, never a raw checkpoint."""
+
+    run = validate_run_directory(run_path)
+    config = requested_config(run)
+    configured = tuple(
+        float(token.strip())
+        for token in str(config.get("ema_rate", "")).split(",")
+        if token.strip()
+    )
+    if ema_rate in (None, ""):
+        if not configured:
+            raise ConfigurationError("ema_rate is absent from requested config")
+        selected_rate = max(configured)
+    else:
+        selected_rate = float(ema_rate)
+        if configured and selected_rate not in configured:
+            raise ConfigurationError(
+                f"EMA rate {selected_rate} was not configured; available={configured}"
+            )
+    matches = []
+    for path in run.glob("segments/segment_*/model/ema_*.pt"):
+        metadata = ema_checkpoint_metadata(path)
+        if not path.is_file() or metadata is None:
+            continue
+        rate, label, step = metadata
+        if rate == selected_rate and path.with_name(f"model{step:06d}.pt").is_file():
+            matches.append((step, path.stat().st_mtime_ns, path.resolve(), label))
+    if not matches:
+        raise FileNotFoundError(
+            f"no EMA checkpoint for rate {selected_rate} below {run}"
+        )
+    step, _mtime, path, label = max(matches, key=lambda item: (item[0], item[1]))
+    return path, int(step), str(label)
+
+
 def expected_ema_checkpoint_names(
     run_path: os.PathLike[str] | str, step: int
 ) -> tuple[str, ...]:
@@ -405,7 +499,9 @@ def model_metadata(model: Any, config: Mapping[str, Any]) -> dict[str, Any]:
         ),
         "forward_dtype": str(next(process.parameters()).dtype),
         "loss_mode": str(config.get("loss_mode", "paper_elbo")),
-        "training_only": True,
+        "training_only": False,
+        "generation_sampler": "custom_reverse_sde_euler_maruyama",
+        "standard_ddpm_sampler_supported": False,
     }
 
 

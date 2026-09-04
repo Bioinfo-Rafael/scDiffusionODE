@@ -51,6 +51,20 @@ class LearnableForwardModel(nn.Module):
             )
         return prediction.to(dtype=noisy.dtype)
 
+    def predict_noise(
+        self,
+        noisy: torch.Tensor,
+        timesteps: torch.Tensor,
+        model_kwargs: Optional[Mapping[str, Any]] = None,
+    ) -> torch.Tensor:
+        """Public epsilon-prediction hook shared by training and sampling."""
+
+        return self._denoise(
+            noisy,
+            timesteps,
+            {} if model_kwargs is None else dict(model_kwargs),
+        )
+
     @staticmethod
     def _sample(stats, noise: Optional[torch.Tensor]):
         if stats.cholesky is None:
@@ -137,6 +151,10 @@ class LearnableForwardModel(nn.Module):
                 cholesky=boundary_stats.cholesky,
             )
 
+        grn_penalty_raw = self.forward_process.grn_penalty_base()
+        grn_penalty_weight = grn_penalty_raw.new_tensor(
+            self.forward_process.grn_penalty_weight
+        )
         regularization = self.forward_process.additional_regularization()
         if regularization.ndim != 0:
             raise ValueError("additional_regularization() must return a scalar")
@@ -146,6 +164,8 @@ class LearnableForwardModel(nn.Module):
             "plain_epsilon_mse": plain_epsilon_mse,
             "terminal_kl": terminal_kl,
             "boundary_nll": boundary_nll,
+            "grn_penalty_raw": grn_penalty_raw,
+            "grn_penalty_weight": grn_penalty_weight,
             "forward_regularization": regularization,
         }
 
