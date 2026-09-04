@@ -1,0 +1,6 @@
+{
+  "experiment": "model_b_free_affine_dense",
+  "forward_model": "free_affine",
+  "covariance_jitter": 0.0,
+  "use_grn_mask": false
+}
