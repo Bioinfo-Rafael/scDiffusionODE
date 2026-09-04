@@ -239,6 +239,80 @@ class StationaryQDForwardTests(unittest.TestCase):
         )
         self.assertEqual(float(stats.covariance_jitter), jitter)
 
+    def test_integral_series_matches_stationary_identity_value_and_gradient(self):
+        model = self.model(3)
+        with torch.no_grad():
+            model.raw_q_upper.copy_(
+                torch.tensor([0.13, -0.08, 0.05], dtype=torch.float64)
+            )
+            model.raw_d_lower.copy_(
+                torch.tensor(
+                    [0.71, 0.04, 0.68, -0.03, 0.02, 0.73],
+                    dtype=torch.float64,
+                )
+            )
+        time = torch.tensor(0.17, dtype=torch.float64)
+        q = model.q_matrix()
+        d = model.d_matrix()
+        drift = -(q + d)
+        phi = torch.matrix_exp(time * drift)
+        identity_form = torch.eye(3, dtype=torch.float64) - phi @ phi.T
+        identity_form = 0.5 * (identity_form + identity_form.T)
+        series_form, terms = model._integral_series_covariance(
+            drift, 2.0 * d, time
+        )
+        self.assertGreater(terms, 1)
+        torch.testing.assert_close(
+            series_form, identity_form, atol=2e-12, rtol=2e-12
+        )
+
+        probe = torch.tensor(
+            [[0.2, -0.1, 0.05], [-0.1, 0.3, 0.07], [0.05, 0.07, -0.2]],
+            dtype=torch.float64,
+        )
+        identity_gradients = torch.autograd.grad(
+            (identity_form * probe).sum(),
+            (model.raw_q_upper, model.raw_d_lower),
+            retain_graph=True,
+        )
+        series_gradients = torch.autograd.grad(
+            (series_form * probe).sum(),
+            (model.raw_q_upper, model.raw_d_lower),
+        )
+        for actual, expected in zip(series_gradients, identity_gradients):
+            torch.testing.assert_close(actual, expected, atol=2e-11, rtol=2e-10)
+
+    def test_dense_1024_float32_boundary_uses_stable_series_without_jitter(self):
+        dimension = 1024
+        model = StationaryQDForward(
+            dimension,
+            d_parameterization="psd",
+            d_diagonal_floor=0.0,
+            initial_d_diagonal=0.5,
+            covariance_jitter=0.0,
+            dtype=torch.float32,
+        )
+        # Mimic the dense sign-sized first Adam update that exposed the CUDA
+        # cancellation failure in I-Phi@Phi.T at the 1000-step boundary.
+        with torch.no_grad():
+            q_index = torch.arange(model.raw_q_upper.numel())
+            d_index = torch.arange(model.raw_d_lower.numel())
+            model.raw_q_upper.add_(
+                torch.where(q_index.remainder(2) == 0, 1e-4, -1e-4)
+            )
+            model.raw_d_lower.add_(
+                torch.where(d_index.remainder(3) == 0, -1e-4, 1e-4)
+            )
+        boundary_time = 0.00010000500033334732
+        stats = model.transition_stats(
+            torch.zeros(1, dimension, dtype=torch.float32), boundary_time
+        )
+        self.assertEqual(stats.covariance_evaluation, "adaptive_integral_series")
+        self.assertGreaterEqual(stats.covariance_series_terms, 2)
+        self.assertEqual(float(stats.covariance_jitter), 0.0)
+        self.assertTrue(torch.isfinite(stats.cholesky).all())
+        self.assertGreater(float(torch.diagonal(stats.cholesky).min()), 0.0)
+
     def test_rejects_non_shared_time_and_bad_mask_shape(self):
         model = self.model(3)
         x = torch.randn(2, 3, dtype=torch.float64)

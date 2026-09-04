@@ -482,7 +482,7 @@ def resolve_resume_checkpoint(
 
 def model_metadata(model: Any, config: Mapping[str, Any]) -> dict[str, Any]:
     process = model.forward_process
-    return {
+    metadata = {
         "experiment": str(config["experiment"]),
         "wrapper_class": type(model).__name__,
         "denoiser_class": type(model.denoiser).__name__,
@@ -503,6 +503,15 @@ def model_metadata(model: Any, config: Mapping[str, Any]) -> dict[str, Any]:
         "generation_sampler": "custom_reverse_sde_euler_maruyama",
         "standard_ddpm_sampler_supported": False,
     }
+    if str(config["forward_model"]) == "stationary_qd":
+        metadata["stationary_covariance_evaluation"] = {
+            "default": "I - Phi Phi^T",
+            "cancellation_regime": "adaptive integral Taylor series",
+            "selection_rule": "physical_time <= 8 * dimension * dtype_epsilon",
+            "changes_declared_sde": False,
+            "adds_jitter_or_clipping": False,
+        }
+    return metadata
 
 
 __all__ = [name for name in globals() if not name.startswith("_")]

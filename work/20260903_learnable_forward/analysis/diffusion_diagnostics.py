@@ -90,7 +90,7 @@ def compute_timestep_metrics(
     timesteps: Sequence[int],
     batch_size: int,
     noise_seed: int,
-) -> list[dict[str, float]]:
+) -> list[dict[str, float | int | str]]:
     """Use one cell subset and the same fixed epsilon matrix at every timestep."""
 
     matrix = dense_float32(real)
@@ -100,7 +100,7 @@ def compute_timestep_metrics(
     generator = torch.Generator(device="cpu")
     generator.manual_seed(int(noise_seed))
     fixed_noise = torch.randn(matrix.shape, generator=generator, dtype=torch.float64)
-    rows: list[dict[str, float]] = []
+    rows: list[dict[str, float | int | str]] = []
     was_training = model.training
     model.eval()
     try:
@@ -151,9 +151,15 @@ def compute_timestep_metrics(
                                 f"{name} is non-finite at timestep {timestep}"
                             )
                         accumulated.setdefault(name, []).append(values.cpu())
-                row: dict[str, float] = {
+                row: dict[str, float | int | str] = {
                     "timestep": int(timestep),
                     "physical_time": float(physical),
+                    "covariance_evaluation": getattr(
+                        stats, "covariance_evaluation", "augmented_van_loan"
+                    ),
+                    "covariance_series_terms": int(
+                        getattr(stats, "covariance_series_terms", 0)
+                    ),
                 }
                 for name, chunks in accumulated.items():
                     _append_summary(row, name, torch.cat(chunks))

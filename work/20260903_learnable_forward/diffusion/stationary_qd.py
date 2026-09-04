@@ -48,6 +48,8 @@ class StationaryQDTransition:
     drift_divergence: torch.Tensor
     nominal_covariance: torch.Tensor
     covariance_jitter: torch.Tensor
+    covariance_evaluation: str
+    covariance_series_terms: int
 
     # Concise aliases used in the mathematical derivation and by the generic
     # work-local objective code.
@@ -323,6 +325,93 @@ class StationaryQDForward(nn.Module):
             )
         return covariance, cholesky, jitter
 
+    def _integral_series_covariance(
+        self,
+        drift: torch.Tensor,
+        diffusion_covariance: torch.Tensor,
+        physical_time: torch.Tensor,
+        *,
+        max_terms: int = 64,
+    ) -> Tuple[torch.Tensor, int]:
+        """Evaluate the exact covariance integral without subtracting near-I matrices.
+
+        For constant ``F=drift`` and ``a=diffusion_covariance``, define
+
+        ``K_0=a`` and ``K_{n+1}=F K_n + K_n F^T``.  Integrating the Taylor
+        series of ``exp(uF) a exp(uF^T)`` gives
+
+        ``Sigma(s) = sum_n s^(n+1) K_n / (n+1)!``.
+
+        The recurrence below evaluates that convergent series adaptively.  It
+        has the same mathematical target as ``I-Phi Phi^T`` but avoids the
+        catastrophic cancellation of two near-identity 1024 x 1024 float32
+        matrices at the lower boundary.  No jitter, clipping, or change to the
+        declared SDE is introduced.
+        """
+
+        term = physical_time * diffusion_covariance
+        covariance = term
+        finfo = torch.finfo(covariance.dtype)
+        detached_drift = drift.detach().abs()
+        # In the entrywise max norm,
+        # ||F X + X F^T||_max <= 2 ||F||_infinity ||X||_max.
+        operator_bound = (
+            2.0
+            * physical_time.detach().abs()
+            * detached_drift.sum(dim=1).amax()
+        )
+        converged = False
+        terms_used = 1
+        for order in range(1, int(max_terms)):
+            term = (physical_time / float(order + 1)) * (
+                drift @ term + term @ drift.transpose(-1, -2)
+            )
+            covariance = covariance + term
+            terms_used = order + 1
+            term_scale = term.detach().abs().amax()
+            covariance_scale = covariance.detach().abs().amax()
+            threshold = 8.0 * finfo.eps * torch.clamp(
+                covariance_scale, min=finfo.tiny
+            )
+            # Future term ratios are bounded by operator_bound/(n+2), and
+            # decrease thereafter.  Stop only when the resulting geometric
+            # tail bound is below rounding scale; a merely small current term
+            # is insufficient for a highly non-normal learned drift.
+            next_ratio_bound = operator_bound / float(order + 2)
+            if bool((next_ratio_bound < 1.0).detach().cpu().item()):
+                tail_bound = (
+                    term_scale
+                    * next_ratio_bound
+                    / torch.clamp(1.0 - next_ratio_bound, min=finfo.eps)
+                )
+            else:
+                tail_bound = term_scale.new_tensor(float("inf"))
+            if bool((tail_bound <= threshold).detach().cpu().item()):
+                converged = True
+                break
+        if not converged:
+            raise RuntimeError(
+                "stationary-Q/D covariance integral series did not converge "
+                f"within {max_terms} terms; the learned drift may be too "
+                "large for stable boundary evaluation"
+            )
+        covariance = 0.5 * (
+            covariance + covariance.transpose(-1, -2)
+        )
+        return covariance, terms_used
+
+    def _use_integral_series(self, physical_time: torch.Tensor) -> bool:
+        """Detect the dense-float32 cancellation regime deterministically."""
+
+        # A dense product has a worst-case rounding scale proportional to
+        # d*eps.  Below this scale, I-Phi@Phi.T can lose the positive boundary
+        # covariance even when D is well conditioned.  This branch depends
+        # only on dimension, dtype, and physical time—not learned parameters.
+        rounding_scale = 8.0 * self.dim * torch.finfo(physical_time.dtype).eps
+        return bool(
+            (physical_time.detach().abs() <= rounding_scale).cpu().item()
+        )
+
     def transition_stats(
         self,
         x: torch.Tensor,
@@ -360,10 +449,23 @@ class StationaryQDForward(nn.Module):
         drift = -operator
         phi = torch.matrix_exp(-physical_time * operator)
         mean = x_forward @ phi.transpose(-1, -2)
-        nominal_covariance = self._identity - phi @ phi.transpose(-1, -2)
-        nominal_covariance = 0.5 * (
-            nominal_covariance + nominal_covariance.transpose(-1, -2)
-        )
+        diffusion_covariance = 2.0 * d
+        if self._use_integral_series(physical_time):
+            nominal_covariance, covariance_series_terms = (
+                self._integral_series_covariance(
+                    drift,
+                    diffusion_covariance,
+                    physical_time,
+                )
+            )
+            covariance_evaluation = "adaptive_integral_series"
+        else:
+            nominal_covariance = self._identity - phi @ phi.transpose(-1, -2)
+            nominal_covariance = 0.5 * (
+                nominal_covariance + nominal_covariance.transpose(-1, -2)
+            )
+            covariance_evaluation = "stationary_identity"
+            covariance_series_terms = 0
 
         if compute_cholesky:
             covariance, cholesky, jitter = self._factor_covariance(
@@ -384,10 +486,12 @@ class StationaryQDForward(nn.Module):
             q_matrix=q,
             d_matrix=d,
             drift_matrix=drift,
-            diffusion_covariance=2.0 * d,
+            diffusion_covariance=diffusion_covariance,
             drift_divergence=-torch.trace(d),
             nominal_covariance=nominal_covariance,
             covariance_jitter=jitter,
+            covariance_evaluation=covariance_evaluation,
+            covariance_series_terms=covariance_series_terms,
         )
 
     @staticmethod

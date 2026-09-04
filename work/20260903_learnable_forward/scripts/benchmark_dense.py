@@ -173,6 +173,12 @@ def stats_report(stats) -> Dict[str, Any]:
             "relative_reconstruction_error": finite_float(relative_error),
         },
         "configured_covariance_jitter": finite_float(stats.covariance_jitter),
+        "covariance_evaluation": getattr(
+            stats, "covariance_evaluation", "augmented_van_loan"
+        ),
+        "covariance_series_terms": int(
+            getattr(stats, "covariance_series_terms", 0)
+        ),
     }
 
 

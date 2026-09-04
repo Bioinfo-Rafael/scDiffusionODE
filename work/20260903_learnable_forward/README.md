@@ -400,6 +400,45 @@ This also proves that \(N(0,I)\) is invariant.  Invariance alone does not imply
 that \(q(y_T\mid x)=N(0,I)\) at finite \(T\), so the terminal KL in (5) remains
 necessary.
 
+At the first 1000-step diffusion index, \(s\) is approximately \(10^{-4}\).
+For a dense 1024-dimensional float32 product, directly subtracting the two
+near-identity matrices in (7) can lose positive definiteness through roundoff,
+even while \(D\) is well-conditioned and the mathematical covariance is SPD.
+This is cancellation in the evaluation formula, not a violation of the Model A
+parameterization.
+
+The implementation therefore evaluates the same covariance from its exact
+convergent integral series whenever
+\(s\leq 8d\,\epsilon_{\mathrm{dtype}}\):
+
+\[
+\begin{aligned}
+\Sigma_s
+ &=\int_0^s e^{uF}(2D)e^{uF^\top}\,du
+   =\sum_{n=0}^{\infty}\frac{s^{n+1}}{(n+1)!}K_n,\\
+K_0&=2D,\\
+K_{n+1}&=FK_n+K_nF^\top,
+\qquad F=-(Q+D).
+\end{aligned}
+\tag{7a}
+\]
+
+Terms are accumulated with
+
+\[
+P_0=s(2D),\qquad
+P_{n+1}=\frac{s}{n+2}(FP_n+P_nF^\top),
+\qquad \Sigma_s=\sum_nP_n,
+\tag{7b}
+\]
+
+until an entrywise-max-norm tail bound is below dtype rounding scale.  Failure to
+converge is explicit.  This changes only the numerical evaluation of the exact
+SDE covariance: it adds no jitter, eigenvalue clipping, diagonal floor,
+low-rank approximation, or hidden SPD parameterization.  Value and gradient
+equivalence with (7), plus a perturbed dense \(d=1024\) float32 boundary
+Cholesky, are regression-tested.
+
 ### Model A loss
 
 Here
@@ -1013,7 +1052,9 @@ The test suite covers:
    including `-log p + log q` boundary correction**, and compact form (5);
 4. finite gradients to raw \(Q,C,W,b\);
 5. exact skew symmetry of \(Q\) and PSD of the paper-default \(D=CC^\top\);
-6. Model A stationarity and covariance identities;
+6. Model A stationarity and covariance identities, exact integral-series
+   value/gradient equivalence, and the dense 1024-dimensional float32
+   lower-boundary cancellation regression;
 7. Model B affine transition and analytic terminal KL;
 8. GRN mask orientation and diagonal exemption;
 9. optimizer, EMA, raw/EMA/optimizer checkpoint, and resume through the actual
