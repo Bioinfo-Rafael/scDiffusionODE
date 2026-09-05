@@ -94,7 +94,13 @@ def model_a_arrays(process) -> dict[str, np.ndarray]:
         q = process.q_matrix().detach().cpu().double().numpy()
         d = process.d_matrix().detach().cpu().double().numpy()
     a = q + d
-    return {"Q": q, "D": d, "A": a, "F": -a}
+    with torch.no_grad():
+        z = process.basis().cpu().double().numpy()
+        q_k = process.q_auxiliary().cpu().double().numpy()
+        b = process.b.cpu().double().numpy()
+        sigma2 = process.isotropic_d().cpu().double().numpy()
+    return {"Q": q, "D": d, "A": a, "F": -a,
+            "Z": z, "Q_K": q_k, "B": b, "sigma2": sigma2, "H": z @ b}
 
 
 def model_b_arrays(process) -> dict[str, np.ndarray]:
@@ -145,6 +151,10 @@ def parameter_categories(process) -> tuple[dict[str, np.ndarray], dict[str, floa
         arrays = model_a_arrays(process)
         q, d, a = arrays["Q"], arrays["D"], arrays["A"]
         categories = {
+            "Z": arrays["Z"],
+            "Q_K": arrays["Q_K"],
+            "B": arrays["B"],
+            "sigma2": arrays["sigma2"],
             "Q off-diagonal": q[~diagonal],
             "D diagonal": d[diagonal],
             "D off-diagonal": d[~diagonal],
@@ -241,12 +251,20 @@ def analyze_parameter_evolution(
             return {"status": "skipped_completed", "metadata": str(metadata_path)}
     _run, config, _data_path, adata, genes = load_run_data(run)
     sources = select_snapshot_sources(run, max_points=max_points)
+    if str(config["forward_model"]) == "stationary_qd":
+        output.mkdir(parents=True, exist_ok=True)
     snapshots = []
     summary_rows = []
     diagnostics_rows = []
     for source in sources:
         process = load_forward_snapshot(config, genes, source)
         categories, diagnostics = parameter_categories(process)
+        if str(config["forward_model"]) == "stationary_qd":
+            arrays = model_a_arrays(process)
+            known, unknown, _ = _edge_masks(process)
+            np.savez_compressed(output / f"model_a_step_{source.training_step}.npz",
+                                **arrays, on_mask=arrays["A"] * known,
+                                off_mask=arrays["A"] * unknown)
         snapshots.append((source, categories))
         for name, values in categories.items():
             summary_rows.append(
@@ -270,6 +288,7 @@ def analyze_parameter_evolution(
     family = str(config["forward_model"])
     plot_rows = (
         (
+            "Z", "Q_K", "B", "sigma2",
             "Q off-diagonal",
             "D diagonal",
             "D off-diagonal",

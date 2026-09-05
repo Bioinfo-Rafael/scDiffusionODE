@@ -1,21 +1,9 @@
-"""Dense stationary-Q/D learnable forward diffusion.
+"""Exact stationary Q/D mediated by one learned auxiliary subspace.
 
-The physical-time SDE implemented here is
-
-    dY_s = -(Q + D) Y_s ds + sqrt(2 D) dB_s,
-
-with ``Q.T == -Q`` and ``D == C @ C.T >= 0`` by construction.  Its
-stationary covariance is the identity, including when ``D`` is merely
-positive semidefinite.  All matrices in this module are dense; there is no
-low-rank or subspace approximation.
-
-The default ``d_parameterization="psd"`` is the paper-faithful
-parameterization: every entry of the packed lower-triangular factor ``C`` is
-unconstrained, including its diagonal.  ``"spd_softplus"`` is an explicit
-numerical-stability option which replaces C's diagonal by
-``softplus(raw_diag) + d_diagonal_floor``.
+Only explicit analysis/GRN methods materialize gene-space matrices. Transition
+statistics store d x K and K x K tensors; their noise root is generally NOT a
+gene-space triangular Cholesky factor.
 """
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -28,264 +16,241 @@ from torch.nn import functional as F
 
 from .grn import effective_grn_mask, off_mask_penalty, validate_penalty_norm
 
-_D_PARAMETERIZATIONS = ("psd", "spd_softplus")
+PARAMETERIZATION = "auxiliary_shared_subspace"
+MODEL_SCHEMA_VERSION = 2
+
+
+def _inverse_softplus(value):
+    return value + torch.log(-torch.expm1(-value))
+
+
+def _solve(matrix, rows, *, upper=None):
+    flat = rows.reshape(-1, rows.shape[-1])
+    result = (torch.linalg.solve(matrix, flat.T) if upper is None else
+              torch.linalg.solve_triangular(matrix, flat.T, upper=upper))
+    return result.T.reshape_as(rows)
 
 
 @dataclass(frozen=True)
 class StationaryQDTransition:
-    """Batch-shared transition quantities for one physical time."""
-
     time: torch.Tensor
     mean: torch.Tensor
-    phi: torch.Tensor
-    affine_shift: torch.Tensor
-    covariance: torch.Tensor
-    cholesky: Optional[torch.Tensor]
-    q_matrix: torch.Tensor
-    d_matrix: torch.Tensor
-    drift_matrix: torch.Tensor
-    diffusion_covariance: torch.Tensor
-    drift_divergence: torch.Tensor
-    nominal_covariance: torch.Tensor
-    covariance_jitter: torch.Tensor
+    z: torch.Tensor
+    q_k: torch.Tensor
+    d_k: torch.Tensor
+    sigma2: torch.Tensor
+    phi_k: torch.Tensor
+    phi_perp: torch.Tensor
+    covariance_k: torch.Tensor
+    variance_perp: torch.Tensor
+    cholesky_k: Optional[torch.Tensor]
+    mean_parallel: torch.Tensor
+    mean_perp: torch.Tensor
     covariance_evaluation: str
     covariance_series_terms: int
 
-    # Concise aliases used in the mathematical derivation and by the generic
-    # work-local objective code.
-    @property
-    def m(self) -> torch.Tensor:
-        return self.mean
+    def split(self, rows):
+        rows = rows.to(self.z)
+        parallel = rows @ self.z
+        return parallel, rows - parallel @ self.z.T
+
+    def apply(self, rows, small, scalar):
+        parallel, perp = self.split(rows)
+        return scalar * perp + (parallel @ small.T) @ self.z.T
+
+    def transition_mean(self, rows):
+        return self.apply(rows, self.phi_k, self.phi_perp)
+
+    def noise_transform(self, rows):
+        if self.cholesky_k is None:
+            raise ValueError("cholesky_k is required")
+        return self.apply(rows, self.cholesky_k, self.variance_perp.sqrt())
+
+    def score(self, rows):
+        if self.cholesky_k is None:
+            raise ValueError("cholesky_k is required")
+        parallel, perp = self.split(rows)
+        return -perp / self.variance_perp.sqrt() - _solve(
+            self.cholesky_k.T, parallel, upper=True) @ self.z.T
+
+    def covariance_logdet(self):
+        return ((self.z.shape[0] - self.z.shape[1]) * self.variance_perp.log()
+                + 2 * self.cholesky_k.diagonal().log().sum())
+
+    def covariance_trace(self):
+        return ((self.z.shape[0] - self.z.shape[1]) * self.variance_perp
+                + self.covariance_k.trace())
+
+    def mean_squared(self):
+        return self.mean_parallel.square().sum(-1) + self.mean_perp.square().sum(-1)
 
     @property
-    def transition_matrix(self) -> torch.Tensor:
-        return self.phi
+    def drift_divergence(self):
+        return -(self.z.shape[0] - self.z.shape[1]) * self.sigma2 - self.d_k.trace()
 
-    @property
-    def sigma(self) -> torch.Tensor:
-        return self.covariance
+    def materialize_for_analysis(self):
+        """Explicit dense diagnostics only; never called by production losses.
 
-    @property
-    def L(self) -> Optional[torch.Tensor]:
-        return self.cholesky
-
-    @property
-    def g2(self) -> torch.Tensor:
-        return self.diffusion_covariance
-
-    @property
-    def div_f(self) -> torch.Tensor:
-        return self.drift_divergence
-
-
-def _inverse_softplus(value: torch.Tensor) -> torch.Tensor:
-    """Stable inverse of softplus for strictly positive ``value``."""
-
-    return value + torch.log(-torch.expm1(-value))
+        noise_root is a covariance square root, NOT the dense Cholesky.
+        """
+        eye = torch.eye(self.z.shape[0], device=self.z.device, dtype=self.z.dtype)
+        complement = eye - self.z @ self.z.T
+        return {
+            "phi": self.phi_perp * complement + self.z @ self.phi_k @ self.z.T,
+            "covariance": self.variance_perp * complement + self.z @ self.covariance_k @ self.z.T,
+            "noise_root": (None if self.cholesky_k is None else
+                           self.variance_perp.sqrt() * complement + self.z @ self.cholesky_k @ self.z.T),
+        }
 
 
 class StationaryQDForward(nn.Module):
-    """Time-independent dense stationary-Q/D forward process.
+    parameterization = PARAMETERIZATION
+    model_schema_version = MODEL_SCHEMA_VERSION
 
-    Args:
-        dim: State dimension.
-        d_parameterization: ``"psd"`` (default) uses ``D=C C^T`` with a
-            wholly unconstrained packed-lower ``C``. ``"spd_softplus"`` is
-            the opt-in stability variant with a positive transformed
-            diagonal in ``C``.
-        d_diagonal_floor: Added to the transformed diagonal only in
-            ``"spd_softplus"`` mode. It must be strictly positive there and
-            is required to be zero in paper-faithful ``"psd"`` mode.
-        initial_d_diagonal: Desired scalar diagonal of D at initialization.
-            The standard VP-compatible default is 1/2.
-        covariance_jitter: Explicit opt-in jitter added before Cholesky. A
-            nonzero value changes the sampled transition covariance and is
-            therefore not paper-faithful; the nominal SDE covariance remains
-            available as ``stats.nominal_covariance``.
-        grn_mask_target_source: Optional dense mask in drift-matrix
-            orientation ``[target, source]``. The constructor does not
-            transpose it.
-        allow_self_edges: If true, the diagonal is always allowed by the GRN
-            penalty so stationary damping is not penalized.
-        grn_penalty_weight: Multiplicative coefficient returned by
-            :meth:`additional_regularization`.
-        grn_penalty_norm: ``"l1"`` or ``"l2"`` full-matrix mean, matching the
-            established ODE off-mask convention.
-    """
-
-    def __init__(
-        self,
-        dim: int,
-        *,
-        d_parameterization: str = "psd",
-        d_diagonal_floor: float = 0.0,
-        initial_d_diagonal: float = 0.5,
-        covariance_jitter: float = 0.0,
-        grn_mask_target_source: Optional[torch.Tensor] = None,
-        allow_self_edges: bool = True,
-        grn_penalty_weight: float = 0.0,
-        grn_penalty_norm: str = "l1",
-        device=None,
-        dtype: Optional[torch.dtype] = torch.float64,
-    ) -> None:
+    def __init__(self, dim: int, *, aux_dim: int,
+                 model_a_parameterization: str = PARAMETERIZATION,
+                 learn_isotropic_d: bool = True, isotropic_d_init: float = 0.5,
+                 isotropic_d_floor: float = 1e-6, auxiliary_b_init_scale: float = 0.0,
+                 covariance_jitter: float = 0.0,
+                 grn_mask_target_source=None, allow_self_edges: bool = True,
+                 grn_penalty_weight: float = 0.0, grn_penalty_norm: str = "l1",
+                 device=None, dtype=torch.float64):
         super().__init__()
-        if int(dim) != dim or int(dim) <= 0:
-            raise ValueError(f"dim must be a positive integer, got {dim!r}")
-        self.dim = int(dim)
-
-        mode = str(d_parameterization).lower()
-        if mode not in _D_PARAMETERIZATIONS:
-            raise ValueError(
-                f"d_parameterization must be one of {_D_PARAMETERIZATIONS}, "
-                f"got {d_parameterization!r}"
-            )
-        self.d_parameterization = mode
-        self.d_diagonal_floor = self._finite_nonnegative(
-            "d_diagonal_floor", d_diagonal_floor
-        )
-        self.initial_d_diagonal = self._finite_nonnegative(
-            "initial_d_diagonal", initial_d_diagonal
-        )
-        self.covariance_jitter = self._finite_nonnegative(
-            "covariance_jitter", covariance_jitter
-        )
-        if mode == "psd" and self.d_diagonal_floor != 0.0:
-            raise ValueError(
-                "d_diagonal_floor is only valid with "
-                "d_parameterization='spd_softplus'; paper-faithful 'psd' "
-                "uses an unconstrained C diagonal"
-            )
-        if mode == "spd_softplus" and self.d_diagonal_floor <= 0.0:
-            raise ValueError(
-                "d_diagonal_floor must be strictly positive in "
-                "spd_softplus mode"
-            )
-        if mode == "spd_softplus" and self.initial_d_diagonal <= 0.0:
-            raise ValueError(
-                "initial_d_diagonal must be positive in spd_softplus mode"
-            )
-
+        if int(dim) != dim or dim <= 0:
+            raise ValueError("dim must be a positive integer")
+        if int(aux_dim) != aux_dim or not 1 <= aux_dim < dim:
+            raise ValueError("aux_dim must be an integer in [1, dim) to avoid gene-space decompositions")
+        if model_a_parameterization != PARAMETERIZATION:
+            raise ValueError("Model A requires auxiliary_shared_subspace; old dense checkpoints cannot resume")
+        if covariance_jitter != 0:
+            raise ValueError("Model A requires covariance_jitter=0; isotropic D is part of the SDE")
+        if not math.isfinite(isotropic_d_floor) or isotropic_d_floor <= 0:
+            raise ValueError("isotropic_d_floor must be strictly positive and finite")
+        if not math.isfinite(isotropic_d_init) or isotropic_d_init <= isotropic_d_floor:
+            raise ValueError("isotropic_d_init must exceed isotropic_d_floor")
+        if not math.isfinite(auxiliary_b_init_scale) or auxiliary_b_init_scale < 0:
+            raise ValueError("auxiliary_b_init_scale must be finite and nonnegative")
+        if not math.isfinite(grn_penalty_weight) or grn_penalty_weight < 0:
+            raise ValueError("grn_penalty_weight must be finite and nonnegative")
+        self.dim, self.aux_dim = int(dim), int(aux_dim)
+        dim, aux_dim = self.dim, self.aux_dim
+        self.isotropic_d_floor = float(isotropic_d_floor)
+        self.grn_penalty_weight = float(grn_penalty_weight)
         self.grn_penalty_norm = validate_penalty_norm(grn_penalty_norm)
-        self.grn_penalty_weight = self._finite_nonnegative(
-            "grn_penalty_weight", grn_penalty_weight
-        )
-        self.allow_self_edges = bool(allow_self_edges)
-
-        factory_kwargs = {"device": device, "dtype": dtype}
-        q_indices = torch.triu_indices(
-            self.dim, self.dim, offset=1, device=device
-        )
-        d_indices = torch.tril_indices(
-            self.dim, self.dim, offset=0, device=device
-        )
-        self.register_buffer("_q_indices", q_indices, persistent=False)
-        self.register_buffer("_d_indices", d_indices, persistent=False)
-        self.register_buffer(
-            "_identity",
-            torch.eye(self.dim, **factory_kwargs),
-            persistent=False,
-        )
-
-        self.raw_q_upper = nn.Parameter(
-            torch.zeros(q_indices.shape[1], **factory_kwargs)
-        )
-        raw_d = torch.zeros(d_indices.shape[1], **factory_kwargs)
-        is_diagonal = d_indices[0] == d_indices[1]
-        desired_c_diagonal = math.sqrt(self.initial_d_diagonal)
-        if mode == "psd":
-            raw_d[is_diagonal] = desired_c_diagonal
+        # Model A constrains only off-diagonal effective interactions.
+        self.allow_self_edges = True
+        kw = dict(device=device, dtype=dtype)
+        self.raw_embedding = nn.Parameter(torch.randn(dim, aux_dim, **kw) / math.sqrt(dim))
+        self.raw_q_k = nn.Parameter(torch.zeros(aux_dim, aux_dim, **kw))
+        self.b = nn.Parameter(auxiliary_b_init_scale * torch.eye(aux_dim, **kw))
+        rho = _inverse_softplus(torch.tensor(isotropic_d_init - isotropic_d_floor, **kw))
+        if learn_isotropic_d:
+            self.raw_isotropic_d = nn.Parameter(rho)
         else:
-            transformed_target = desired_c_diagonal - self.d_diagonal_floor
-            if transformed_target <= 0.0:
-                raise ValueError(
-                    "sqrt(initial_d_diagonal) must exceed "
-                    "d_diagonal_floor in spd_softplus mode"
-                )
-            target = raw_d.new_tensor(transformed_target)
-            raw_d[is_diagonal] = _inverse_softplus(target)
-        self.raw_d_lower = nn.Parameter(raw_d)
-
+            self.register_buffer("raw_isotropic_d", rho)
+        self.register_buffer("_identity_k", torch.eye(aux_dim, **kw), persistent=False)
+        self.register_buffer("_schema_version", torch.tensor(MODEL_SCHEMA_VERSION, device=device))
+        self.register_buffer("_parameterization_code", torch.tensor(1, device=device))
+        self.register_buffer("_checkpoint_aux_dim", torch.tensor(aux_dim, device=device))
+        # Persist the floor as well: loading weights must not silently change D.
+        self.register_buffer("_isotropic_floor", torch.tensor(isotropic_d_floor, **kw))
+        if not bool(self._isotropic_floor > 0) or not bool(torch.isfinite(self._isotropic_floor)):
+            raise ValueError("isotropic_d_floor must remain positive and finite in the forward dtype")
         mask, self._has_grn_mask = effective_grn_mask(
-            grn_mask_target_source,
-            dim=self.dim,
-            allow_self_edges=self.allow_self_edges,
-            reference=self.raw_q_upper,
-        )
+            grn_mask_target_source, dim=dim, allow_self_edges=True, reference=self.raw_embedding)
         self.register_buffer("grn_mask_target_source", mask)
 
-    @staticmethod
-    def _finite_nonnegative(name: str, value: float) -> float:
-        value = float(value)
-        if not math.isfinite(value) or value < 0.0:
-            raise ValueError(f"{name} must be finite and nonnegative, got {value!r}")
-        return value
+    def _save_to_state_dict(self, destination, prefix, keep_vars):
+        super()._save_to_state_dict(destination, prefix, keep_vars)
+        if hasattr(destination, "_metadata"):
+            destination._metadata[prefix[:-1]].update(self.provenance())
 
-    def q_matrix(self) -> torch.Tensor:
-        """Return dense Q with exact skew-symmetry by construction."""
+    def _load_from_state_dict(self, state_dict, prefix, *args, **kwargs):
+        expected = {"_schema_version": MODEL_SCHEMA_VERSION,
+                    "_parameterization_code": 1, "_checkpoint_aux_dim": self.aux_dim}
+        for name, value in expected.items():
+            stored = state_dict.get(prefix + name)
+            if stored is None or stored.numel() != 1 or stored.item() != value:
+                raise RuntimeError("Incompatible Model A checkpoint: old dense or mismatched "
+                                   f"schema/parameterization/aux_dim ({prefix + name}); start a new run")
+        floor = state_dict.get(prefix + "_isotropic_floor")
+        if floor is None or not torch.equal(floor.to(self._isotropic_floor), self._isotropic_floor):
+            raise RuntimeError("Incompatible Model A checkpoint: isotropic_d_floor mismatch")
+        super()._load_from_state_dict(state_dict, prefix, *args, **kwargs)
 
-        upper = self.raw_q_upper.new_zeros((self.dim, self.dim))
-        upper[self._q_indices[0], self._q_indices[1]] = self.raw_q_upper
-        return upper - upper.transpose(-1, -2)
+    def provenance(self):
+        return dict(model_schema_version=MODEL_SCHEMA_VERSION,
+                    model_a_parameterization=PARAMETERIZATION, aux_dim=self.aux_dim,
+                    isotropic_d_floor=self.isotropic_d_floor,
+                    full_d_cholesky=False, full_d_matrix_exponential=False,
+                    approximation=False)
 
-    def d_factor(self) -> torch.Tensor:
-        """Return the dense lower-triangular factor C."""
+    def basis(self):
+        z, r = torch.linalg.qr(self.raw_embedding, mode="reduced")
+        if not bool(torch.isfinite(r).all()) or bool((r.diagonal() == 0).any()):
+            raise RuntimeError("Model A raw embedding is non-finite or rank deficient")
+        return z
 
-        lower_values = self.raw_d_lower
-        if self.d_parameterization == "spd_softplus":
-            is_diagonal = self._d_indices[0] == self._d_indices[1]
-            lower_values = torch.where(
-                is_diagonal,
-                F.softplus(lower_values) + self.d_diagonal_floor,
-                lower_values,
-            )
-        factor = lower_values.new_zeros((self.dim, self.dim))
-        factor[self._d_indices[0], self._d_indices[1]] = lower_values
-        return factor
+    def q_auxiliary(self):
+        return self.raw_q_k - self.raw_q_k.T
 
-    def d_matrix(self) -> torch.Tensor:
-        """Return dense D=C C^T, which is PSD in exact arithmetic."""
+    def isotropic_d(self):
+        return self._isotropic_floor + F.softplus(self.raw_isotropic_d)
 
-        factor = self.d_factor()
-        return factor @ factor.transpose(-1, -2)
+    def d_auxiliary(self):
+        return self.isotropic_d() * self._identity_k + self.b @ self.b.T
 
-    def stationary_operator(self) -> torch.Tensor:
-        """Return Q+D, the matrix constrained by the GRN penalty."""
+    def q_matrix(self):
+        """Explicit gene-space materialization for analysis only."""
+        z = self.basis()
+        return z @ self.q_auxiliary() @ z.T
 
+    def d_matrix(self):
+        """Explicit gene-space materialization for analysis only."""
+        zb = self.basis() @ self.b
+        return self.isotropic_d() * torch.eye(self.dim, device=zb.device, dtype=zb.dtype) + zb @ zb.T
+
+    def interaction_matrix(self):
+        """GRN/analysis only; [target, source], with no mask on Z."""
+        z = self.basis()
+        return z @ (self.q_auxiliary() + self.b @ self.b.T) @ z.T
+
+    def stationary_operator(self):
         return self.q_matrix() + self.d_matrix()
 
-    def drift_matrix(self) -> torch.Tensor:
-        """Return the linear drift matrix F=-(Q+D)."""
-
+    def drift_matrix(self):
         return -self.stationary_operator()
 
-    def diffusion_covariance(self) -> torch.Tensor:
-        """Return a=g g^T=2D without constructing a matrix square root."""
+    def diffusion_covariance(self):
+        return 2 * self.d_matrix()
 
-        return 2.0 * self.d_matrix()
+    def drift(self, states):
+        z = self.basis()
+        states = states.to(z)
+        return -self.isotropic_d() * states - ((states @ z) @ (self.q_auxiliary() + self.b @ self.b.T).T) @ z.T
 
-    def diffusion_factor(self) -> torch.Tensor:
-        """Return ``G=sqrt(2) C`` so that ``G G^T = 2D`` exactly."""
+    def apply_diffusion_covariance(self, states):
+        z = self.basis()
+        states = states.to(z)
+        return 2 * (self.isotropic_d() * states + ((states @ z) @ (self.b @ self.b.T)) @ z.T)
 
-        return math.sqrt(2.0) * self.d_factor()
+    def diffusion_noise(self, noise):
+        # K-space eigensystem gives a symmetric diffusion root, no Cholesky.
+        z = self.basis()
+        parallel = noise.to(z) @ z
+        perp = noise.to(z) - parallel @ z.T
+        # SVD of B avoids differentiating repeated eigenvalues of D in training;
+        # this method is used only in no-grad reverse sampling.
+        u, values, _ = torch.linalg.svd(self.b)
+        root = (u * (2 * (self.isotropic_d() + values.square())).sqrt()) @ u.T
+        return (2 * self.isotropic_d()).sqrt() * perp + (parallel @ root.T) @ z.T
 
-    def drift(self, states: torch.Tensor) -> torch.Tensor:
-        """Evaluate row-vector forward drift ``-(Q+D)y``."""
+    def drift_divergence(self):
+        return -self.dim * self.isotropic_d() - self.b.square().sum()
 
-        if states.shape[-1] != self.dim:
-            raise ValueError("states have an incompatible final dimension")
-        states = states.to(device=self.raw_q_upper.device, dtype=self.raw_q_upper.dtype)
-        return states @ self.drift_matrix().transpose(-1, -2)
-
-    def drift_divergence(self) -> torch.Tensor:
-        """Return div_y f=-tr(D); skew-symmetry gives tr(Q)=0."""
-
-        return -torch.trace(self.d_matrix())
-
-    def stationarity_residual(self) -> torch.Tensor:
-        """Return F + F^T + a; it is identically zero analytically."""
-
+    def stationarity_residual(self):
         drift = self.drift_matrix()
-        return drift + drift.transpose(-1, -2) + self.diffusion_covariance()
+        return drift + drift.T + self.diffusion_covariance()
 
     def _physical_time(self, time, *, device, dtype) -> torch.Tensor:
         value = torch.as_tensor(time, device=device, dtype=dtype)
@@ -304,26 +269,6 @@ class StationaryQDForward(nn.Module):
         if bool((scalar < 0).detach().item()):
             raise ValueError("physical time must be nonnegative")
         return scalar
-
-    def _factor_covariance(
-        self, nominal_covariance: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        jitter = nominal_covariance.new_tensor(self.covariance_jitter)
-        if self.covariance_jitter:
-            covariance = nominal_covariance + jitter * self._identity
-        else:
-            covariance = nominal_covariance
-        cholesky, info = torch.linalg.cholesky_ex(covariance, check_errors=False)
-        if bool((info != 0).detach().item()):
-            raise RuntimeError(
-                "stationary-Q/D transition covariance is not positive definite "
-                f"(cholesky_ex info={int(info.detach().item())}, "
-                f"time-dependent covariance_jitter={self.covariance_jitter}). "
-                "The paper-faithful PSD parameterization deliberately does "
-                "not add a hidden floor; opt into d_parameterization="
-                "'spd_softplus' or an explicit covariance_jitter if required."
-            )
-        return covariance, cholesky, jitter
 
     def _integral_series_covariance(
         self,
@@ -393,250 +338,142 @@ class StationaryQDForward(nn.Module):
             raise RuntimeError(
                 "stationary-Q/D covariance integral series did not converge "
                 f"within {max_terms} terms; the learned drift may be too "
-                "large for stable boundary evaluation"
+                "large for stable boundary evaluation; "
+                + self._covariance_diagnostics(covariance, self.isotropic_d(), physical_time)
             )
         covariance = 0.5 * (
             covariance + covariance.transpose(-1, -2)
         )
         return covariance, terms_used
 
-    def _use_integral_series(self, physical_time: torch.Tensor) -> bool:
-        """Detect the dense-float32 cancellation regime deterministically."""
+    @staticmethod
+    def _covariance_diagnostics(covariance, sigma2, physical_time):
+        with torch.no_grad():
+            minimum, condition = float("nan"), float("inf")
+            if bool(torch.isfinite(covariance).all()):
+                try:
+                    minimum = torch.linalg.eigvalsh(covariance).min().item()
+                    condition = torch.linalg.cond(covariance).item()
+                except RuntimeError:
+                    pass  # Keep the original numerical failure and its context.
+        return (f"min_eig={minimum}, condition_number={condition}, "
+                f"sigma²={sigma2.item()}, physical_time={physical_time.item()}")
 
-        # A dense product has a worst-case rounding scale proportional to
-        # d*eps.  Below this scale, I-Phi@Phi.T can lose the positive boundary
-        # covariance even when D is well conditioned.  This branch depends
-        # only on dimension, dtype, and physical time—not learned parameters.
-        rounding_scale = 8.0 * self.dim * torch.finfo(physical_time.dtype).eps
-        return bool(
-            (physical_time.detach().abs() <= rounding_scale).cpu().item()
-        )
+    def _factor_covariance(self, covariance, sigma2, physical_time):
+        factor, info = torch.linalg.cholesky_ex(covariance, check_errors=False)
+        if bool((info != 0).any()) or not bool(torch.isfinite(factor).all()):
+            raise RuntimeError("Model A Sigma_K Cholesky failed without jitter: "
+                               + self._covariance_diagnostics(covariance, sigma2, physical_time))
+        return factor
 
-    def transition_stats(
-        self,
-        x: torch.Tensor,
-        time,
-        *,
-        compute_cholesky: bool = True,
-    ) -> StationaryQDTransition:
-        """Compute exact dense Gaussian transition statistics.
-
-        ``time`` may be a scalar or a tensor whose entries are all identical.
-        A heterogeneous batch is rejected so the expensive dense matrix
-        exponential and Cholesky are computed once per batch.
-        """
-
-        if not torch.is_tensor(x):
-            raise TypeError("x must be a torch.Tensor")
-        if x.ndim < 1 or x.shape[-1] != self.dim:
-            raise ValueError(
-                f"x must end in dimension {self.dim}, got {tuple(x.shape)}"
-            )
-        parameter = self.raw_q_upper
-        if x.device != parameter.device:
-            raise ValueError(
-                f"x is on {x.device}, but forward parameters are on "
-                f"{parameter.device}"
-            )
-        physical_time = self._physical_time(
-            time, device=parameter.device, dtype=parameter.dtype
-        )
-        x_forward = x.to(dtype=parameter.dtype)
-
-        q = self.q_matrix()
-        d = self.d_matrix()
-        operator = q + d
-        drift = -operator
-        phi = torch.matrix_exp(-physical_time * operator)
-        mean = x_forward @ phi.transpose(-1, -2)
-        diffusion_covariance = 2.0 * d
-        if self._use_integral_series(physical_time):
-            nominal_covariance, covariance_series_terms = (
-                self._integral_series_covariance(
-                    drift,
-                    diffusion_covariance,
-                    physical_time,
-                )
-            )
-            covariance_evaluation = "adaptive_integral_series"
+    def transition_stats(self, x, time, *, compute_cholesky=True):
+        if not torch.is_tensor(x) or x.ndim < 1 or x.shape[-1] != self.dim:
+            raise ValueError(f"x must end in dimension {self.dim}")
+        z = self.basis()
+        x = x.to(z)
+        s = self._physical_time(time, device=z.device, dtype=z.dtype)
+        if compute_cholesky and bool(s <= 0):
+            raise ValueError("physical time must be strictly positive for Cholesky/score")
+        sigma2, q_k, d_k = self.isotropic_d(), self.q_auxiliary(), self.d_auxiliary()
+        a_k = q_k + d_k
+        phi_k = torch.matrix_exp(-s * a_k)
+        phi_perp = torch.exp(-sigma2 * s)
+        variance_perp = -torch.expm1(-2 * sigma2 * s)
+        # Evaluate the same covariance integral to rounding precision near zero.
+        # The branch is parameter independent; no clipping/jitter or rank approximation.
+        if bool(s.detach() <= 8 * self.aux_dim * torch.finfo(s.dtype).eps):
+            covariance_k, terms = self._integral_series_covariance(-a_k, 2 * d_k, s)
+            evaluation = "adaptive_integral_series"
         else:
-            nominal_covariance = self._identity - phi @ phi.transpose(-1, -2)
-            nominal_covariance = 0.5 * (
-                nominal_covariance + nominal_covariance.transpose(-1, -2)
-            )
-            covariance_evaluation = "stationary_identity"
-            covariance_series_terms = 0
-
-        if compute_cholesky:
-            covariance, cholesky, jitter = self._factor_covariance(
-                nominal_covariance
-            )
-        else:
-            covariance = nominal_covariance
-            cholesky = None
-            jitter = nominal_covariance.new_zeros(())
-
-        return StationaryQDTransition(
-            time=physical_time,
-            mean=mean,
-            phi=phi,
-            affine_shift=phi.new_zeros(self.dim),
-            covariance=covariance,
-            cholesky=cholesky,
-            q_matrix=q,
-            d_matrix=d,
-            drift_matrix=drift,
-            diffusion_covariance=diffusion_covariance,
-            drift_divergence=-torch.trace(d),
-            nominal_covariance=nominal_covariance,
-            covariance_jitter=jitter,
-            covariance_evaluation=covariance_evaluation,
-            covariance_series_terms=covariance_series_terms,
-        )
+            covariance_k = self._identity_k - phi_k @ phi_k.T
+            covariance_k = (covariance_k + covariance_k.T) / 2
+            terms, evaluation = 0, "stationary_identity"
+        if bool(s > 0) and (not bool(torch.isfinite(variance_perp)) or not bool(variance_perp > 0)):
+            raise RuntimeError("Model A complement variance is not positive and finite: "
+                               + self._covariance_diagnostics(covariance_k, sigma2, s))
+        cholesky = self._factor_covariance(covariance_k, sigma2, s) if compute_cholesky else None
+        parallel = x @ z
+        mean_perp = phi_perp * (x - parallel @ z.T)
+        mean_parallel = parallel @ phi_k.T
+        return StationaryQDTransition(s, mean_perp + mean_parallel @ z.T,
+                                      z, q_k, d_k, sigma2, phi_k, phi_perp,
+                                      covariance_k, variance_perp, cholesky,
+                                      mean_parallel, mean_perp, evaluation, terms)
 
     @staticmethod
-    def sample_from_stats(
-        stats: StationaryQDTransition,
-        noise: Optional[torch.Tensor] = None,
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
-        """Reparameterized sample ``mean + L noise`` from existing stats."""
-
-        if stats.cholesky is None:
-            raise ValueError("stats.cholesky is required for sampling")
+    def sample_from_stats(stats, noise=None):
         if noise is None:
             noise = torch.randn_like(stats.mean)
-        else:
-            if noise.shape != stats.mean.shape:
-                raise ValueError(
-                    f"noise must have shape {tuple(stats.mean.shape)}, "
-                    f"got {tuple(noise.shape)}"
-                )
-            noise = noise.to(device=stats.mean.device, dtype=stats.mean.dtype)
-        sample = stats.mean + noise @ stats.cholesky.transpose(-1, -2)
-        return sample, noise
+        if noise.shape != stats.mean.shape:
+            raise ValueError("noise must have the same shape as the mean")
+        noise = noise.to(stats.mean)
+        return stats.mean + stats.noise_transform(noise), noise
 
-    def q_sample(
-        self,
-        x: torch.Tensor,
-        time,
-        noise: Optional[torch.Tensor] = None,
-        *,
-        return_stats: bool = False,
-    ):
-        """Compute stats and draw a differentiable reparameterized sample."""
-
-        stats = self.transition_stats(x, time, compute_cholesky=True)
+    def q_sample(self, x, time, noise=None, *, return_stats=False):
+        stats = self.transition_stats(x, time)
         sample, noise = self.sample_from_stats(stats, noise)
-        if return_stats:
-            return sample, noise, stats
-        return sample, noise
+        return (sample, noise, stats) if return_stats else (sample, noise)
 
     @staticmethod
-    def conditional_score(
-        stats: StationaryQDTransition, noise: torch.Tensor
-    ) -> torch.Tensor:
-        """Return ``-L^{-T} noise`` without forming an inverse."""
-
-        if stats.cholesky is None:
-            raise ValueError("stats.cholesky is required to compute a score")
-        if noise.shape[-1] != stats.cholesky.shape[-1]:
-            raise ValueError("noise has an incompatible final dimension")
-        noise = noise.to(device=stats.mean.device, dtype=stats.mean.dtype)
-        flat = noise.reshape(-1, noise.shape[-1])
-        solved = torch.linalg.solve_triangular(
-            stats.cholesky.transpose(-1, -2),
-            flat.transpose(-1, -2),
-            upper=True,
-        ).transpose(-1, -2)
-        return -solved.reshape_as(noise)
+    def conditional_score(stats, noise):
+        return stats.score(noise)
 
     @staticmethod
-    def noise_metric_quadratic(
-        stats: StationaryQDTransition, residual: torch.Tensor
-    ) -> torch.Tensor:
-        """Return Model-A's exact compact DSM term per sample.
-
-        This computes
-
-            residual^T L^{-1} D L^{-T} residual
-
-        via triangular solves.  The factor 1/2 in score space is exactly
-        cancelled by ``g g^T = 2D``.
-        """
-
-        if stats.cholesky is None:
-            raise ValueError("stats.cholesky is required for the DSM metric")
-        if residual.shape[-1] != stats.cholesky.shape[-1]:
-            raise ValueError("residual has an incompatible final dimension")
-        residual = residual.to(device=stats.mean.device, dtype=stats.mean.dtype)
-        flat = residual.reshape(-1, residual.shape[-1])
-        whitened = torch.linalg.solve_triangular(
-            stats.cholesky.transpose(-1, -2),
-            flat.transpose(-1, -2),
-            upper=True,
-        ).transpose(-1, -2)
-        d_times = whitened @ stats.d_matrix.transpose(-1, -2)
-        values = (d_times * whitened).sum(dim=-1)
-        return values.reshape(residual.shape[:-1])
+    def noise_metric_quadratic(stats, residual):
+        parallel, perp = stats.split(residual)
+        u = _solve(stats.cholesky_k.T, parallel, upper=True)
+        return stats.sigma2 / stats.variance_perp * perp.square().sum(-1) + (u @ stats.d_k * u).sum(-1)
 
     @staticmethod
-    def terminal_kl(stats: StationaryQDTransition) -> torch.Tensor:
-        """Return analytic ``KL(N(mean, Sigma) || N(0, I))`` per sample."""
-
-        if stats.cholesky is None:
-            raise ValueError("stats.cholesky is required for terminal KL")
-        diagonal = torch.diagonal(stats.cholesky, dim1=-2, dim2=-1)
-        logdet = 2.0 * torch.log(diagonal).sum()
-        covariance_trace = torch.trace(stats.covariance)
-        mean_squared = stats.mean.square().sum(dim=-1)
-        return 0.5 * (
-            mean_squared + covariance_trace - logdet - stats.mean.shape[-1]
-        )
+    def terminal_kl(stats):
+        return 0.5 * (stats.mean_squared() + stats.covariance_trace()
+                      - stats.covariance_logdet() - stats.z.shape[0])
 
     @staticmethod
-    def terminal_cross_entropy(stats: StationaryQDTransition) -> torch.Tensor:
-        """Return ``-E_q log N(0,I)`` per sample for direct-form checks."""
+    def terminal_cross_entropy(stats):
+        return 0.5 * (stats.mean_squared() + stats.covariance_trace()
+                      + stats.z.shape[0] * math.log(2 * math.pi))
 
-        covariance_trace = torch.trace(stats.covariance)
-        mean_squared = stats.mean.square().sum(dim=-1)
-        dimension = stats.mean.shape[-1]
-        normalizer = dimension * math.log(2.0 * math.pi)
-        return 0.5 * (mean_squared + covariance_trace + normalizer)
+    @staticmethod
+    def boundary_mean(stats, y, score):
+        yp, yo = stats.split(y)
+        sp, so = stats.split(score)
+        return ((yo + stats.variance_perp * so) / stats.phi_perp
+                + _solve(stats.phi_k, yp + sp @ stats.covariance_k.T) @ stats.z.T)
 
-    def grn_penalty_base(self, norm: Optional[str] = None) -> torch.Tensor:
-        """Return unweighted off-mask penalty on ``Q+D``.
+    @staticmethod
+    def boundary_noise(stats, noise):
+        parallel, perp = stats.split(noise)
+        return (stats.variance_perp.sqrt() / stats.phi_perp * perp
+                + _solve(stats.phi_k, parallel @ stats.cholesky_k.T) @ stats.z.T)
 
-        The supplied mask is already in ``[target, source]`` orientation,
-        matching rows/columns of the matrix multiplying a state column.
-        """
+    @staticmethod
+    def boundary_nll(stats, x, y, score):
+        # L^{-1}(Phi*x - y - Sigma*score) equals the decoder whitened
+        # residual exactly; this avoids an ill-conditioned explicit Phi inverse.
+        xp, xo = stats.split(x)
+        yp, yo = stats.split(y)
+        sp, so = stats.split(score)
+        residual_k = xp @ stats.phi_k.T - yp - sp @ stats.covariance_k.T
+        white_k = _solve(stats.cholesky_k, residual_k, upper=False)
+        white_perp = (stats.phi_perp * xo - yo - stats.variance_perp * so) / stats.variance_perp.sqrt()
+        # logdet Phi = -s tr(A); skew Q has zero trace.
+        logdet = stats.covariance_logdet() - 2 * stats.time * stats.drift_divergence
+        return 0.5 * (white_k.square().sum(-1) + white_perp.square().sum(-1)
+                      + logdet + stats.z.shape[0] * math.log(2 * math.pi))
 
+    def grn_penalty_base(self, norm=None):
         if not self._has_grn_mask:
-            return self.raw_q_upper.new_zeros(())
-        selected_norm = (
-            self.grn_penalty_norm
-            if norm is None
-            else validate_penalty_norm(norm)
-        )
-        return off_mask_penalty(
-            self.stationary_operator(),
-            self.grn_mask_target_source,
-            norm=selected_norm,
-        )
+            return self.raw_embedding.new_zeros(())
+        return off_mask_penalty(self.interaction_matrix(), self.grn_mask_target_source,
+                                norm=self.grn_penalty_norm if norm is None else norm)
 
-    def grn_penalty(
-        self, norm: Optional[str] = None, *, weighted: bool = True
-    ) -> torch.Tensor:
-        """Return GRN penalty, weighted by its configured coefficient."""
-
+    def grn_penalty(self, norm=None, *, weighted=True):
         base = self.grn_penalty_base(norm)
-        if weighted:
-            return self.grn_penalty_weight * base
-        return base
+        return self.grn_penalty_weight * base if weighted else base
 
-    def additional_regularization(self) -> torch.Tensor:
-        """Generic wrapper hook for the weighted external GRN regularizer."""
-
-        return self.grn_penalty(weighted=True)
+    def additional_regularization(self):
+        return self.grn_penalty()
 
 
 __all__ = ["StationaryQDForward", "StationaryQDTransition"]

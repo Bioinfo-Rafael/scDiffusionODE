@@ -182,11 +182,19 @@ def build_forward_process(
         grn_penalty_norm=str(config.get("grn_penalty_norm", "l1")),
     )
     if family == "stationary_qd":
+        if "aux_dim" not in config:
+            raise ValueError(
+                "Model A requires aux_dim for auxiliary_shared_subspace; "
+                "old dense Model A checkpoints cannot resume: start a new run"
+            )
         return StationaryQDForward(
             dim,
-            d_parameterization=str(config.get("d_parameterization", "psd")),
-            d_diagonal_floor=float(config.get("d_diagonal_floor", 0.0)),
-            initial_d_diagonal=float(config.get("initial_d_diagonal", 0.5)),
+            aux_dim=config["aux_dim"],
+            model_a_parameterization=str(config.get("model_a_parameterization", "auxiliary_shared_subspace")),
+            learn_isotropic_d=_bool(config.get("learn_isotropic_d", True)),
+            isotropic_d_init=float(config.get("isotropic_d_init", 0.5)),
+            isotropic_d_floor=float(config.get("isotropic_d_floor", 1e-6)),
+            auxiliary_b_init_scale=float(config.get("auxiliary_b_init_scale", 0.0)),
             covariance_jitter=float(config.get("covariance_jitter", 0.0)),
             **common_grn,
             device=device,

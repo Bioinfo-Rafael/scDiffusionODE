@@ -1,6 +1,6 @@
-# Dense learnable forward diffusion
+# Learnable forward diffusion: auxiliary stationary Q/D and dense free affine
 
-This work directory contains an end-to-end experiment for learning a dense
+This work directory contains an end-to-end experiment for learning a
 linear forward diffusion together with the existing cell denoiser, sampling
 it with its own reverse SDE, and running read-only post-hoc analyses.  It is
 isolated from `guided_diffusion/`: no file outside this directory is modified.
@@ -11,7 +11,7 @@ Two forward processes are implemented:
 
   \[
   d y_s=-(Q+D)y_s\,ds+\sqrt{2D}\,dB_s,
-  \qquad Q^\top=-Q,\quad D\succeq0.
+  \qquad Q^\top=-Q,\quad D\succ0.
   \]
 
 - **Model B (free affine)**
@@ -21,10 +21,12 @@ Two forward processes are implemented:
   \qquad W\in\mathbb R^{d\times d},\quad b\in\mathbb R^d.
   \]
 
-All matrices are dense.  This experiment contains no low-rank factorization,
-learned subspace, projection matrix, or `r64` fallback.  If the dense
-\(d=1024\) implementation is not practical, the benchmark reports that result;
-it does not silently replace the requested model by an approximation.
+**Model A has been reparameterized:** the original dense gene-space Q/D is
+replaced by stationary Q/D mediated by a shared learned K-dimensional
+auxiliary space. This defines a new model, with exact subspace calculations;
+it is not a numerical approximation to a separately learned dense model.
+Model B retains its original dense parameters, objectives, GRN semantics,
+sampling and checkpoint format.
 
 The default objective is named `paper_elbo`.  Precisely, it is **Equation (7)
 truncated to \([\delta,T]\), made into a valid data ELBO by the Appendix I /
@@ -70,7 +72,7 @@ part of the loss outside DDP.
 
 | Path | Responsibility |
 | --- | --- |
-| `diffusion/stationary_qd.py` | Dense Model A parameterization, exact transition, sampling, and GRN hook |
+| `diffusion/stationary_qd.py` | Auxiliary Model A, exact reduced transitions/objectives/sampling, explicit GRN materialization |
 | `diffusion/free_affine.py` | Dense Model B parameterization and augmented Van Loan transition |
 | `diffusion/grn.py` | Common target/source mask and off-mask penalty semantics for Model A/B |
 | `diffusion/objectives.py` | Score/noise transforms, weighted quadratic, endpoint KL, and Appendix-I likelihood |
@@ -84,9 +86,9 @@ part of the loss outside DDP.
 | `scripts/train.py`, `launch.py` | One-run and two-model training entrypoints using the unchanged core `TrainLoop` contract |
 | `scripts/sample.py`, `analyze.py` | Standalone sampling and read-only analysis entrypoints |
 | `scripts/run_full_pipeline.py` | Resumable Model A/B training -> sampling -> analysis orchestration |
-| `scripts/benchmark_dense.py` | Opt-in exact dense forward/backward benchmark; no fallback |
+| `scripts/benchmark_dense.py` | Exact auxiliary-A / dense-B forward/backward benchmark; configurable K |
 | `scripts/verify_protected.py` | Read-only hash check for the seven protected core files |
-| `configs/` | Shared training defaults and one dense config per model |
+| `configs/` | Shared training defaults and one config per model |
 | `tests/` | Mathematical, gradient, transition, sampling, provenance, analysis, pipeline, and core training-state tests |
 
 ## Notation
@@ -329,218 +331,206 @@ Cholesky factors are used in place of explicit inverses.  The boundary NLL is
 part of `paper_elbo`; omitting it turns a truncated latent bound into an
 objective that is no longer a valid data ELBO.
 
-## Model A: stationary dense Q/D
+## Model A: exact auxiliary stationary Q/D
 
-### Exact parameterization
+### Parameters and interactions
 
-The skew matrix is represented without redundant diagonal or symmetric
-parameters.  A packed strict-upper-triangle raw vector defines \(U\), and
-
-\[
-Q=U-U^\top.
-\]
-
-Therefore \(Q^\top=-Q\) by construction.
-
-The paper-faithful default for the dissipative matrix is
+`model_a_parameterization="auxiliary_shared_subspace"` stores only
+\(E\in\mathbb R^{d\times K}\), \(R_Q,B\in\mathbb R^{K\times K}\), and a scalar
+\(\rho\). Thin QR builds \(Z=\operatorname{qr}(E)\), with \(Z^\top Z=I_K\).
+`aux_dim` must satisfy `1 <= K < d` to prohibit gene-space decompositions.
+It is configurable (the supplied experiment chooses 64); there is no
+hard-coded gene dimension or auxiliary dimension in the model. Every entry
+of Z may be nonzero. No GRN mask is applied to E or Z.
 
 \[
-\boxed{D=CC^\top\succeq0.}
+Q_K=R_Q-R_Q^\top,\qquad Q=ZQ_KZ^\top,
+\]
+\[
+\sigma^2=\texttt{isotropic_d_floor}+\operatorname{softplus}(\rho)>0,
+\qquad D=\sigma^2I_d+ZBB^\top Z^\top.
 \]
 
-`C` is a dense-capacity triangular factor whose entries, including its
-diagonal, are unconstrained in the default mode.  There is **no** default
-softplus diagonal and no default \(d_{\min}\).  Consequently the constraint is
-PSD, not SPD, exactly as in the paper's parameterization.
+The positive floor belongs to the **declared diffusion D**, not a hidden
+covariance jitter. This same D is used by the stationary equation, ELBO and
+reverse sampler. `learn_isotropic_d=false` fixes the positive scalar.
 
-An explicitly selected numerical-stability option may instead set
+There are **no directly parameterized gene-to-gene interactions**. Write
+\(z_i=Z_{i,:}^\top\) and \(h_i=B^\top z_i\). For \(i\ne j\),
 
 \[
-C_{ii}=\operatorname{softplus}(\rho_i)+d_{\min},
-\qquad d_{\min}>0,
+D_{ij}=z_i^\top BB^\top z_j=h_i^\top h_j,
+\qquad Q_{ij}=z_i^\top Q_Kz_j,
+\]
+\[
+A_{ij}=(Q+D)_{ij}=z_i^\top Q_Kz_j+h_i^\top h_j.
 \]
 
-which makes \(D\succ0\).  This option must be recorded in the config and run
-metadata and must not be described as the paper-faithful default.  With the PSD
-default, a singular \(D\) can still produce a positive-definite finite-time
-transition covariance when \((Q,D)\) is controllable.  If it does not, the
-Cholesky/score calculation reports the failure rather than silently changing
-the model.
+D interactions are ordinary inner products of the auxiliary vectors h;
+Q interactions are **skew-symmetric bilinear forms**, not Euclidean inner
+products. In the code, an entry `[i,j]` means `[target i, source j]`, i.e. a
+coefficient in the matrix acting on a state column. The forward drift uses
+\(-A\), so its directed coefficient has the opposite sign to A.
 
-### Transition and stationarity
-
-Let
+Q is skew and D is strictly positive definite. Thus, with \(F=-(Q+D)\) and
+\(a=2D\),
 
 \[
-A=-(Q+D),\qquad \Phi_s=e^{sA}=e^{-s(Q+D)}.
+F+F^\top+a=0,
 \]
 
-Then
+so \(N(0,I_d)\) is stationary. Tests check the Lyapunov residual directly.
+
+### Exact transitions, sampling and scores
+
+Let \(D_K=\sigma^2I_K+BB^\top\), \(A_K=Q_K+D_K\),
+\(\Phi_K(s)=\exp(-sA_K)\), and \(c_s=e^{-\sigma^2s}\).
+For column-vector notation, split any x into
+\(x_K=Z^\top x\), \(x_\perp=x-Zx_K\). Then
 
 \[
-m_s=\Phi_sx.
+m_s=c_sx_\perp+Z\Phi_K(s)x_K,
+\]
+\[
+v_s=1-e^{-2\sigma^2s},\qquad
+\Sigma_K=I_K-\Phi_K\Phi_K^\top,\qquad L_K=\operatorname{chol}(\Sigma_K).
 \]
 
-Since
+The conceptual full covariance is
+\(\Sigma_s=v_s(I-ZZ^\top)+Z\Sigma_KZ^\top\). Neither it nor the full
+projection, transition, Q or D is constructed for transition/score/ELBO
+calculations. `StationaryQDTransition` explicitly exposes `phi_k`,
+`covariance_k`, `cholesky_k`, and scalar complement quantities.
+
+For \(\epsilon\sim N(0,I_d)\),
 
 \[
-A+A^\top+2D
-=-(Q+D)-(-Q+D)+2D=0,
+y_s=m_s+\sqrt{v_s}\epsilon_\perp+ZL_K\epsilon_K,
+\]
+\[
+s_\theta=-r_\perp/\sqrt{v_s}-ZL_K^{-\top}r_K,
+\qquad r=\epsilon_\theta.
 \]
 
-the covariance \(I\) solves the stationary Lyapunov equation.  Starting from a
-deterministic \(x\), the exact transition covariance is
+Applying the same score map to the sampled epsilon gives the true conditional
+score. The conceptual root
+\(S_s=\sqrt{v_s}(I-ZZ^\top)+ZL_KZ^\top\) is generally **not triangular**.
+The generic Gaussian equations elsewhere in this README use L as a
+covariance root; for Model A substitute S. A dense Cholesky would define a
+different epsilon coordinate and must not be substituted for the prescribed
+root in pathwise value/gradient comparisons.
+
+Rows are implemented as `x_K = x @ Z`, `x_perp = x - x_K @ Z.T`,
+`mean = c_s*x_perp + (x_K @ Phi_K.T) @ Z.T`. Sampling uses
+`(epsilon_K @ L_K.T) @ Z.T`; the score solves
+`L_K.T @ u_K.T = r_K.T`. No full inverse or full Cholesky is used.
+
+### Exact paper ELBO and Appendix-I decoder
+
+For prediction residual \(r=\epsilon_\theta-\epsilon\), let
+\(u_K=L_K^{-\top}r_K\). The score mismatch is implemented directly as
 
 \[
-\boxed{\Sigma_s=I-\Phi_s\Phi_s^\top.}
-\tag{7}
+\frac12\|s_\theta-s_\phi\|_a^2
+=\frac{\sigma^2}{v_s}\|r_\perp\|^2+u_K^\top D_Ku_K.
 \]
 
-This also proves that \(N(0,I)\) is invariant.  Invariance alone does not imply
-that \(q(y_T\mid x)=N(0,I)\) at finite \(T\), so the terminal KL in (5) remains
-necessary.
-
-At the first 1000-step diffusion index, \(s\) is approximately \(10^{-4}\).
-For a dense 1024-dimensional float32 product, directly subtracting the two
-near-identity matrices in (7) can lose positive definiteness through roundoff,
-even while \(D\) is well-conditioned and the mathematical covariance is SPD.
-This is cancellation in the evaluation formula, not a violation of the Model A
-parameterization.
-
-The implementation therefore evaluates the same covariance from its exact
-convergent integral series whenever
-\(s\leq 8d\,\epsilon_{\mathrm{dtype}}\):
+Terminal KL uses
 
 \[
-\begin{aligned}
-\Sigma_s
- &=\int_0^s e^{uF}(2D)e^{uF^\top}\,du
-   =\sum_{n=0}^{\infty}\frac{s^{n+1}}{(n+1)!}K_n,\\
-K_0&=2D,\\
-K_{n+1}&=FK_n+K_nF^\top,
-\qquad F=-(Q+D).
-\end{aligned}
-\tag{7a}
+\operatorname{tr}\Sigma_T=(d-K)v_T+\operatorname{tr}\Sigma_K(T),
+\quad \log\det\Sigma_T=(d-K)\log v_T+2\sum_i\log(L_K(T))_{ii},
 \]
 
-Terms are accumulated with
+and \(\|m_T\|^2=\|m_{T,\perp}\|^2+\|m_{T,K}\|^2\).
+
+The Appendix-I decoder still has
+\(\mu=\Phi_\delta^{-1}(y_\delta+\Sigma_\delta s_\theta)\),
+\(C_{\rm dec}=\Phi_\delta^{-1}\Sigma_\delta\Phi_\delta^{-\top}\).
+Its complement root is \(\sqrt{v_\delta}/c_\delta\), and its auxiliary root is
+\(\Phi_K^{-1}L_K\). Sampling applies a scalar inverse and a K-space solve.
+For training, the equivalent whitened residual is evaluated without an
+explicit transition inverse:
 
 \[
-P_0=s(2D),\qquad
-P_{n+1}=\frac{s}{n+2}(FP_n+P_nF^\top),
-\qquad \Sigma_s=\sum_nP_n,
-\tag{7b}
+w_\perp=(c_\delta x_\perp-y_\perp-v_\delta s_{\theta,\perp})/\sqrt{v_\delta},
+\]
+\[
+w_K=L_K^{-1}(\Phi_Kx_K-y_K-\Sigma_Ks_{\theta,K}).
 \]
 
-until an entrywise-max-norm tail bound is below dtype rounding scale.  Failure to
-converge is explicit.  This changes only the numerical evaluation of the exact
-SDE covariance: it adds no jitter, eigenvalue clipping, diagonal floor,
-low-rank approximation, or hidden SPD parameterization.  Value and gradient
-equivalence with (7), plus a perturbed dense \(d=1024\) float32 boundary
-Cholesky, are regression-tested.
+The decoder log determinant is
+\(\log\det C_{\rm dec}=\log\det\Sigma_\delta
++2\delta[(d-K)\sigma^2+\operatorname{tr}D_K]\).
+NLL is \(\tfrac12(\|w_\perp\|^2+\|w_K\|^2+
+\log\det C_{\rm dec}+d\log(2\pi))\).
+This preserves the complete boundary + terminal + duration-weighted DSM
+objective and the existing per-dimension normalization.
 
-### Model A loss
+### Effective GRN constraint and analysis
 
-Here
+Only when computing the GRN penalty or explicit analysis do we materialize
 
 \[
-a_s=2D,
-\qquad \nabla_y\!\cdot f=-\operatorname{tr}D,
+A_{\rm interaction}=Z(Q_K+BB^\top)Z^\top,\qquad
+R_{\rm GRN}=\operatorname{mean}|(1-M_{\rm eff})\odot A_{\rm interaction}|.
 \]
 
-because \(\operatorname{tr}Q=0\).  Define
+The diagonal is always exempt for Model A. The `[target, source]` orientation,
+full-matrix mean denominator, `grn_penalty_norm` (default L1; optional L2), and
+`grn_penalty_weight` semantics remain unchanged. With weight 5 the external
+regularizer remains `5 * R_GRN`, outside the dimension-normalized ELBO.
 
-\[
-H_s=L_s^{-1}DL_s^{-\top}.
-\]
+Parameter analysis saves per-checkpoint NPZ arrays containing Z, Q_K, B,
+sigma², H=ZB, effective Q/D/A/F, and on/off-mask A. It also produces evolution
+histograms for Z, Q_K, B, sigma² and effective interactions. Hence individual
+interactions can be reconstructed as `Z[i] @ Q_K @ Z[j] + H[i] @ H[j]`.
 
-The direct-form path loss in (1), after analytically averaging the forward
-score norm over \(\xi\), is
+### Initialization and checkpoint provenance
 
-\[
-r_s^\top H_sr_s
--\operatorname{tr}H_s
-+\operatorname{tr}D.
-\tag{8}
-\]
+`auxiliary_b_init_scale=0`, `isotropic_d_init=0.5` initializes
+\(Q_K=B=0,\sigma^2=1/2\), exactly recovering the standard VP transition at
+\(s_t=-\log\bar\alpha_t\), independently of Z:
+\(m_t=\sqrt{\bar\alpha_t}x\), \(\Sigma_t=(1-\bar\alpha_t)I\).
 
-After the exact entropy cancellation, the compact path term in (5) is simply
+**At B=0, gradients through BBᵀ to B are identically zero.** Gradient descent
+cannot move B away from that initialization. For learnable anisotropic D,
+the supplied experiment therefore uses `auxiliary_b_init_scale=0.01`, meaning
+`B=0.01 I_K`; this is explicitly not the exact VP starting point. Override it
+with zero when testing or deliberately choosing the VP limit. Q_K starts at
+zero in both cases.
 
-\[
-\boxed{r_s^\top H_sr_s.}
-\tag{9}
-\]
+Model A uses schema version 2 and parameterization
+`auxiliary_shared_subspace`. Run configuration/provenance, initial-state
+provenance, and raw/EMA state-dict `_metadata["forward_process"]` record the
+schema, parameterization name and K. Persistent schema/parameterization-code/K
+buffers validate loads even when a caller strips state-dict metadata or uses
+`strict=False`; the positive floor is persisted and checked as well.
+Old dense Model A checkpoints fail explicitly. **Do not resume the old dense
+step-5000 checkpoint. Start a new `model_a_stationary_qd_aux` run.** Model B
+checkpoint compatibility is unchanged.
 
-It is evaluated without constructing \(H_s\):
+### Complexity and numerical evaluation
 
-\[
-z_s=L_s^{-\top}r_s,
-\qquad r_s^\top H_sr_s=z_s^\top Dz_s=\lVert C^\top z_s\rVert^2.
-\]
+Old Model A performed gene-space matrix exponentials, covariances and
+Cholesky factorizations, roughly O(d³) time and O(d²) storage per transition.
+The new Model A uses thin QR O(dK²), K-space linear algebra O(K³), and
+batch projections O(n dK + n K²) for batch size n. Thus the actual cost is
+O(dK² + K³ + n dK + n K²), with O(dK + K² + nd) transition storage.
+QR is currently recomputed for path, boundary, terminal and GRN calls; these
+are constant factors, not additional powers of d. A GRN step explicitly
+materializes A_interaction at O(dK² + d²K) cost and O(d²) memory. The denoiser
+has its own costs; reducing the forward process does not reduce those costs.
 
-### GRN regularization
-
-For a drift matrix acting as \(Ay\), rows are targets and columns are sources.
-The repository's legacy mask is loaded as `[source, target]` and transposed
-exactly once to `[target, source]`, matching the recent work experiments.
-
-Let
-
-\[
-M_{\mathrm{effective}}=M_{\mathrm{GRN}}\lor I
-\]
-
-so that required diagonal damping is not treated as an off-mask edge.  The
-default L1 regularizer is
-
-\[
-R_{\mathrm{GRN}}
-=\operatorname{mean}
-\left|(1-M_{\mathrm{effective}})\odot(Q+D)\right|.
-\tag{10}
-\]
-
-This acts on the composed drift matrix, not on the raw factors.  It is an
-experiment-specific prior and is not part of the paper ELBO.  With a nonzero
-coefficient the total loss is therefore accurately described as
-
-\[
-\mathcal J_{A,\mathrm{total}}
-=\mathcal J_{\mathrm{paper\_elbo}}
-+\lambda_{\mathrm{GRN}}R_{\mathrm{GRN}}.
-\]
-
-### Standard-diffusion initialization
-
-Use the existing beta schedule only to define a physical-time grid
-
-\[
-s_t=-\log\bar\alpha_t.
-\]
-
-Initializing
-
-\[
-Q=0,
-\qquad C=\frac1{\sqrt2}I,
-\qquad D=\frac12I
-\]
-
-gives
-
-\[
-\Phi_s=e^{-s/2}I,
-\qquad \Sigma_s=(1-e^{-s})I.
-\]
-
-At \(s_t=-\log\bar\alpha_t\), this is exactly
-
-\[
-m_t=\sqrt{\bar\alpha_t}x,
-\qquad \Sigma_t=(1-\bar\alpha_t)I,
-\]
-
-the standard VP forward transition.
+The complement variance is evaluated as `-expm1(-2*sigma²*s)` to retain small
+positive variances. At `s <= 8*K*dtype_epsilon`, the K-space covariance uses
+the convergent covariance-integral Taylor recurrence evaluated to floating
+point rounding precision, avoiding cancellation in `I_K - Phi_K @ Phi_K.T`.
+This evaluates the same declared covariance; no jitter, clipping, omitted
+subspace or approximate model is introduced. Cholesky is only over Sigma_K.
+A failed factorization raises with minimum eigenvalue, condition number,
+sigma² and physical time. Positive-time scores are required; time zero is
+allowed only when `compute_cholesky=False`.
 
 ## Model B: free dense affine diffusion
 
@@ -779,7 +769,7 @@ still missing.
 
 | model | exact paper-derived loss (`paper_elbo`) | additional regularization | difference from plain epsilon MSE |
 | --- | --- | --- | --- |
-| Model A: stationary Q/D | Appendix-I boundary NLL + terminal `KL(q_phi(y_T\|x) \| N(0,I))` + `integral r_s^T L_s^{-1} D L_s^{-T} r_s ds` | Off-mask penalty on `Q+D`; external to the ELBO | Full matrix weighting through both `D` and `Sigma_s`, plus boundary and terminal terms |
+| Model A: stationary Q/D | Appendix-I boundary NLL + terminal `KL(q_phi(y_T\|x) \| N(0,I))` + `integral r_s^T L_s^{-1} D L_s^{-T} r_s ds` | Off-mask penalty on `Q+D`; external to the ELBO | Exact K-space weighting and scalar complement, plus reduced boundary and terminal terms |
 | Model B: free affine | Appendix-I boundary NLL + terminal `KL(q_phi(y_T\|x) \| N(0,I))` + `1/2 integral r_s^T L_s^{-1}L_s^{-T}r_s ds` | Off-mask penalty on `W`; external to the ELBO and matched to Model A | Full Cholesky-coordinate metric `L_s^{-1}L_s^{-T}` (generally not `Sigma_s^{-1}`), plus boundary and terminal terms |
 
 Only the `paper_elbo` column is the paper-derived objective: Equation (7)
@@ -815,7 +805,7 @@ For Model A,
 \[
 f_A(z)=-(Q+D)z,
 \quad a_A=2D,
-\quad G_A=\sqrt2C,
+\quad G_A G_A^\top=2D,
 \]
 
 so the reverse drift is
@@ -864,9 +854,10 @@ z_{i-1}=z_i+
 \tag{22}
 \]
 
-This sign and covariance convention is covered by unit tests.  Model A uses
-the actual learned factor \(\sqrt2C\), including its sign and triangular
-orientation; no new Cholesky of \(2D\) changes the declared diffusion factor.
+This sign and covariance convention is covered by unit tests. Model A applies
+the complement factor \(\sqrt{2\sigma^2}\) and a K-space symmetric square
+root of \(2D_K\), computed from an SVD of B during no-grad sampling. Its
+covariance is exactly the declared \(2D\); no gene-space factor is formed.
 
 The reverse integration stops at \(s=\delta\), not at the data directly.  Its
 last operation is the same Appendix-I decoder (6) used in `paper_elbo`:
@@ -915,7 +906,7 @@ combined with 5--10 automatically selected chronological **raw** checkpoints;
 EMA files are not used.  Histograms follow the legacy layout of parameter
 type by row, training stage by column, 60 bins, and mean/std annotations.
 
-Model A reconstructs \(Q,D,A=Q+D,F=-A\), separates known/unknown GRN entries,
+Model A reconstructs Z, Q_K, B, sigma² and \(Q,D,A=Q+D,F=-A\), separates known/unknown GRN entries,
 and records skew-symmetry, minimum-\(D\)-eigenvalue, and stationarity
 residuals.  Model B reconstructs \(W,b\) and reports all/diagonal/off-diagonal
 and exact-mask known/unknown values.  CSV summaries include count, mean, std,
@@ -991,24 +982,12 @@ and never overwrites a completed sample archive.
 
 ## Numerical policy
 
-For a batch-shared time the dense transition matrices are shared across the
-batch, but their construction remains cubic in gene dimension.
-
-- Model A requires a \(d\times d\) matrix exponential, dense products, and a
-  \(d\times d\) Cholesky.
-- Model B requires a \((2d+1)\times(2d+1)\) augmented exponential; for
-  \(d=1024\), this is a \(2049\times2049\) matrix, plus covariance and
-  Cholesky operations.
-- Boundary \(\delta\), sampled \(s\), and terminal \(T\) statistics are reused
-  within a forward but may each require a separate exponential.
-
-At \(d=1024\), one dense \(d\times d\) value occupies about 4 MiB in float32
-or 8 MiB in float64.  Model B's single \(2049\times2049\) augmented value is
-about 16 MiB or 32 MiB respectively.  These are only primal-tensor lower
-bounds: three endpoint/path graphs, Padé/scaling-and-squaring intermediates,
-Cholesky factors, and matrix-exponential backward require multiple additional
-dense buffers.  Runtime remains \(O(d^3)\); sharing a timestep removes a batch
-factor from the matrix decompositions but does not change that cubic scaling.
+For a batch-shared time, one transition is shared across the batch. Model A
+uses K-space matrices plus d×K projections as detailed above. Model B still
+uses a \((2d+1)\times(2d+1)\) augmented exponential, full covariance and full
+Cholesky. At d=1024 its augmented matrix is 2049×2049. Model B remains O(d³)
+with O(d²) primal storage and additional autograd intermediates. Boundary,
+path and terminal statistics each require a separate exponential.
 
 Correctness tests use float64.  The \(d=1024\) benchmark measures float32 and
 float64 where supported.  FP16 is disabled for these matrix operations.
@@ -1036,9 +1015,8 @@ Every covariance is symmetrized as
 \]
 
 before `torch.linalg.cholesky_ex`.  The returned `info` is checked.  The default
-does not silently clip eigenvalues or add jitter.  A configured jitter or the
-Model A SPD option is a numerical-stability intervention and must be reported
-as such.  Free-\(W\) overflow, a failed factorization, OOM, or non-finite
+does not silently clip eigenvalues or add jitter.  Model A rejects covariance jitter; its positive isotropic floor is an explicit
+part of D. Model B retains its existing explicit jitter option and semantics.  Free-\(W\) overflow, a failed factorization, OOM, or non-finite
 gradient fails with diagnostics rather than activating an approximation.
 
 ## Tests
@@ -1050,10 +1028,10 @@ The test suite covers:
 2. samplewise equality of score-space and noise-space matrix-weighted losses;
 3. value and parameter-gradient equality between the **valid direct form (1),
    including `-log p + log q` boundary correction**, and compact form (5);
-4. finite gradients to raw \(Q,C,W,b\);
-5. exact skew symmetry of \(Q\) and PSD of the paper-default \(D=CC^\top\);
+4. finite gradients to Model A E, R_Q, B, rho and Model B W, b;
+5. orthonormal Z, skew Q, strictly positive D and the auxiliary interaction identities;
 6. Model A stationarity and covariance identities, exact integral-series
-   value/gradient equivalence, and the dense 1024-dimensional float32
+   value/gradient equivalence, and the reduced 1024-dimensional float32
    lower-boundary cancellation regression;
 7. Model B affine transition and analytic terminal KL;
 8. GRN mask orientation and diagonal exemption;
@@ -1072,7 +1050,11 @@ The test suite covers:
     metric family, loss rolling/fraction calculations, and the historical
     hematopoietic selection; and
 15. full-pipeline dry-run plus training run/resume/skip decisions, while also
-    confirming that no subspace/low-rank model is present.
+    checking the selected Model A auxiliary and Model B dense configurations.
+16. small-dimensional dense-reference values and gradients for transition, covariance,
+    sampling, scores, DSM, terminal KL and boundary NLL;
+17. no gene-space matrix decomposition/materialization in the production Model A
+    ELBO/reverse path (GRN disabled), and explicit old-checkpoint rejection.
 
 The equivalence in item 3 is expectation-level.  Its small-dimensional float64
 test evaluates Gaussian expectations and a high-accuracy time quadrature; it
@@ -1097,7 +1079,7 @@ time, peak device memory, Cholesky status, loss finiteness, and gradient
 finiteness for both models.  Failure at \(d=1024\) is a valid benchmark result,
 not permission to introduce low-rank or subspace approximations.
 
-### Measured dense 1024-dimensional result
+### Historical dense 1024-dimensional result (before Model A replacement)
 
 On 2026-09-04, the exact benchmark was run at the standard-VP initialization
 on CPU with PyTorch 2.5.1, four PyTorch threads, batch size 4, one warm-up, and
@@ -1108,8 +1090,8 @@ forward-process/objective costs rather than end-to-end `Cell_Unet` throughput.
 
 | model | dtype | transition stats median | full `paper_elbo` forward median | backward median | result |
 | --- | ---: | ---: | ---: | ---: | --- |
-| Model A | float32 | 0.0255 s | 0.0838 s | 0.3499 s | 3/3 finite, Cholesky succeeded |
-| Model A | float64 | 0.0710 s | 0.2047 s | 1.2517 s | 3/3 finite, Cholesky succeeded |
+| Old dense Model A | float32 | 0.0255 s | 0.0838 s | 0.3499 s | 3/3 finite, Cholesky succeeded |
+| Old dense Model A | float64 | 0.0710 s | 0.2047 s | 1.2517 s | 3/3 finite, Cholesky succeeded |
 | Model B | float32 | 0.1151 s | 0.2978 s | 2.4763 s | 3/3 finite, Cholesky succeeded |
 | Model B | float64 | 0.3944 s | 1.0223 s | 10.3652 s | 3/3 finite, Cholesky succeeded |
 
@@ -1121,6 +1103,28 @@ target CUDA host before choosing a training budget.  This CPU run did not
 provide a reliable phase-local peak-RSS counter; the benchmark reports CUDA
 peak allocation when run on CUDA, while the dense-buffer sizes above give only
 the CPU memory floor.
+
+### Auxiliary Model A comparison (2026-09-05)
+
+Matched CPU benchmarks use d=1024, batch size 4, four threads, one warmup,
+and three measured repetitions at the exact VP initialization (B=0). The
+minimal dense linear denoiser and disabled GRN match the old dense benchmark.
+Medians are:
+
+| Model | dtype | Transition (ms) | Full ELBO forward (ms) | Backward (ms) |
+| --- | --- | ---: | ---: | ---: |
+| Old dense A | float32 | 27.591 | 84.959 | 288.057 |
+| Old dense A | float64 | 69.177 | 201.222 | 1220.891 |
+| Auxiliary A (K=64) | float32 | 1.312 | 5.052 | 5.335 |
+| Auxiliary A (K=64) | float64 | 1.776 | 6.594 | 7.760 |
+
+Both dtypes had 3/3 successful trials with finite losses and gradients.
+K=64 was supplied via `--aux-dim`; it is not hard-coded in the model. This is
+a comparison of two parameterizations at their shared initialization, not a
+claim that auxiliary Model A can represent every old dense model. These are
+CPU microbenchmarks, not a full-data/CUDA training throughput guarantee.
+Full JSON results, the Model B regression and the complete changed-file list
+are in [validation/README.md](validation/README.md).
 
 ## Commands
 
@@ -1134,6 +1138,16 @@ conda run -n scdiffusion python -m unittest discover \
 # Confirm that no protected guided_diffusion file changed.
 conda run -n scdiffusion python \
   work/20260903_learnable_forward/scripts/verify_protected.py
+
+# Start only the new Model A, using repository-local data and GRN paths.
+# No --resume: the old dense step-5000 checkpoint is incompatible.
+conda run -n scdiffusion python \
+  work/20260903_learnable_forward/scripts/train.py \
+  --config model_a_stationary_qd_aux \
+  --batch-id "aux-$(date +%Y%m%d-%H%M%S)" \
+  --set aux_dim=64 \
+  --set data_dir=work/20260215_embryonic/data/Embryonic.h5ad \
+  --set edge_tsv_path=external_data/tf_target_edges.tsv
 
 # Inspect the complete two-model execution plan without writing a run.
 conda run -n scdiffusion python \
@@ -1160,26 +1174,25 @@ conda run -n scdiffusion python \
 # Standalone sample or analysis of an existing run.
 conda run -n scdiffusion python \
   work/20260903_learnable_forward/scripts/sample.py \
-  --run-dir work/20260903_learnable_forward/runs/model_a_stationary_qd_dense/RUN_ID \
+  --run-dir work/20260903_learnable_forward/runs/model_a_stationary_qd_aux/RUN_ID \
   --device cuda
 conda run -n scdiffusion python \
   work/20260903_learnable_forward/scripts/analyze.py \
-  --run-dir work/20260903_learnable_forward/runs/model_a_stationary_qd_dense/RUN_ID \
+  --run-dir work/20260903_learnable_forward/runs/model_a_stationary_qd_aux/RUN_ID \
   --stage all --device cuda
 
-# Reproduce the dense benchmark. Output files are ignored runtime artifacts.
+# Benchmark auxiliary Model A and dense Model B.
 conda run -n scdiffusion python \
   work/20260903_learnable_forward/scripts/benchmark_dense.py \
-  --dim 1024 --batch-size 4 --models all \
+  --dim 1024 --aux-dim 64 --batch-size 4 --models all \
   --dtypes float32,float64 --device cpu --num-threads 4 \
   --warmup 1 --repeats 3 \
   --output work/20260903_learnable_forward/benchmark_results/d1024.json
 ```
 
 Training outputs are constrained to this suite's `runs/<experiment>/<run-id>/`
-tree.  The two provided configs are dense-only and default to `paper_elbo`.
-The Model A config uses `d_parameterization="psd"`, zero diagonal floor, and
-zero covariance jitter.  Both configs use the same target/source GRN prior and
+tree. Both configs default to `paper_elbo`. Model A uses the explicit positive
+isotropic floor with zero covariance jitter and a small nonzero B initialization.  Both configs use the same target/source GRN prior and
 default weight 5.0.  Generation uses only the custom sampler described above;
 the repository's `q_posterior_mean_variance`, `_predict_xstart_from_eps`,
 `p_mean_variance`, `p_sample_loop`, and DDIM paths remain outside this

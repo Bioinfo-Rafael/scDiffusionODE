@@ -71,13 +71,13 @@ class PosthocPipelineTests(unittest.TestCase):
             dtype=torch.float64,
         )
         model_a = StationaryQDForward(
-            3, grn_mask_target_source=mask, dtype=torch.float64
+            3, aux_dim=2, grn_mask_target_source=mask, dtype=torch.float64
         )
         model_b = FreeAffineForward(
             3, grn_mask_target_source=mask, dtype=torch.float64
         )
         with torch.no_grad():
-            model_a.raw_q_upper.copy_(torch.tensor([0.1, -0.2, 0.3]))
+            model_a.raw_q_k.copy_(torch.tensor([[0., .1], [-.2, 0.]]))
             model_b.raw_w.copy_(torch.arange(9, dtype=torch.float64).reshape(3, 3) / 20)
             model_b.raw_b.copy_(torch.tensor([0.1, -0.1, 0.2]))
 

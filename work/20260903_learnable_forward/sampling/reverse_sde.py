@@ -7,6 +7,7 @@ from typing import Mapping, Optional
 
 import torch
 
+from diffusion.stationary_qd import StationaryQDForward
 from diffusion.objectives import boundary_gaussian_parameters, score_from_noise
 
 
@@ -40,6 +41,8 @@ def reverse_drift(process, states: torch.Tensor, score: torch.Tensor) -> torch.T
 
     if states.shape != score.shape:
         raise ValueError("states and score must have identical shapes")
+    if isinstance(process, StationaryQDForward):
+        return process.apply_diffusion_covariance(score) - process.drift(states)
     diffusion_covariance = process.diffusion_covariance()
     score_term = score @ diffusion_covariance.transpose(-1, -2)
     return score_term - process.drift(states)
@@ -101,6 +104,14 @@ def boundary_decode(
     epsilon_prediction = model.predict_noise(
         boundary_states, timesteps, model_kwargs
     )
+    if isinstance(process, StationaryQDForward):
+        model_score = process.conditional_score(stats, epsilon_prediction)
+        decoder_mean = process.boundary_mean(stats, boundary_states, model_score)
+        if mode == "mean":
+            return decoder_mean
+        noise = _cpu_noise(tuple(decoder_mean.shape), generator=generator,
+                           device=decoder_mean.device, dtype=decoder_mean.dtype)
+        return decoder_mean + process.boundary_noise(stats, noise)
     model_score = score_from_noise(stats.cholesky, epsilon_prediction)
     decoder_mean, decoder_root = boundary_gaussian_parameters(
         y_boundary=boundary_states,
@@ -170,7 +181,9 @@ def sample_reverse_sde(
             epsilon_prediction = model.predict_noise(
                 state, timesteps, model_kwargs
             )
-            score = score_from_noise(stats.cholesky, epsilon_prediction)
+            score = (process.conditional_score(stats, epsilon_prediction)
+                     if isinstance(process, StationaryQDForward) else
+                     score_from_noise(stats.cholesky, epsilon_prediction))
             drift = reverse_drift(process, state, score)
             noise = _cpu_noise(
                 tuple(state.shape),
@@ -178,13 +191,17 @@ def sample_reverse_sde(
                 device=device,
                 dtype=dtype,
             )
-            state = euler_maruyama_step(
-                state,
-                drift,
-                process.diffusion_factor(),
-                delta_tau,
-                noise,
-            )
+            if isinstance(process, StationaryQDForward):
+                state = state + drift * delta_tau + process.diffusion_noise(noise) * delta_tau.sqrt()
+            else:
+                state = euler_maruyama_step(
+                    state,
+                    drift,
+                    process.diffusion_factor(),
+                    delta_tau,
+                    noise,
+                )
+
         boundary_states = state
         samples = boundary_decode(
             model,

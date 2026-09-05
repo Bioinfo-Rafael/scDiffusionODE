@@ -83,14 +83,14 @@ class ReverseSamplingTests(unittest.TestCase):
         states = torch.tensor([[0.7, -0.2]], dtype=self.dtype)
         score = torch.tensor([[0.3, 0.4]], dtype=self.dtype)
 
-        model_a = StationaryQDForward(2, dtype=self.dtype)
+        model_a = StationaryQDForward(2, aux_dim=1, dtype=self.dtype)
         expected_a = score @ (2.0 * model_a.d_matrix()).T
         expected_a = expected_a + states @ (
             model_a.q_matrix() + model_a.d_matrix()
         ).T
         torch.testing.assert_close(reverse_drift(model_a, states, score), expected_a)
         torch.testing.assert_close(
-            model_a.diffusion_factor() @ model_a.diffusion_factor().T,
+            model_a.diffusion_noise(torch.eye(2, dtype=self.dtype)).T @ model_a.diffusion_noise(torch.eye(2, dtype=self.dtype)),
             2.0 * model_a.d_matrix(),
         )
 
@@ -104,7 +104,7 @@ class ReverseSamplingTests(unittest.TestCase):
         )
 
     def test_standard_vp_initialization_limit_is_shared_by_both_models(self):
-        model_a = StationaryQDForward(2, dtype=self.dtype)
+        model_a = StationaryQDForward(2, aux_dim=1, dtype=self.dtype)
         model_b = FreeAffineForward(2, dtype=self.dtype)
         x = torch.tensor([[0.2, -0.4]], dtype=self.dtype)
         time = 0.63
@@ -112,7 +112,7 @@ class ReverseSamplingTests(unittest.TestCase):
         stats_b = model_b.transition_stats(x, time)
         torch.testing.assert_close(stats_a.mean, stats_b.mean, atol=1e-11, rtol=1e-11)
         torch.testing.assert_close(
-            stats_a.covariance, stats_b.covariance, atol=1e-11, rtol=1e-11
+            stats_a.materialize_for_analysis()["covariance"], stats_b.covariance, atol=1e-11, rtol=1e-11
         )
         torch.testing.assert_close(
             model_a.diffusion_covariance(), model_b.diffusion_covariance()

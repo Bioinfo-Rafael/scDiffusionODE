@@ -26,7 +26,7 @@ RUNS_ROOT = SUITE_ROOT / "runs"
 PROTECTED_MANIFEST = SUITE_ROOT / "protected_core_sha256.json"
 
 MODEL_CONFIGS = (
-    "model_a_stationary_qd_dense.json",
+    "model_a_stationary_qd_aux.json",
     "model_b_free_affine_dense.json",
 )
 MODEL_ORDER = ("stationary_qd", "free_affine")
@@ -196,6 +196,10 @@ def load_experiment_config(
         "experiment_config_path": str(override_path),
         "experiment_config_sha256": file_sha256(override_path),
     }
+    if merged.get("forward_model") == "stationary_qd":
+        provenance.update(model_schema_version=2,
+                          model_a_parameterization=merged["model_a_parameterization"],
+                          aux_dim=merged["aux_dim"])
     return merged, provenance
 
 
@@ -504,10 +508,11 @@ def model_metadata(model: Any, config: Mapping[str, Any]) -> dict[str, Any]:
         "standard_ddpm_sampler_supported": False,
     }
     if str(config["forward_model"]) == "stationary_qd":
+        metadata.update(process.provenance())
         metadata["stationary_covariance_evaluation"] = {
-            "default": "I - Phi Phi^T",
-            "cancellation_regime": "adaptive integral Taylor series",
-            "selection_rule": "physical_time <= 8 * dimension * dtype_epsilon",
+            "default": "K-space I - Phi_K Phi_K^T; complement -expm1(-2 sigma² s)",
+            "cancellation_regime": "K-space adaptive integral Taylor series",
+            "selection_rule": "physical_time <= 8 * aux_dim * dtype_epsilon",
             "changes_declared_sde": False,
             "adds_jitter_or_clipping": False,
         }

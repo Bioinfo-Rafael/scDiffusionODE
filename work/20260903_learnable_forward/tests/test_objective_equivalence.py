@@ -43,6 +43,20 @@ from diffusion.training_diffusion import (  # noqa: E402
 from models.wrapper import LearnableForwardModel  # noqa: E402
 
 
+
+def _dense_stats(process, x, time, *, prescribed_root=False):
+    stats = process.transition_stats(x, time)
+    if not isinstance(process, StationaryQDForward):
+        return stats
+    from types import SimpleNamespace
+    dense = stats.materialize_for_analysis()
+    return SimpleNamespace(
+        mean=stats.mean, covariance=dense["covariance"],
+        cholesky=dense["noise_root"] if prescribed_root else torch.linalg.cholesky(dense["covariance"]),
+        transition_matrix=dense["phi"], affine_shift=x.new_zeros(process.dim),
+        diffusion_covariance=process.diffusion_covariance(), drift_divergence=stats.drift_divergence)
+
+
 def _gauss_legendre_interval(
     lower: float,
     upper: float,
@@ -76,7 +90,7 @@ def _boundary_nll(
 ) -> tuple[torch.Tensor, object]:
     """Evaluate the actual Appendix-I decoder term on fixed MC noise."""
 
-    stats = process.transition_stats(x, boundary_time)
+    stats = _dense_stats(process, x, boundary_time)
     y_boundary = stats.mean + boundary_noise @ stats.cholesky.T
 
     # A deterministic nontrivial stand-in for a denoiser output.  The
@@ -125,7 +139,7 @@ def _quadrature_path_averages(
     )[: x.shape[0], : x.shape[1]]
 
     for time, integration_weight in zip(times, integration_weights):
-        stats = process.transition_stats(x, time)
+        stats = _dense_stats(process, x, time)
         # This is an arbitrary deterministic score error, shared by the direct
         # and compact forms.  Its dependence on the transition mean ensures
         # that the comparison includes pathwise forward-parameter gradients.
@@ -173,7 +187,7 @@ def _valid_direct_and_compact(process):
     boundary_nll, boundary_stats = _boundary_nll(
         process, x, delta, boundary_noise
     )
-    terminal_stats = process.transition_stats(x, terminal_time)
+    terminal_stats = _dense_stats(process, x, terminal_time)
     mismatch, forward_energy, drift_divergence = _quadrature_path_averages(
         process, x, delta, terminal_time
     )
@@ -241,14 +255,9 @@ def _audit_model(family: str):
 
     dim = 2
     if family == "stationary_qd":
-        process = StationaryQDForward(dim, dtype=torch.float64)
+        process = StationaryQDForward(dim, aux_dim=1, dtype=torch.float64)
         with torch.no_grad():
-            process.raw_q_upper.copy_(
-                torch.tensor([0.075], dtype=torch.float64)
-            )
-            process.raw_d_lower.copy_(
-                torch.tensor([0.73, 0.055, 0.68], dtype=torch.float64)
-            )
+            process.b.fill_(.23)
     elif family == "free_affine":
         process = FreeAffineForward(dim, dtype=torch.float64)
         with torch.no_grad():
@@ -310,11 +319,13 @@ def _independent_boundary_terms(
 ) -> tuple[torch.Tensor, torch.Tensor]:
     """Return Appendix-I boundary NLL and analytic E[log q_delta]."""
 
-    stats = model.forward_process.transition_stats(x, boundary_time)
+    stats = _dense_stats(model.forward_process, x, boundary_time, prescribed_root=True)
     sample = stats.mean + boundary_noise @ stats.cholesky.T
     zero_timesteps = x.new_zeros(x.shape[0])
     prediction = _call_audit_denoiser(model, sample, zero_timesteps)
-    model_score = _independent_score_from_noise(stats.cholesky, prediction)
+    model_score = (-torch.linalg.solve(stats.cholesky.T, prediction.T).T
+                   if isinstance(model.forward_process, StationaryQDForward) else
+                   _independent_score_from_noise(stats.cholesky, prediction))
 
     rhs = (
         sample
@@ -334,7 +345,9 @@ def _independent_boundary_terms(
         + dim * torch.log(x.new_tensor(2.0 * torch.pi))
     )
 
-    logdet_q = 2.0 * torch.log(torch.diagonal(stats.cholesky)).sum()
+    logdet_q = (2 * torch.linalg.slogdet(stats.cholesky)[1]
+                if isinstance(model.forward_process, StationaryQDForward) else
+                2.0 * torch.log(torch.diagonal(stats.cholesky)).sum())
     entropy_q = 0.5 * (
         logdet_q
         + dim * (1.0 + torch.log(x.new_tensor(2.0 * torch.pi)))
@@ -362,13 +375,15 @@ def _independent_path_direct_terms(
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
     """Compute score mismatch, expected forward energy, and divergence."""
 
-    stats = model.forward_process.transition_stats(x, physical_time)
+    stats = _dense_stats(model.forward_process, x, physical_time, prescribed_root=True)
     sample = stats.mean + path_noise @ stats.cholesky.T
     prediction = _call_audit_denoiser(model, sample, timesteps)
-    model_score = _independent_score_from_noise(stats.cholesky, prediction)
-    forward_score = _independent_score_from_noise(
-        stats.cholesky, path_noise
-    )
+    model_score = (-torch.linalg.solve(stats.cholesky.T, prediction.T).T
+                   if isinstance(model.forward_process, StationaryQDForward) else
+                   _independent_score_from_noise(stats.cholesky, prediction))
+    forward_score = (-torch.linalg.solve(stats.cholesky.T, path_noise.T).T
+                     if isinstance(model.forward_process, StationaryQDForward) else
+                     _independent_score_from_noise(stats.cholesky, path_noise))
     score_difference = model_score - forward_score
     mismatch = 0.5 * torch.einsum(
         "bi,ij,bj->b",
@@ -380,9 +395,9 @@ def _independent_path_direct_terms(
     identity = torch.eye(
         x.shape[1], dtype=x.dtype, device=x.device
     )
-    inverse_l = torch.linalg.solve_triangular(
-        stats.cholesky, identity, upper=False
-    )
+    inverse_l = (torch.linalg.solve(stats.cholesky, identity)
+                 if isinstance(model.forward_process, StationaryQDForward) else
+                 torch.linalg.solve_triangular(stats.cholesky, identity, upper=False))
     metric = (
         inverse_l
         @ stats.diffusion_covariance
@@ -447,9 +462,7 @@ def _production_compact_and_independent_direct(family: str, *, order: int = 24):
     boundary_nll, expected_boundary_log_q = _independent_boundary_terms(
         model, x, time_map.boundary_time, boundary_noise
     )
-    terminal_stats = model.forward_process.transition_stats(
-        x, time_map.terminal_time
-    )
+    terminal_stats = _dense_stats(model.forward_process, x, time_map.terminal_time, prescribed_root=True)
     terminal_cross_entropy = _independent_terminal_cross_entropy(
         terminal_stats
     )
@@ -472,17 +485,10 @@ class ValidTruncatedObjectiveEquivalenceTests(unittest.TestCase):
 
     @staticmethod
     def _make_stationary_qd() -> StationaryQDForward:
-        process = StationaryQDForward(3, dtype=torch.float64)
+        process = StationaryQDForward(3, aux_dim=2, dtype=torch.float64)
         with torch.no_grad():
-            process.raw_q_upper.copy_(
-                torch.tensor([0.09, -0.04, 0.06], dtype=torch.float64)
-            )
-            process.raw_d_lower.copy_(
-                torch.tensor(
-                    [0.76, 0.05, 0.69, -0.03, 0.08, 0.73],
-                    dtype=torch.float64,
-                )
-            )
+            process.raw_q_k.copy_(torch.tensor([[0., .09], [-.04, 0.]], dtype=torch.float64))
+            process.b.copy_(torch.tensor([[.26, .05], [-.03, .19]], dtype=torch.float64))
         return process
 
     @staticmethod

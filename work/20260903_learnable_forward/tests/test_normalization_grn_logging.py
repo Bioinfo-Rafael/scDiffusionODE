@@ -50,7 +50,7 @@ def config(dim: int, family: str) -> dict:
         "timestep_respacing": "",
         "weight_decay": 0.0,
         "covariance_jitter": 0.0,
-        "d_parameterization": "psd",
+        "aux_dim": min(2, dim - 1),
         "d_diagonal_floor": 0.0,
         "initial_d_diagonal": 0.5,
         "use_grn_mask": False,
@@ -126,7 +126,7 @@ class NormalizationGRNLoggingTests(unittest.TestCase):
             grn_penalty_norm="l1",
             dtype=torch.float64,
         )
-        model_a = StationaryQDForward(3, **common)
+        model_a = StationaryQDForward(3, aux_dim=2, **common)
         model_b = FreeAffineForward(3, **common)
         with torch.no_grad():
             operator = model_a.stationary_operator()

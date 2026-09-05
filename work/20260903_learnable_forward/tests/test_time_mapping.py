@@ -71,7 +71,7 @@ class PhysicalTimeMapTests(unittest.TestCase):
         )
 
         processes = (
-            StationaryQDForward(3, dtype=torch.float64),
+            StationaryQDForward(3, aux_dim=2, dtype=torch.float64),
             FreeAffineForward(3, dtype=torch.float64),
         )
         for process in processes:
@@ -87,7 +87,7 @@ class PhysicalTimeMapTests(unittest.TestCase):
                         3, dtype=torch.float64
                     )
                     torch.testing.assert_close(
-                        stats.transition_matrix,
+                        (stats.materialize_for_analysis()["phi"] if isinstance(process, StationaryQDForward) else stats.transition_matrix),
                         expected_phi,
                         atol=1e-11,
                         rtol=1e-11,
@@ -99,7 +99,7 @@ class PhysicalTimeMapTests(unittest.TestCase):
                         rtol=1e-11,
                     )
                     torch.testing.assert_close(
-                        stats.covariance,
+                        (stats.materialize_for_analysis()["covariance"] if isinstance(process, StationaryQDForward) else stats.covariance),
                         expected_covariance,
                         atol=1e-11,
                         rtol=1e-11,

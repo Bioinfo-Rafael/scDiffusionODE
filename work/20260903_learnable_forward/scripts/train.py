@@ -205,6 +205,8 @@ def _save_initial_forward_state(
         "dimension": len(genes),
         "gene_order_sha256": gene_order_sha256(genes),
     }
+    if str(config["forward_model"]) == "stationary_qd":
+        expected.update(model.forward_process.provenance())
     if path.exists():
         payload = torch.load(path, map_location="cpu")
         observed = {name: payload.get(name) for name in expected}

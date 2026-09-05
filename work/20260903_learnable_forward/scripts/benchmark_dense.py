@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Opt-in dense forward/backward benchmark for Models A and B.
+"""Opt-in exact forward/backward benchmark: auxiliary Model A and dense Model B.
 
 The default dimension is 1024.  Each requested case measures one exact
 transition-statistics evaluation and the work-local ``paper_elbo`` wrapper's
@@ -142,6 +142,22 @@ def finite_float(value: torch.Tensor) -> Optional[float]:
 
 
 def stats_report(stats) -> Dict[str, Any]:
+    if hasattr(stats, "z"):
+        lk = stats.cholesky_k
+        return {
+            "all_finite": all(finite_tensor(value) for value in
+                              (stats.mean, stats.phi_k, stats.covariance_k, lk, stats.variance_perp)),
+            "aux_dim": int(stats.z.shape[1]),
+            "variance_perp": finite_float(stats.variance_perp),
+            "cholesky": {"status": "success", "dimension": int(lk.shape[0]),
+                         "minimum_diagonal": finite_float(lk.diagonal().min()),
+                         "relative_reconstruction_error": finite_float(
+                             torch.linalg.vector_norm(stats.covariance_k - lk @ lk.T) /
+                             torch.linalg.vector_norm(stats.covariance_k))},
+            "configured_covariance_jitter": 0.,
+            "covariance_evaluation": stats.covariance_evaluation,
+            "covariance_series_terms": stats.covariance_series_terms,
+        }
     diagonal = torch.diagonal(stats.cholesky)
     covariance_scale = torch.linalg.vector_norm(stats.covariance)
     reconstruction_error = torch.linalg.vector_norm(
@@ -217,13 +233,13 @@ def build_case(
     dim: int,
     device: torch.device,
     dtype: torch.dtype,
+    aux_dim: Optional[int] = None,
 ) -> Tuple[LearnableForwardModel, LearnableForwardTrainingDiffusion, PhysicalTimeMap]:
     if model_name == "stationary_qd":
         process = StationaryQDForward(
             dim,
-            d_parameterization="psd",
-            d_diagonal_floor=0.0,
-            initial_d_diagonal=0.5,
+            aux_dim=aux_dim,
+            isotropic_d_init=0.5,
             covariance_jitter=0.0,
             grn_penalty_weight=0.0,
             device=device,
@@ -275,6 +291,7 @@ def benchmark_case(
     seed: int,
     warmup: int,
     repeat: int,
+    aux_dim: Optional[int] = None,
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "status": "running",
@@ -293,7 +310,11 @@ def benchmark_case(
         torch.manual_seed(seed + repeat)
         if device.type == "cuda":
             torch.cuda.manual_seed_all(seed + repeat)
-        model, diffusion, time_map = build_case(model_name, dim, device, dtype)
+        model, diffusion, time_map = build_case(model_name, dim, device, dtype, aux_dim)
+        if model_name == "stationary_qd":
+            result.update(model.forward_process.provenance())
+            result["dense_exact"] = False
+            result["exact_reduced"] = True
         result["forward_parameter_count"] = sum(
             parameter.numel()
             for parameter in model.forward_process.parameters()
@@ -302,7 +323,7 @@ def benchmark_case(
             parameter.numel() for parameter in model.parameters()
         )
         result["matrix_exponential_dimension"] = (
-            dim if model_name == "stationary_qd" else 2 * dim + 1
+            aux_dim if model_name == "stationary_qd" else 2 * dim + 1
         )
         result["time_map"] = time_map.metadata()
 
@@ -447,6 +468,7 @@ def system_metadata(device: torch.device) -> Dict[str, Any]:
 def parser() -> argparse.ArgumentParser:
     argument_parser = argparse.ArgumentParser(description=__doc__)
     argument_parser.add_argument("--dim", type=int, default=1024)
+    argument_parser.add_argument("--aux-dim", type=int, default=None, help="Model A K; default from its config")
     argument_parser.add_argument("--batch-size", type=int, default=4)
     argument_parser.add_argument(
         "--models",
@@ -500,6 +522,8 @@ def main(argv: Optional[List[str]] = None) -> int:
     except (ValueError, RuntimeError, argparse.ArgumentTypeError) as error:
         raise SystemExit(str(error)) from error
 
+    if "stationary_qd" in models and args.aux_dim is None:
+        args.aux_dim = json.loads((SUITE_ROOT / "configs/model_a_stationary_qd_aux.json").read_text())["aux_dim"]
     if args.num_threads is not None:
         torch.set_num_threads(args.num_threads)
 
@@ -538,6 +562,7 @@ def main(argv: Optional[List[str]] = None) -> int:
                         seed=args.seed,
                         warmup=args.warmup,
                         repeat=repeat,
+                        aux_dim=args.aux_dim,
                     )
                 )
     successes = sum(item["status"] == "success" for item in payload["results"])

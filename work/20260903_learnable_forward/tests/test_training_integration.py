@@ -81,7 +81,7 @@ class TrainingIntegrationTests(unittest.TestCase):
             "timestep_respacing": "",
             "weight_decay": 0.0,
             "covariance_jitter": 0.0,
-            "d_parameterization": "psd",
+            "aux_dim": 2,
             "d_diagonal_floor": 0.0,
             "initial_d_diagonal": 0.5,
             "use_grn_mask": False,
@@ -98,15 +98,8 @@ class TrainingIntegrationTests(unittest.TestCase):
         process = components.model.forward_process
         with torch.no_grad():
             if forward_model == "stationary_qd":
-                process.raw_q_upper.copy_(
-                    torch.tensor([0.06, -0.035, 0.045], dtype=torch.float64)
-                )
-                process.raw_d_lower.copy_(
-                    torch.tensor(
-                        [0.74, 0.04, 0.68, -0.03, 0.05, 0.71],
-                        dtype=torch.float64,
-                    )
-                )
+                process.raw_q_k.copy_(torch.tensor([[0., .06], [-.035, 0.]], dtype=torch.float64))
+                process.b.copy_(torch.tensor([[.24, .04], [-.03, .21]], dtype=torch.float64))
             else:
                 process.raw_w.copy_(
                     torch.tensor(
@@ -226,8 +219,10 @@ class TrainingIntegrationTests(unittest.TestCase):
                     named_parameters = dict(components.model.named_parameters())
                     expected_forward_names = (
                         {
-                            "forward_process.raw_q_upper",
-                            "forward_process.raw_d_lower",
+                            "forward_process.raw_embedding",
+                            "forward_process.raw_q_k",
+                            "forward_process.b",
+                            "forward_process.raw_isotropic_d",
                         }
                         if forward_model == "stationary_qd"
                         else {

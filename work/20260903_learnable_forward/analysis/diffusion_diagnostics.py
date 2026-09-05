@@ -117,9 +117,13 @@ def compute_timestep_metrics(
                         device=device, dtype=dtype
                     )
                     epsilon = fixed_noise[start:stop].to(device=device, dtype=dtype)
-                    mean = clean @ stats.transition_matrix.transpose(-1, -2)
-                    mean = mean + stats.affine_shift
-                    noisy = mean + epsilon @ stats.cholesky.transpose(-1, -2)
+                    if hasattr(stats, "z"):
+                        mean = stats.transition_mean(clean)
+                        noisy = mean + stats.noise_transform(epsilon)
+                    else:
+                        mean = clean @ stats.transition_matrix.transpose(-1, -2)
+                        mean = mean + stats.affine_shift
+                        noisy = mean + epsilon @ stats.cholesky.transpose(-1, -2)
                     t = torch.full(
                         (len(clean),),
                         float(timestep),
@@ -128,15 +132,20 @@ def compute_timestep_metrics(
                     )
                     epsilon_prediction = model.predict_noise(noisy, t)
                     drift = process.drift(noisy)
-                    score_prediction = score_from_noise(
-                        stats.cholesky, epsilon_prediction
-                    )
-                    score_true = score_from_noise(stats.cholesky, epsilon)
-                    weighted = weighted_noise_quadratic(
-                        stats.cholesky,
-                        stats.diffusion_covariance,
-                        epsilon_prediction - epsilon,
-                    )
+                    if hasattr(stats, "z"):
+                        score_prediction = process.conditional_score(stats, epsilon_prediction)
+                        score_true = process.conditional_score(stats, epsilon)
+                        weighted = process.noise_metric_quadratic(stats, epsilon_prediction - epsilon)
+                    else:
+                        score_prediction = score_from_noise(
+                            stats.cholesky, epsilon_prediction
+                        )
+                        score_true = score_from_noise(stats.cholesky, epsilon)
+                        weighted = weighted_noise_quadratic(
+                            stats.cholesky,
+                            stats.diffusion_covariance,
+                            epsilon_prediction - epsilon,
+                        )
                     bundle = metric_bundle(
                         epsilon_prediction,
                         epsilon,

@@ -7,6 +7,8 @@ from typing import Any, Mapping, Optional
 import torch
 from torch import nn
 
+from diffusion.stationary_qd import StationaryQDTransition
+
 from diffusion.objectives import (
     boundary_gaussian_nll,
     score_from_noise,
@@ -67,6 +69,9 @@ class LearnableForwardModel(nn.Module):
 
     @staticmethod
     def _sample(stats, noise: Optional[torch.Tensor]):
+        if isinstance(stats, StationaryQDTransition):
+            from diffusion.stationary_qd import StationaryQDForward
+            return StationaryQDForward.sample_from_stats(stats, noise)
         if stats.cholesky is None:
             raise ValueError("transition stats must include a Cholesky factor")
         if noise is None:
@@ -108,8 +113,11 @@ class LearnableForwardModel(nn.Module):
         noisy, sampling_noise = self._sample(path_stats, path_noise)
         noise_prediction = self._denoise(noisy, timesteps, model_kwargs)
         residual = noise_prediction - sampling_noise
-        weighted_mismatch = weighted_noise_quadratic(
-            path_stats.cholesky, path_stats.diffusion_covariance, residual
+        reduced = isinstance(path_stats, StationaryQDTransition)
+        weighted_mismatch = (
+            self.forward_process.noise_metric_quadratic(path_stats, residual)
+            if reduced else weighted_noise_quadratic(
+                path_stats.cholesky, path_stats.diffusion_covariance, residual)
         )
         plain_epsilon_mse = residual.square().mean(dim=1)
 
@@ -120,10 +128,10 @@ class LearnableForwardModel(nn.Module):
             terminal_stats = self.forward_process.transition_stats(
                 x_start, terminal_time
             )
-            terminal_kl = standard_normal_kl(
-                terminal_stats.mean,
-                terminal_stats.covariance,
-                terminal_stats.cholesky,
+            terminal_kl = (
+                self.forward_process.terminal_kl(terminal_stats) if reduced else
+                standard_normal_kl(terminal_stats.mean, terminal_stats.covariance,
+                                   terminal_stats.cholesky)
             )
 
         boundary_nll = zero_vector
@@ -138,24 +146,31 @@ class LearnableForwardModel(nn.Module):
             boundary_noise_prediction = self._denoise(
                 boundary_sample, boundary_timesteps, model_kwargs
             )
-            boundary_model_score = score_from_noise(
-                boundary_stats.cholesky, boundary_noise_prediction
-            )
-            boundary_nll = boundary_gaussian_nll(
-                x_start=x_start.to(dtype=boundary_stats.mean.dtype),
-                y_boundary=boundary_sample,
-                model_score=boundary_model_score,
-                transition_matrix=boundary_stats.transition_matrix,
-                affine_shift=boundary_stats.affine_shift,
-                covariance=boundary_stats.covariance,
-                cholesky=boundary_stats.cholesky,
-            )
+            if reduced:
+                boundary_model_score = self.forward_process.conditional_score(
+                    boundary_stats, boundary_noise_prediction)
+                boundary_nll = self.forward_process.boundary_nll(
+                    boundary_stats, x_start, boundary_sample, boundary_model_score)
+            else:
+                boundary_model_score = score_from_noise(
+                    boundary_stats.cholesky, boundary_noise_prediction
+                )
+                boundary_nll = boundary_gaussian_nll(
+                    x_start=x_start.to(dtype=boundary_stats.mean.dtype),
+                    y_boundary=boundary_sample,
+                    model_score=boundary_model_score,
+                    transition_matrix=boundary_stats.transition_matrix,
+                    affine_shift=boundary_stats.affine_shift,
+                    covariance=boundary_stats.covariance,
+                    cholesky=boundary_stats.cholesky,
+                )
 
         grn_penalty_raw = self.forward_process.grn_penalty_base()
         grn_penalty_weight = grn_penalty_raw.new_tensor(
             self.forward_process.grn_penalty_weight
         )
-        regularization = self.forward_process.additional_regularization()
+        regularization = (grn_penalty_weight * grn_penalty_raw if reduced else
+                          self.forward_process.additional_regularization())
         if regularization.ndim != 0:
             raise ValueError("additional_regularization() must return a scalar")
 

@@ -1,0 +1,18 @@
+{
+  "experiment": "model_a_stationary_qd_aux",
+  "forward_model": "stationary_qd",
+  "covariance_jitter": 0.0,
+  "use_grn_mask": true,
+  "mask_orientation": "target_source_from_transposed_existing_src_tgt_mask",
+  "allow_self_edges": true,
+  "grn_penalty_weight": 5.0,
+  "grn_penalty_norm": "l1",
+  "schema_version": "20260905_stationary_qd_aux_v2",
+  "model_schema_version": 2,
+  "model_a_parameterization": "auxiliary_shared_subspace",
+  "aux_dim": 64,
+  "learn_isotropic_d": true,
+  "isotropic_d_init": 0.5,
+  "isotropic_d_floor": 1e-06,
+  "auxiliary_b_init_scale": 0.01
+}
