@@ -137,6 +137,44 @@ def _plot_rolling(
     plt.close(fig)
 
 
+def _plot_rolling_panels(
+    frame: pd.DataFrame,
+    columns: Sequence[str],
+    *,
+    window: int,
+    title: str,
+    output: Path,
+) -> None:
+    """One subplot per column so a large- or negative-magnitude component
+    (e.g. ``boundary_nll_raw``) cannot flatten the others' scale onto a
+    shared axis (dataviz anti-pattern: never combine differently scaled
+    measures on one y-axis)."""
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    x = frame["training_step"].to_numpy(dtype=np.int64)
+    fig, axes = plt.subplots(
+        len(columns), 1, figsize=(11, 3.0 * len(columns)), sharex=True
+    )
+    axes = np.atleast_1d(axes)
+    for ax, column in zip(axes, columns):
+        median = frame[f"{column}_rolling_median_w{window}"].to_numpy(float)
+        q25 = frame[f"{column}_rolling_q25_w{window}"].to_numpy(float)
+        q75 = frame[f"{column}_rolling_q75_w{window}"].to_numpy(float)
+        ax.plot(x, median, linewidth=1.6)
+        ax.fill_between(x, q25, q75, alpha=0.14)
+        ax.set_ylabel(column, fontsize=9)
+        ax.grid(alpha=0.22)
+    axes[-1].set_xlabel("training step")
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.savefig(output, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
 def analyze_loss(run_dir, *, rolling_window: int = 100, force: bool = False) -> dict:
     run = validate_run_directory(run_dir)
     output = run / "analysis" / "loss"
@@ -162,19 +200,17 @@ def analyze_loss(run_dir, *, rolling_window: int = 100, force: bool = False) -> 
     fraction_path = output / "loss_fractions.csv"
     history.to_csv(history_path, index=False)
     fractions.to_csv(fraction_path, index=False)
-    _plot_rolling(
+    _plot_rolling_panels(
         history,
         RAW_COLUMNS,
         window=rolling_window,
-        ylabel="raw sum-form quantity",
         title="Raw learnable-forward loss components",
         output=output / "loss_raw.png",
     )
-    _plot_rolling(
+    _plot_rolling_panels(
         history,
         WEIGHTED_COLUMNS,
         window=rolling_window,
-        ylabel="actual contribution to total loss",
         title="Per-dimension paper ELBO + external GRN contribution",
         output=output / "loss_weighted.png",
     )

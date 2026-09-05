@@ -206,6 +206,47 @@ def _plot_lines(
     plt.close(fig)
 
 
+def _plot_panels(
+    frame: pd.DataFrame,
+    groups: Sequence[Sequence[str]],
+    *,
+    group_ylabels: Sequence[str],
+    title: str,
+    output: Path,
+) -> None:
+    """One subplot per group of commensurate metrics; groups of a
+    different unit (MSE vs. correlation vs. a raw norm) never share an
+    axis (dataviz anti-pattern: never combine differently scaled
+    measures on one y-axis). A group may hold >1 metric only when they
+    share units, e.g. the two epsilon norms."""
+
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    x = frame["timestep"].to_numpy()
+    fig, axes = plt.subplots(
+        len(groups), 1, figsize=(10.5, 3.2 * len(groups)), sharex=True
+    )
+    axes = np.atleast_1d(axes)
+    for ax, group, group_ylabel in zip(axes, groups, group_ylabels):
+        for metric in group:
+            mean = frame[f"{metric}_mean"].to_numpy(float)
+            std = frame[f"{metric}_std"].to_numpy(float)
+            ax.plot(x, mean, marker="o", markersize=3, linewidth=1.4, label=metric)
+            ax.fill_between(x, mean - std, mean + std, alpha=0.12)
+        ax.set_ylabel(group_ylabel, fontsize=9)
+        ax.grid(alpha=0.22)
+        if len(group) > 1:
+            ax.legend(frameon=False, fontsize=8)
+    axes[-1].set_xlabel("forward diffusion timestep")
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.savefig(output, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
 def analyze_diffusion_diagnostics(
     run_dir,
     *,
@@ -273,31 +314,27 @@ def analyze_diffusion_diagnostics(
         title="True and predicted epsilon norms",
         output=output / "epsilon_norms.png",
     )
-    _plot_lines(
-        frame,
-        ("drift_true_epsilon_mse", "drift_true_epsilon_corr"),
-        ylabel="diagnostic value (different units across lines)",
-        title=f"Forward drift vs true epsilon\n{DRIFT_NOISE_WARNING}",
-        output=output / "drift_vs_epsilon.png",
-    )
-    _plot_lines(
-        frame,
-        ("drift_epsilon_prediction_mse", "drift_epsilon_prediction_corr"),
-        ylabel="diagnostic value (different units across lines)",
-        title=f"Forward drift vs epsilon prediction\n{DRIFT_NOISE_WARNING}",
-        output=output / "drift_vs_epsilon_prediction.png",
-    )
-    _plot_lines(
+    # drift_true_epsilon_{mse,corr} and drift_epsilon_prediction_{mse,corr}
+    # are already plotted correctly above (each metric alongside its own
+    # unit family, in epsilon_mse.png / epsilon_correlation.png); a combined
+    # MSE+correlation figure would just repeat those two lines on one
+    # mismatched axis, so it is not regenerated here.
+    _plot_panels(
         frame,
         (
-            "score_mse",
-            "score_corr",
-            "true_score_norm",
-            "predicted_score_norm",
-            "score_norm_ratio",
-            "weighted_score_quadratic",
+            ("score_mse",),
+            ("score_corr",),
+            ("true_score_norm", "predicted_score_norm"),
+            ("score_norm_ratio",),
+            ("weighted_score_quadratic",),
         ),
-        ylabel="score diagnostic value",
+        group_ylabels=(
+            "score MSE",
+            "score Pearson correlation",
+            "per-cell L2 norm",
+            "predicted / true score norm ratio",
+            "weighted quadratic",
+        ),
         title="Conditional score-space diagnostics and paper quadratic",
         output=output / "score_metrics.png",
     )
