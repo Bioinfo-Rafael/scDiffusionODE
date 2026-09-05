@@ -10,6 +10,7 @@ import numpy as np
 import pandas as pd
 
 from scripts.common import validate_run_directory, write_json
+from training.loss_logging import reconstruction_tolerance
 
 
 RAW_COLUMNS = (
@@ -57,12 +58,14 @@ def load_loss_components(run_dir) -> pd.DataFrame:
         .reset_index(drop=True)
     )
     reconstructed = history[list(WEIGHTED_COLUMNS)].sum(axis=1)
-    if not np.allclose(
-        reconstructed.to_numpy(),
-        history["total_loss"].to_numpy(),
-        rtol=1e-6,
-        atol=1e-7,
-    ):
+    total = history["total_loss"]
+    tolerance = np.array(
+        [
+            reconstruction_tolerance(t, r)
+            for t, r in zip(total.to_numpy(), reconstructed.to_numpy())
+        ]
+    )
+    if np.any(np.abs(reconstructed.to_numpy() - total.to_numpy()) > tolerance):
         raise ValueError("saved total_loss does not match weighted contributions")
     return history
 

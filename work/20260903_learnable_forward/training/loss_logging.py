@@ -30,6 +30,20 @@ LOSS_COMPONENT_FIELDS = (
 )
 
 
+RECONSTRUCTION_TOLERANCE_SCALE = 1e-6
+
+
+def reconstruction_tolerance(total: float, reconstructed: float) -> float:
+    """Absolute tolerance for ``total_loss`` reconstructing from its parts.
+
+    Shared by the write-time gate below and the read-time re-check in
+    ``analysis.loss_analysis.load_loss_components`` so the two can never
+    drift apart; a row already accepted here must also be accepted there.
+    """
+
+    return RECONSTRUCTION_TOLERANCE_SCALE * max(1.0, abs(total), abs(reconstructed))
+
+
 def validate_loss_record(record: Mapping[str, float | int]) -> dict[str, float | int]:
     missing = [name for name in LOSS_COMPONENT_FIELDS if name not in record]
     if missing:
@@ -51,7 +65,7 @@ def validate_loss_record(record: Mapping[str, float | int]) -> dict[str, float |
         )
     )
     total = float(normalized["total_loss"])
-    tolerance = 1e-6 * max(1.0, abs(total), abs(reconstructed))
+    tolerance = reconstruction_tolerance(total, reconstructed)
     if abs(total - reconstructed) > tolerance:
         raise ValueError(
             "total_loss does not reconstruct from final contributions: "
@@ -96,5 +110,6 @@ class LossComponentWriter:
 __all__ = [
     "LOSS_COMPONENT_FIELDS",
     "LossComponentWriter",
+    "reconstruction_tolerance",
     "validate_loss_record",
 ]
