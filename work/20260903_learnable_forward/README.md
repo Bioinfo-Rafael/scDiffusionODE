@@ -43,6 +43,12 @@ limit merely changed from zero to \(\delta\).  The latter is not a valid lower
 bound for the data likelihood.  It also does not mean plain epsilon MSE.  The
 exact derivation and the implementation convention are given below.
 
+## Design rationale and remote training
+
+- [なぜModel Aをauxiliary subspaceへ変更したか（設計判断）](docs/decisions/20260905-model-a-auxiliary-subspace.md)
+- [ユーザー提供の説明原文（未編集）](docs/sources/20260905-model-a-auxiliary-rationale-original.md)
+- [リモートでpullしてModel A・Bをバックグラウンド学習する完全な手順](docs/remote-training.md)
+
 ## Scope
 
 The experiment implements training, a model-specific reverse-SDE generator,
