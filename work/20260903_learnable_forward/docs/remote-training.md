@@ -1,21 +1,23 @@
 # リモートでpullし、Model A・Bをバックグラウンド学習する
 
 SSHでログイン済みのLinux/GPUサーバー上で、以下をまとめて実行する。
-`REPO` は既存configのサーバーパス、`GPU=0` は使用GPU。環境に応じてこの2箇所を変更する。
+`REPO=/home/suzuki/Projects/scDiffusion-github` は確認済みのGit checkout、`GPU=0` は使用GPU。
 Condaの `scdiffusion` 環境とデータ/GRNファイルが用意されていることを前提とする。
 
 既存 `scripts/launch.py` で **Model A → Model B の順番**に、同じGPU上で学習する。
 両方とも新しい共通batch IDを使い、旧run/checkpointは指定しない。
 各モデル30,000 steps、batch size 128、GRN weight 5、Model AはK=64
 （各値は現在のconfig既定値）。Model AのB初期値は0.01 Iである。
-Model Aが失敗するとlauncherも停止し、その場合Model Bは開始しない。
+`--continue-on-error` により、Model Aが非ゼロ終了しても自動でModel Bへ進む。
+失敗したモデルの終了コードはlogへ記録し、最後にlauncher全体は非ゼロ終了する。
+このオプションを省いた場合は従来どおり最初の失敗で停止する。手動のCtrl+C等でlauncherを中断した場合は次のモデルを開始しない。
 この手順は両モデルの学習までで、sampling/analysisは実行しない。
 
 ```bash
 bash <<'BASH'
 set -euo pipefail
 
-REPO=/home/suzuki/Projects/scDiffusion
+REPO=/home/suzuki/Projects/scDiffusion-github
 BRANCH=work/20260816-hill-variants
 GPU=0
 
@@ -33,11 +35,14 @@ export PYTHONUNBUFFERED=1
 SUITE="$REPO/work/20260903_learnable_forward"
 DATA="$REPO/work/20260215_embryonic/data/Embryonic.h5ad"
 GRN="$REPO/external_data/tf_target_edges.tsv"
+# データがGit checkout外にある場合は従来の配置を使用
+[[ -f "$DATA" ]] || DATA=/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad
+[[ -f "$GRN" ]] || GRN=/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv
 BATCH_ID="ab-aux-$(date +%Y%m%d-%H%M%S)-$$"
 LOG_DIR="$SUITE/runs/launch_logs/$BATCH_ID"
 
-test -f "$DATA"
-test -f "$GRN"
+[[ -f "$DATA" ]] || { printf 'Data not found: %s\n' "$DATA" >&2; exit 1; }
+[[ -f "$GRN" ]] || { printf 'GRN not found: %s\n' "$GRN" >&2; exit 1; }
 "$PYTHON_BIN" -c 'import torch; assert torch.cuda.is_available(), "CUDA is unavailable"; print(torch.cuda.get_device_name(0))'
 "$PYTHON_BIN" "$SUITE/scripts/verify_protected.py"
 mkdir -p "$LOG_DIR"
@@ -47,6 +52,7 @@ ARGS=(
   "$SUITE/scripts/launch.py"
   --model stationary_qd
   --model free_affine
+  --continue-on-error
   --batch-id "$BATCH_ID"
   --set device=cuda
   --set "data_dir=$DATA"
@@ -54,8 +60,7 @@ ARGS=(
 )
 "$PYTHON_BIN" "${ARGS[@]}" --dry-run > "$LOG_DIR/plan.json"
 
-nohup "$PYTHON_BIN" -u "${ARGS[@]}" \
-  > "$LOG_DIR/train.log" 2>&1 < /dev/null &
+nohup "$PYTHON_BIN" -u "${ARGS[@]}" > "$LOG_DIR/train.log" 2>&1 < /dev/null &
 LAUNCH_PID=$!
 printf '%s\n' "$LAUNCH_PID" > "$LOG_DIR/launcher.pid"
 
@@ -69,7 +74,7 @@ BASH
 
 `nohup` 起動後はSSHを切断しても学習が継続する。表示された `Monitor:` のコマンドでlogを追跡でき、`tail -f` のCtrl+Cは監視だけを終了する。PIDはlauncherのPIDであり、GPUで計算するtraining子プロセスのPIDとは異なる。
 
-起動直後のPID表示は学習成功を保証しない。logに `[1/2]` が出てAが始まり、Aの正常終了後に `[2/2]` が出てBが始まる。
+起動直後のPID表示は学習成功を保証しない。logに `[1/2]` が出てAが始まり、Aの正常終了またはエラー終了後に `[2/2]` が出てBが始まる。
 
 Gitのローカル変更がpullと競合する場合やbranchが分岐している場合は、`set -e` / `--ff-only` により起動前に停止する。強制reset・stash・旧runの削除は行わない。
 

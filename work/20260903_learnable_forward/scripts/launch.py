@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch the two dense learnable-forward training configs sequentially."""
+"""Launch the learnable-forward training configs sequentially."""
 
 from __future__ import annotations
 
@@ -100,6 +100,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--python", default=sys.executable)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--continue-on-error",
+        action="store_true",
+        help="run remaining models after a training failure; exit nonzero if any failed",
+    )
     return parser
 
 
@@ -109,16 +114,30 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     if args.dry_run:
         print(
             json.dumps(
-                {"batch_id": batch_id, "commands": commands},
+                {"batch_id": batch_id, "commands": commands,
+                 "continue_on_error": args.continue_on_error},
                 indent=2,
                 ensure_ascii=False,
             )
         )
         return 0
+    failed = False
     for index, command in enumerate(commands, 1):
         print(f"[{index}/{len(commands)}] {' '.join(command)}", flush=True)
-        subprocess.run(command, cwd=REPO_ROOT, check=True)
-    return 0
+        try:
+            subprocess.run(command, cwd=REPO_ROOT, check=True)
+        except subprocess.CalledProcessError as error:
+            if not args.continue_on_error:
+                raise
+            failed = True
+            print(
+                f"[{index}/{len(commands)}] FAILED: exit code {error.returncode}.",
+                file=sys.stderr,
+                flush=True,
+            )
+            if index < len(commands):
+                print("Continuing to the next model.", flush=True)
+    return 1 if failed else 0
 
 
 if __name__ == "__main__":
