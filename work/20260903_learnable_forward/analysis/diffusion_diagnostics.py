@@ -46,20 +46,20 @@ def metric_bundle(
     predicted_score_norm = sample_norm(score_prediction)
     eps = torch.finfo(epsilon_norm.dtype).eps
     return {
-        "epsilon_pred_true_mse": sample_mse(epsilon_prediction, epsilon),
-        "epsilon_pred_true_corr": sample_corr(epsilon_prediction, epsilon),
-        "true_epsilon_norm": epsilon_norm,
-        "epsilon_prediction_norm": prediction_norm,
-        "epsilon_prediction_to_true_norm_ratio": prediction_norm
+        "model_vs_epsilon_mse": sample_mse(epsilon_prediction, epsilon),
+        "model_vs_epsilon_corr": sample_corr(epsilon_prediction, epsilon),
+        "epsilon_norm": epsilon_norm,
+        "model_norm": prediction_norm,
+        "model_to_epsilon_norm_ratio": prediction_norm
         / epsilon_norm.clamp_min(eps),
-        "drift_true_epsilon_mse": sample_mse(drift, epsilon),
-        "drift_true_epsilon_corr": sample_corr(drift, epsilon),
+        "drift_vs_epsilon_mse": sample_mse(drift, epsilon),
+        "drift_vs_epsilon_corr": sample_corr(drift, epsilon),
         "drift_norm": drift_norm,
-        "drift_to_true_epsilon_norm_ratio": drift_norm
+        "drift_to_epsilon_norm_ratio": drift_norm
         / epsilon_norm.clamp_min(eps),
-        "drift_epsilon_prediction_mse": sample_mse(drift, epsilon_prediction),
-        "drift_epsilon_prediction_corr": sample_corr(drift, epsilon_prediction),
-        "drift_to_prediction_norm_ratio": drift_norm
+        "drift_vs_model_mse": sample_mse(drift, epsilon_prediction),
+        "drift_vs_model_corr": sample_corr(drift, epsilon_prediction),
+        "drift_to_model_norm_ratio": drift_norm
         / prediction_norm.clamp_min(eps),
         "score_mse": sample_mse(score_prediction, score_true),
         "score_corr": sample_corr(score_prediction, score_true),
@@ -288,35 +288,35 @@ def analyze_diffusion_diagnostics(
     _plot_lines(
         frame,
         (
-            "epsilon_pred_true_mse",
-            "drift_true_epsilon_mse",
-            "drift_epsilon_prediction_mse",
+            "model_vs_epsilon_mse",
+            "drift_vs_epsilon_mse",
+            "drift_vs_model_mse",
         ),
         ylabel="per-cell MSE across genes",
         title=f"MSE comparison\n{DRIFT_NOISE_WARNING}",
-        output=output / "epsilon_mse.png",
+        output=output / "mse_comparisons.png",
     )
     _plot_lines(
         frame,
         (
-            "epsilon_pred_true_corr",
-            "drift_true_epsilon_corr",
-            "drift_epsilon_prediction_corr",
+            "model_vs_epsilon_corr",
+            "drift_vs_epsilon_corr",
+            "drift_vs_model_corr",
         ),
         ylabel="per-cell Pearson correlation across genes",
         title=f"Correlation comparison\n{DRIFT_NOISE_WARNING}",
-        output=output / "epsilon_correlation.png",
+        output=output / "correlation_comparisons.png",
     )
     _plot_lines(
         frame,
-        ("true_epsilon_norm", "epsilon_prediction_norm"),
+        ("epsilon_norm", "model_norm"),
         ylabel="per-cell L2 norm",
-        title="True and predicted epsilon norms",
-        output=output / "epsilon_norms.png",
+        title="Epsilon vs. model-predicted noise norms",
+        output=output / "epsilon_vs_model_norms.png",
     )
-    # drift_true_epsilon_{mse,corr} and drift_epsilon_prediction_{mse,corr}
-    # are already plotted correctly above (each metric alongside its own
-    # unit family, in epsilon_mse.png / epsilon_correlation.png); a combined
+    # drift_vs_epsilon_{mse,corr} and drift_vs_model_{mse,corr} are already
+    # plotted correctly above (each metric alongside its own unit family, in
+    # mse_comparisons.png / correlation_comparisons.png); a combined
     # MSE+correlation figure would just repeat those two lines on one
     # mismatched axis, so it is not regenerated here.
     _plot_panels(

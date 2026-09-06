@@ -118,22 +118,22 @@ class PosthocPipelineTests(unittest.TestCase):
             weighted,
         )
         torch.testing.assert_close(
-            result["epsilon_pred_true_mse"], sample_mse(prediction, epsilon)
+            result["model_vs_epsilon_mse"], sample_mse(prediction, epsilon)
         )
         torch.testing.assert_close(
-            result["epsilon_pred_true_corr"], sample_corr(prediction, epsilon)
+            result["model_vs_epsilon_corr"], sample_corr(prediction, epsilon)
         )
         torch.testing.assert_close(
-            result["drift_true_epsilon_mse"], sample_mse(drift, epsilon)
+            result["drift_vs_epsilon_mse"], sample_mse(drift, epsilon)
         )
         torch.testing.assert_close(
-            result["drift_true_epsilon_corr"], sample_corr(drift, epsilon)
+            result["drift_vs_epsilon_corr"], sample_corr(drift, epsilon)
         )
         torch.testing.assert_close(
-            result["drift_epsilon_prediction_mse"], sample_mse(drift, prediction)
+            result["drift_vs_model_mse"], sample_mse(drift, prediction)
         )
         torch.testing.assert_close(
-            result["drift_epsilon_prediction_corr"], sample_corr(drift, prediction)
+            result["drift_vs_model_corr"], sample_corr(drift, prediction)
         )
         torch.testing.assert_close(
             result["score_mse"], sample_mse(score_prediction, score_true)
