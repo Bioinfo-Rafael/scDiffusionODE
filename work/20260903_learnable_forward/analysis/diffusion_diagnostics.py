@@ -247,6 +247,49 @@ def _plot_panels(
     plt.close(fig)
 
 
+def _plot_grid(
+    frame: pd.DataFrame,
+    metrics: Sequence[str],
+    *,
+    ylabel: str,
+    title: str,
+    output: Path,
+    ncols: int = 2,
+) -> None:
+    """One subplot per metric in a compact grid (e.g. the 3 pairwise
+    epsilon/model/drift comparisons of a single unit, as a 2x2 grid with
+    one empty cell). Every panel keeps its own y-scale, so no metric's
+    magnitude can flatten another's."""
+
+    import math
+    import matplotlib
+
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    x = frame["timestep"].to_numpy()
+    nrows = math.ceil(len(metrics) / ncols)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(5.4 * ncols, 3.6 * nrows))
+    axes = np.atleast_2d(axes).reshape(nrows, ncols)
+    for index, ax in enumerate(axes.flat):
+        if index >= len(metrics):
+            ax.axis("off")
+            continue
+        metric = metrics[index]
+        mean = frame[f"{metric}_mean"].to_numpy(float)
+        std = frame[f"{metric}_std"].to_numpy(float)
+        ax.plot(x, mean, marker="o", markersize=3, linewidth=1.4)
+        ax.fill_between(x, mean - std, mean + std, alpha=0.14)
+        ax.set_title(metric.replace("_", " "), fontsize=9)
+        ax.set_xlabel("forward diffusion timestep", fontsize=8)
+        ax.set_ylabel(ylabel, fontsize=8)
+        ax.grid(alpha=0.22)
+    fig.suptitle(title)
+    fig.tight_layout()
+    fig.savefig(output, dpi=220, bbox_inches="tight")
+    plt.close(fig)
+
+
 def analyze_diffusion_diagnostics(
     run_dir,
     *,
@@ -285,7 +328,7 @@ def analyze_diffusion_diagnostics(
     output.mkdir(parents=True, exist_ok=True)
     frame = pd.DataFrame(rows)
     frame.to_csv(output / "timestep_metrics.csv", index=False)
-    _plot_lines(
+    _plot_grid(
         frame,
         (
             "model_vs_epsilon_mse",
@@ -296,7 +339,7 @@ def analyze_diffusion_diagnostics(
         title=f"MSE comparison\n{DRIFT_NOISE_WARNING}",
         output=output / "mse_comparisons.png",
     )
-    _plot_lines(
+    _plot_grid(
         frame,
         (
             "model_vs_epsilon_corr",
