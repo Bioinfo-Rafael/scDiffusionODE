@@ -1,0 +1,5 @@
+{
+  "experiment": "linear_singleODE_shifted_hill_rho",
+  "model_family": "linear_hybrid_single_ode",
+  "ode_type": "shifted_hill_rho"
+}
