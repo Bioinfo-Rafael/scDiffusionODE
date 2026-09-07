@@ -270,6 +270,8 @@ def analyze_generated_umap(
     *,
     device: str = "auto",
     ema_rate=None,
+    superclass_column: str = "",
+    superclasses: Sequence[str] | None = None,
     max_cells: int = 0,
     seed: int = 1234,
     force: bool = False,
@@ -277,10 +279,17 @@ def analyze_generated_umap(
     run = validate_run_directory(run_dir)
     output = run / "analysis" / "hematopoietic_umap"
     metadata_path = output / "metadata.json"
+    requested_superclasses = list(superclasses or DEFAULT_HEMATOPOIETIC_SUPERCLASSES)
     if metadata_path.is_file() and not force:
         with metadata_path.open(encoding="utf-8") as handle:
-            if metadata_matches_final_ema(
-                json.load(handle), run, ema_rate=ema_rate
+            existing = json.load(handle)
+            if (
+                metadata_matches_final_ema(existing, run, ema_rate=ema_rate)
+                and existing.get("selected_superclasses") == requested_superclasses
+                and (
+                    not superclass_column
+                    or existing.get("selected_superclass_column") == superclass_column
+                )
             ):
                 return {"status": "skipped_completed", "metadata": str(metadata_path)}
     loaded = load_final_ema(run, device=device, ema_rate=ema_rate)
@@ -288,6 +297,8 @@ def analyze_generated_umap(
     celltype = str(config.get("celltype_column", "celltype"))
     real, subset_metadata = select_hematopoietic_subset(
         loaded["adata"],
+        superclass_column=superclass_column,
+        superclasses=superclasses,
         celltype_column=celltype,
         max_cells=max_cells,
         seed=seed,
@@ -448,6 +459,8 @@ def analyze_drift_velocity(
     *,
     device: str = "auto",
     ema_rate=None,
+    superclass_column: str = "",
+    superclasses: Sequence[str] | None = None,
     max_cells: int = 0,
     seed: int = 1234,
     n_jobs: int = 32,
@@ -456,10 +469,17 @@ def analyze_drift_velocity(
     run = validate_run_directory(run_dir)
     output = run / "analysis" / "drift_velocity"
     metadata_path = output / "metadata.json"
+    requested_superclasses = list(superclasses or DEFAULT_HEMATOPOIETIC_SUPERCLASSES)
     if metadata_path.is_file() and not force:
         with metadata_path.open(encoding="utf-8") as handle:
-            if metadata_matches_final_ema(
-                json.load(handle), run, ema_rate=ema_rate
+            existing = json.load(handle)
+            if (
+                metadata_matches_final_ema(existing, run, ema_rate=ema_rate)
+                and existing.get("selected_superclasses") == requested_superclasses
+                and (
+                    not superclass_column
+                    or existing.get("selected_superclass_column") == superclass_column
+                )
             ):
                 return {"status": "skipped_completed", "metadata": str(metadata_path)}
     loaded = load_final_ema(run, device=device, ema_rate=ema_rate)
@@ -467,6 +487,8 @@ def analyze_drift_velocity(
     celltype = str(config.get("celltype_column", "celltype"))
     real, subset_metadata = select_hematopoietic_subset(
         loaded["adata"],
+        superclass_column=superclass_column,
+        superclasses=superclasses,
         celltype_column=celltype,
         max_cells=max_cells,
         seed=seed,

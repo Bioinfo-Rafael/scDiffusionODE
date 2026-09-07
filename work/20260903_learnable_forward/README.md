@@ -947,7 +947,9 @@ For clean saved training values, Model A writes
 `learned_forward_drift`.  It is called a **Learned forward-diffusion drift
 field**, never RNA velocity, and its direction is not reversed.  The
 hematopoietic subset is the same default union as the historical work:
-`Erythropoietic` + `Immune`.
+`Erythropoietic` + `Immune`.  Standalone analysis can instead select exact
+values with repeatable `--superclass` arguments; for example,
+`--superclass Erythropoietic` selects only that superclass.
 
 The scVelo workflow follows `work/20260830/hematopoietic_viz/`: construct the
 real-cell embedding once with PCA (`arpack`, 50 components), neighbors
@@ -1186,6 +1188,12 @@ conda run -n scdiffusion python \
   work/20260903_learnable_forward/scripts/analyze.py \
   --run-dir work/20260903_learnable_forward/runs/model_a_stationary_qd_aux/RUN_ID \
   --stage all --device cuda
+
+# Rebuild only drift velocity and generated-cell UMAP on Erythropoietic cells.
+conda run -n scdiffusion python \
+  work/20260903_learnable_forward/scripts/analyze.py \
+  --run-dir work/20260903_learnable_forward/runs/model_a_stationary_qd_aux/RUN_ID \
+  --stage hematopoietic --superclass Erythropoietic --device cuda --force
 
 # Benchmark auxiliary Model A and dense Model B.
 conda run -n scdiffusion python \

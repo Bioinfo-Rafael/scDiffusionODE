@@ -28,12 +28,19 @@ from common import requested_config, validate_run_directory  # noqa: E402
 
 
 STAGES = ("loss", "parameters", "diagnostics", "velocity", "umap")
+HEMATOPOIETIC_STAGES = ("velocity", "umap")
 
 
 def analyze_run(args: argparse.Namespace) -> dict:
     run = validate_run_directory(args.run_dir)
     config = requested_config(run)
-    requested = STAGES if args.stage == "all" else (args.stage,)
+    if args.stage == "all":
+        requested = STAGES
+    elif args.stage == "hematopoietic":
+        requested = HEMATOPOIETIC_STAGES
+    else:
+        requested = (args.stage,)
+    superclasses = tuple(args.superclass) or None
     results = {}
     for stage in requested:
         if stage == "loss":
@@ -78,6 +85,8 @@ def analyze_run(args: argparse.Namespace) -> dict:
                 run,
                 device=args.device,
                 ema_rate=args.ema_rate,
+                superclass_column=args.superclass_column,
+                superclasses=superclasses,
                 max_cells=int(
                     args.hematopoietic_max_cells
                     if args.hematopoietic_max_cells is not None
@@ -96,6 +105,8 @@ def analyze_run(args: argparse.Namespace) -> dict:
                 run,
                 device=args.device,
                 ema_rate=args.ema_rate,
+                superclass_column=args.superclass_column,
+                superclasses=superclasses,
                 max_cells=int(
                     args.hematopoietic_max_cells
                     if args.hematopoietic_max_cells is not None
@@ -113,7 +124,9 @@ def analyze_run(args: argparse.Namespace) -> dict:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(allow_abbrev=False)
     parser.add_argument("--run-dir", required=True)
-    parser.add_argument("--stage", choices=(*STAGES, "all"), default="all")
+    parser.add_argument(
+        "--stage", choices=(*STAGES, "hematopoietic", "all"), default="all"
+    )
     parser.add_argument("--device", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--ema-rate", default="")
     parser.add_argument("--rolling-window", type=int, default=None)
@@ -121,6 +134,13 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--timestep-step", type=int, default=None)
     parser.add_argument("--max-cells", type=int, default=None)
     parser.add_argument("--hematopoietic-max-cells", type=int, default=None)
+    parser.add_argument("--superclass-column", default="")
+    parser.add_argument(
+        "--superclass",
+        action="append",
+        default=[],
+        help="exact superclass value; repeat to select a union",
+    )
     parser.add_argument("--batch-size", type=int, default=None)
     parser.add_argument("--n-jobs", type=int, default=None)
     parser.add_argument("--seed", type=int, default=None)

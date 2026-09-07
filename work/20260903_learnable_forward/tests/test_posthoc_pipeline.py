@@ -143,7 +143,7 @@ class PosthocPipelineTests(unittest.TestCase):
         )
         torch.testing.assert_close(result["weighted_score_quadratic"], weighted)
 
-    def test_hematopoietic_selection_is_erythropoietic_plus_immune(self):
+    def test_hematopoietic_selection_default_and_erythropoietic_only(self):
         import anndata as ad
 
         adata = ad.AnnData(
@@ -169,6 +169,17 @@ class PosthocPipelineTests(unittest.TestCase):
             metadata["selected_superclasses"], ["Erythropoietic", "Immune"]
         )
         self.assertEqual(set(subset.obs["Superclass"].astype(str)), {"Erythropoietic", "Immune"})
+
+        erythroid, erythroid_metadata = select_hematopoietic_subset(
+            adata, superclasses=("Erythropoietic",)
+        )
+        self.assertEqual(erythroid.n_obs, 2)
+        self.assertEqual(
+            erythroid_metadata["selected_superclasses"], ["Erythropoietic"]
+        )
+        self.assertEqual(
+            set(erythroid.obs["Superclass"].astype(str)), {"Erythropoietic"}
+        )
 
     def test_loss_rolling_statistics_and_contribution_fractions(self):
         history = pd.DataFrame(
