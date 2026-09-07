@@ -30,8 +30,11 @@ L_total = L_diffusion
         + cell_ode_reg_lambda_20260830 * L_consistency
 ```
 
-`lambda=0` では consistency の loss 寄与は厳密に 0 です。今回の12条件は
-`0.1, 1.0, 10.0` を使用します。
+`lambda=0` では consistency の loss 寄与は厳密に 0 です。既存のcanonical 12条件は
+`0.1, 1.0, 10.0` を使用します。追加の探索条件では固定 `0.01`, `0.001` と、
+optimizer stepに対して `10.0` から `0.001` まで指数的に減衰する
+`log_linear` scheduleを使用できます。scheduleは1始まりのglobal training stepから
+決まるため、checkpoint resumeでも同じstepに同じ重みが再現されます。
 
 詳細lossは各optimizer stepでmemory bufferへ記録し、既定100 stepごと、および
 checkpoint・正常終了・例外終了時に `loss_components_20260830.csv` へappend/flush
@@ -241,6 +244,19 @@ GiB/run）、hill/simpleは約0.66 GiB/組（約13.9 GiB/run）、12 run合計�
 
 launcher と config validator の両方がこの順序・ODE・lambda の組を固定します。
 
+## 追加の探索条件
+
+各ODEについて次の3条件、計12条件（experiment `13`–`24`）を追加しています。
+
+- 固定 `lambda=0.01`
+- 固定 `lambda=0.001`
+- `lambda=10.0 -> 0.001` の100,000-step log-linear schedule
+
+scheduleは対数空間で等間隔なので、概ね step 1 / 25,001 / 50,001 / 75,001 /
+100,000で `10 / 1 / 0.1 / 0.01 / 0.001` になります。引数なしのlauncherは比較互換性の
+ため従来のcanonical 12条件だけを実行します。追加条件は `--experiment` で選択するか、
+`--exploratory` で追加12条件をまとめて実行します。
+
 ## Commands
 
 全12条件を train → sample → analysis の順で実行:
@@ -266,6 +282,26 @@ background 実行:
 /path/to/scdiffusion/bin/python work/20260830/scripts/launch.py \
   --experiment 01_centered_signed_hill_lambda0p1 --batch-id main-20260830
 ```
+
+追加条件の例:
+
+```bash
+# centered_signed_hill, lambda=0.01固定
+/path/to/scdiffusion/bin/python work/20260830/scripts/launch.py \
+  --experiment 13_centered_signed_hill_lambda0p01 --batch-id exploratory-20260830
+
+# centered_signed_hill, lambda=10 -> 0.001
+/path/to/scdiffusion/bin/python work/20260830/scripts/launch.py \
+  --experiment 15_centered_signed_hill_lambda10_to_0p001 \
+  --batch-id scheduled-20260830
+
+# 追加12条件をすべて実行
+/path/to/scdiffusion/bin/python work/20260830/scripts/launch.py \
+  --exploratory --runs-root runs2 --batch-id exploratory-20260830
+```
+
+`--runs-root runs2` を指定した場合、training checkpoint、sampling、analysis、
+background launcher logをすべて `work/20260830/runs2/` 以下へ保存します。
 
 同じ run directory の最新 complete raw checkpoint から resume:
 
@@ -343,7 +379,8 @@ defaultは2,048 cellsと既存timestep grid `0,249,499,616,749,999`、quickは12
 fullは最大4,096 cellsと全diffusion timestepです。
 metricとgradient CSVはdiffusion timestep/checkpoint groupごとに途中保存され、同じ
 analysis条件で再実行すると完了済みgroupをskipします。loss historyは各optimizer
-stepの最大100,000行を読み、rolling median/Q25/Q75を計算します。
+stepの最大100,000行を読み、rolling mean/stdを計算します。figure 08/09にはraw点を
+描画せず、rolling meanの線とmean +/- stdの帯を表示します。
 
 ```bash
 # analysis smoke test

@@ -59,6 +59,11 @@ def load_loss_history(
     off_mask_lambda = float(config.get("off_mask_lambda", 5.0))
     ode_reg_lambda = float(config.get("ode_reg_lambda", 1.0))
     cell_lambda = float(config["cell_ode_reg_lambda_20260830"])
+    cell_lambda_history = (
+        source["cell_ode_reg_lambda_20260830"].astype(float)
+        if "cell_ode_reg_lambda_20260830" in source
+        else cell_lambda
+    )
     training_step_column = "training_step" if "training_step" in source else "step"
     ode_internal_column = (
         "ode_offmask_after_internal_lambda"
@@ -124,7 +129,7 @@ def load_loss_history(
         "total_loss": source["total_loss"].astype(float),
         "off_mask_lambda_internal": off_mask_lambda,
         "ode_reg_lambda_outer": ode_reg_lambda,
-        "cell_ode_reg_lambda_20260830": cell_lambda,
+        "cell_ode_reg_lambda_20260830": cell_lambda_history,
         "learning_rate": (
             source["learning_rate"].astype(float)
             if "learning_rate" in source
@@ -140,6 +145,10 @@ def load_loss_history(
     window = max(int(rolling_window), 1)
     for column in (*RAW_COLUMNS, "ode_regularization_weighted", "cell_ode_consistency_weighted_20260830", "total_loss"):
         rolling = history[column].rolling(window=window, min_periods=1)
+        history[f"{column}_rolling_mean_w{window}"] = rolling.mean()
+        history[f"{column}_rolling_std_w{window}"] = rolling.std(ddof=0)
+        # Retain the former statistics in CSV for compatibility with completed
+        # analyses, although figures now use mean +/- standard deviation.
         history[f"{column}_rolling_median_w{window}"] = rolling.median()
         history[f"{column}_rolling_q25_w{window}"] = rolling.quantile(0.25)
         history[f"{column}_rolling_q75_w{window}"] = rolling.quantile(0.75)

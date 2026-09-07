@@ -16,7 +16,7 @@ for path in (REPO_ROOT, SUITE_ROOT, HERE):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from common import choose_sampling_checkpoint, read_json, write_json  # noqa: E402
+from common import assert_allowed_run_dir, choose_sampling_checkpoint, read_json, write_json  # noqa: E402
 
 
 def main(argv=None):
@@ -32,8 +32,7 @@ def main(argv=None):
     from ODE.ode_20260609_mathmlp import clean_state_dict
     from models import build_model_from_config
 
-    run = Path(args.run_dir).resolve()
-    run.relative_to((SUITE_ROOT / "runs").resolve())
+    run = assert_allowed_run_dir(args.run_dir)
     config = read_json(run / "exp_config.json")
     checkpoint = Path(args.model_path).resolve() if args.model_path else choose_sampling_checkpoint(run, config["ema_rate"])
     checkpoint.relative_to((run / "checkpoints").resolve())

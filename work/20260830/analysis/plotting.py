@@ -21,9 +21,16 @@ def _finish(fig, path: Path) -> None:
 
 
 def _condition_title(metadata: dict) -> str:
+    schedule = metadata.get("cell_ode_reg_schedule_20260830", "constant")
+    start = metadata.get("cell_ode_reg_lambda_20260830", "unknown")
+    if schedule == "constant":
+        lambda_text = str(start)
+    else:
+        end = metadata.get("cell_ode_reg_lambda_end_20260830", "unknown")
+        lambda_text = f"{start}->{end} ({schedule})"
     return (
         f"{metadata.get('ode_type', 'unknown ODE')} | "
-        f"lambda={metadata.get('cell_ode_reg_lambda_20260830', 'unknown')} | "
+        f"lambda={lambda_text} | "
         f"checkpoint training_step={metadata.get('checkpoint_training_step', 'unknown')}"
     )
 
@@ -35,20 +42,16 @@ def _line(ax, frame, column, label=None):
 
 
 def _rolling_plot(ax, history, column, window, color):
-    median = f"{column}_rolling_median_w{window}"
-    q25 = f"{column}_rolling_q25_w{window}"
-    q75 = f"{column}_rolling_q75_w{window}"
+    mean_column = f"{column}_rolling_mean_w{window}"
+    std_column = f"{column}_rolling_std_w{window}"
     x = history["training_step"].to_numpy(dtype=float)
-    med = history[median].to_numpy(dtype=float)
-    lower = history[q25].to_numpy(dtype=float)
-    upper = history[q75].to_numpy(dtype=float)
-    raw = history[column].to_numpy(dtype=float)
-    ax.plot(x, med, color=color, label="rolling median")
+    mean = history[mean_column].to_numpy(dtype=float)
+    std = history[std_column].to_numpy(dtype=float)
+    ax.plot(x, mean, color=color, label="rolling mean")
     ax.fill_between(
-        x, lower, upper, color=color,
-        alpha=0.2, label="rolling Q25-Q75",
+        x, mean - std, mean + std, color=color,
+        alpha=0.2, label="rolling mean +/- std",
     )
-    ax.scatter(x, raw, s=8, alpha=0.25, color=color, label="raw")
     ax.set_xlabel("training_step")
     ax.set_ylabel(column)
     ax.grid(alpha=0.25)
@@ -193,7 +196,7 @@ def plot_run_figures(
         ):
             _rolling_plot(ax, loss_history, column, rolling_window, color)
             ax.legend(loc="best", fontsize=8)
-        fig.suptitle(f"Raw loss components on independent y axes | rolling median w={rolling_window}\n{title}")
+        fig.suptitle(f"Loss components on independent y axes | rolling mean +/- std, w={rolling_window}\n{title}")
         path = output / "08_loss_components_raw.png"; _finish(fig, path); created.append(path)
 
         fig, ax = plt.subplots(figsize=(10, 5))
@@ -202,17 +205,21 @@ def plot_run_figures(
             ("ode_regularization_weighted", "ODE final weighted contribution"),
             ("cell_ode_consistency_weighted_20260830", "Cell-ODE final weighted contribution"),
         ):
-            median_column = f"{column}_rolling_median_w{rolling_window}"
-            value = loss_history[median_column].where(
-                loss_history[median_column] > 0, np.nan
-            )
+            mean_column = f"{column}_rolling_mean_w{rolling_window}"
+            std_column = f"{column}_rolling_std_w{rolling_window}"
+            mean = loss_history[mean_column]
+            std = loss_history[std_column]
+            value = mean.where(mean > 0, np.nan)
             ax.plot(
                 loss_history["training_step"], value,
-                label=f"{label} (rolling median w={rolling_window})",
+                label=f"{label} (rolling mean w={rolling_window})",
             )
-            raw = loss_history[column].where(loss_history[column] > 0, np.nan)
-            ax.scatter(
-                loss_history["training_step"], raw, s=7, alpha=0.18,
+            lower = (mean - std).where((mean - std) > 0, np.nan)
+            upper = (mean + std).where((mean + std) > 0, np.nan)
+            ax.fill_between(
+                loss_history["training_step"].to_numpy(dtype=float),
+                lower.to_numpy(dtype=float), upper.to_numpy(dtype=float),
+                alpha=0.14,
             )
         ax.set_yscale("log")
         ax.set_xlabel("training_step")

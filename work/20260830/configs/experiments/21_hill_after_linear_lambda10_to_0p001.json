@@ -1,0 +1,1 @@
+{"experiment":"21_hill_after_linear_lambda10_to_0p001","ode_type":"hill_after_linear","cell_ode_reg_lambda_20260830":10.0,"cell_ode_reg_schedule_20260830":"log_linear","cell_ode_reg_lambda_end_20260830":0.001}

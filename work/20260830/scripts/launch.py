@@ -15,11 +15,19 @@ SUITE_ROOT = HERE.parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
-from common import EXPERIMENT_ORDER, new_batch_id, run_dir, safe_component  # noqa: E402
+from common import (  # noqa: E402
+    ALL_EXPERIMENTS,
+    EXPERIMENT_ORDER,
+    EXPLORATORY_EXPERIMENT_ORDER,
+    RUN_ROOTS,
+    new_batch_id,
+    run_dir,
+    safe_component,
+)
 
 
 def commands(experiment, batch_id, args):
-    target = run_dir(experiment, batch_id)
+    target = run_dir(experiment, batch_id, args.runs_root)
     config = SUITE_ROOT / "configs" / "experiments" / f"{experiment}.json"
     python = sys.executable
     if args.smoke:
@@ -66,8 +74,10 @@ def background_child_command(argv=None):
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--experiment", action="append", choices=EXPERIMENT_ORDER)
+    parser.add_argument("--experiment", action="append", choices=ALL_EXPERIMENTS)
+    parser.add_argument("--exploratory", action="store_true")
     parser.add_argument("--batch-id", default="")
+    parser.add_argument("--runs-root", choices=tuple(RUN_ROOTS), default="runs")
     parser.add_argument("--resume", nargs="?", const="auto", default="")
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--sample-only", action="store_true")
@@ -83,12 +93,22 @@ def main(argv=None):
     args = parser.parse_args(argv)
     if args.analysis_full and (args.sample_only or args.smoke):
         parser.error("--analysis-full requires the normal pipeline or --analysis-only")
-    selected = tuple(args.experiment or EXPERIMENT_ORDER)
+    if args.exploratory and args.experiment:
+        parser.error("--exploratory cannot be combined with --experiment")
+    selected = (
+        EXPLORATORY_EXPERIMENT_ORDER
+        if args.exploratory
+        else tuple(args.experiment or EXPERIMENT_ORDER)
+    )
     if args.resume not in ("", "auto") and len(selected) != 1:
         raise ValueError("an explicit resume checkpoint requires exactly one experiment")
     batch_id = safe_component(args.batch_id or new_batch_id(), "batch id")
     plan = [
-        {"experiment": experiment, "run_dir": str(run_dir(experiment, batch_id)), "commands": command_list}
+        {
+            "experiment": experiment,
+            "run_dir": str(run_dir(experiment, batch_id, args.runs_root)),
+            "commands": command_list,
+        }
         for experiment in selected
         for command_list in [commands(experiment, batch_id, args)]
     ]
@@ -100,7 +120,7 @@ def main(argv=None):
         print(json.dumps({"batch_id": batch_id, "runs": plan, "summary": summary}, indent=2))
         return 0
     if args.background:
-        log_dir = SUITE_ROOT / "runs" / "_launcher_logs"
+        log_dir = RUN_ROOTS[args.runs_root] / "_launcher_logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         log = log_dir / f"{batch_id}.log"
         child = background_child_command()

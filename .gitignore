@@ -54,6 +54,7 @@ output/*
 # --- Generated experiment outputs (train/sample/viz + matrix summaries) ---
 # runs/ 配下は train(checkpoints/loss_details.csv) / sample(npz) / viz(png) など全て生成物。
 runs/
+work/*/runs2/
 work/*/experiments/
 
 # --- Repository policy notes ---

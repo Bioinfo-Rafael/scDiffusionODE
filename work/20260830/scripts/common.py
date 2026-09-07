@@ -13,6 +13,8 @@ SUITE_ROOT = Path(__file__).resolve().parent.parent
 REPO_ROOT = SUITE_ROOT.parent.parent
 CONFIG_ROOT = SUITE_ROOT / "configs"
 RUNS_ROOT = SUITE_ROOT / "runs"
+RUNS2_ROOT = SUITE_ROOT / "runs2"
+RUN_ROOTS = {"runs": RUNS_ROOT, "runs2": RUNS2_ROOT}
 EXPERIMENT_ORDER = (
     "01_centered_signed_hill_lambda0p1",
     "02_centered_signed_hill_lambda1",
@@ -27,6 +29,63 @@ EXPERIMENT_ORDER = (
     "11_simple_softplus_lambda1",
     "12_simple_softplus_lambda10",
 )
+EXPLORATORY_EXPERIMENT_ORDER = (
+    "13_centered_signed_hill_lambda0p01",
+    "14_centered_signed_hill_lambda0p001",
+    "15_centered_signed_hill_lambda10_to_0p001",
+    "16_shifted_hill_rho_lambda0p01",
+    "17_shifted_hill_rho_lambda0p001",
+    "18_shifted_hill_rho_lambda10_to_0p001",
+    "19_hill_after_linear_lambda0p01",
+    "20_hill_after_linear_lambda0p001",
+    "21_hill_after_linear_lambda10_to_0p001",
+    "22_simple_softplus_lambda0p01",
+    "23_simple_softplus_lambda0p001",
+    "24_simple_softplus_lambda10_to_0p001",
+)
+ALL_EXPERIMENTS = EXPERIMENT_ORDER + EXPLORATORY_EXPERIMENT_ORDER
+_EXPERIMENT_SPECS = {
+    name: {
+        "ode_type": ode_type,
+        "start": start,
+        "schedule": schedule,
+        "end": end,
+    }
+    for name, ode_type, start, schedule, end in (
+        *(
+            (name, ode_type, value, "constant", None)
+            for name, (ode_type, value) in zip(
+                EXPERIMENT_ORDER,
+                (
+                    (ode_type, value)
+                    for ode_type in (
+                        "centered_signed_hill", "shifted_hill_rho",
+                        "hill_after_linear", "simple_softplus",
+                    )
+                    for value in (0.1, 1.0, 10.0)
+                ),
+            )
+        ),
+        *(
+            (name, ode_type, start, schedule, end)
+            for name, (ode_type, start, schedule, end) in zip(
+                EXPLORATORY_EXPERIMENT_ORDER,
+                (
+                    (ode_type, start, schedule, end)
+                    for ode_type in (
+                        "centered_signed_hill", "shifted_hill_rho",
+                        "hill_after_linear", "simple_softplus",
+                    )
+                    for start, schedule, end in (
+                        (0.01, "constant", None),
+                        (0.001, "constant", None),
+                        (10.0, "log_linear", 0.001),
+                    )
+                ),
+            )
+        ),
+    )
+}
 _SAFE = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.-]*$")
 
 
@@ -57,20 +116,22 @@ def deep_merge(base, override):
 
 def validate_config(config):
     name = str(config.get("experiment", ""))
-    if name not in EXPERIMENT_ORDER:
-        raise ValueError(f"experiment must be canonical, got {name!r}")
-    index = EXPERIMENT_ORDER.index(name)
-    expected_ode = (
-        "centered_signed_hill",
-        "shifted_hill_rho",
-        "hill_after_linear",
-        "simple_softplus",
-    )[index // 3]
-    expected_lambda = (0.1, 1.0, 10.0)[index % 3]
-    if config.get("ode_type") != expected_ode:
-        raise ValueError(f"{name} must use {expected_ode}")
-    if float(config.get("cell_ode_reg_lambda_20260830")) != expected_lambda:
-        raise ValueError(f"{name} must use lambda={expected_lambda}")
+    if name not in _EXPERIMENT_SPECS:
+        raise ValueError(f"experiment is not registered, got {name!r}")
+    spec = _EXPERIMENT_SPECS[name]
+    if config.get("ode_type") != spec["ode_type"]:
+        raise ValueError(f"{name} must use {spec['ode_type']}")
+    if float(config.get("cell_ode_reg_lambda_20260830")) != spec["start"]:
+        raise ValueError(f"{name} must start with lambda={spec['start']}")
+    schedule = str(config.get("cell_ode_reg_schedule_20260830", "constant"))
+    if schedule != spec["schedule"]:
+        raise ValueError(f"{name} must use schedule={spec['schedule']}")
+    configured_end = config.get("cell_ode_reg_lambda_end_20260830")
+    if spec["end"] is None:
+        if configured_end is not None:
+            raise ValueError(f"{name} must not set a schedule end weight")
+    elif float(configured_end) != spec["end"]:
+        raise ValueError(f"{name} must end with lambda={spec['end']}")
     if int(config.get("K", 1)) != 1 or config.get("gate_mode") != "none":
         raise ValueError("all conditions must be single ODE without a gate")
     if float(config.get("off_mask_lambda", 5.0)) != 5.0:
@@ -83,6 +144,8 @@ def validate_config(config):
         raise ValueError("all 20260830 conditions must use lr_anneal_steps=100000")
     if int(config.get("total_steps")) != int(config.get("lr_anneal_steps")):
         raise ValueError("total_steps and lr_anneal_steps must be identical")
+    if int(config.get("cell_ode_reg_schedule_steps_20260830", 0)) != int(config["total_steps"]):
+        raise ValueError("consistency schedule steps must equal total_steps")
     if int(config.get("detailed_loss_flush_interval", 0)) <= 0:
         raise ValueError("detailed_loss_flush_interval must be positive")
 
@@ -110,8 +173,32 @@ def new_batch_id():
     return datetime.now().strftime("%Y%m%d-%H%M%S")
 
 
-def run_dir(experiment, batch_id):
-    return RUNS_ROOT / safe_component(experiment, "experiment") / safe_component(batch_id, "batch id")
+def resolve_runs_root(name="runs"):
+    try:
+        return RUN_ROOTS[str(name)]
+    except KeyError as error:
+        raise ValueError(f"runs root must be one of {tuple(RUN_ROOTS)}") from error
+
+
+def assert_allowed_run_dir(path):
+    target = Path(path).resolve()
+    for root in RUN_ROOTS.values():
+        resolved_root = root.resolve()
+        try:
+            target.relative_to(resolved_root)
+        except ValueError:
+            continue
+        if target != resolved_root:
+            return target
+    raise ValueError("run-dir must be an experiment/batch directory below runs/ or runs2/")
+
+
+def run_dir(experiment, batch_id, runs_root="runs"):
+    return (
+        resolve_runs_root(runs_root)
+        / safe_component(experiment, "experiment")
+        / safe_component(batch_id, "batch id")
+    )
 
 
 def checkpoint_files(run_path):

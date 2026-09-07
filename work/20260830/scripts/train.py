@@ -17,7 +17,13 @@ for path in (REPO_ROOT, SUITE_ROOT, HERE):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from common import latest_raw_checkpoint, load_experiment_config, read_json, write_json  # noqa: E402
+from common import (  # noqa: E402
+    assert_allowed_run_dir,
+    latest_raw_checkpoint,
+    load_experiment_config,
+    read_json,
+    write_json,
+)
 
 
 def _device(torch, dist_util, requested):
@@ -58,11 +64,7 @@ def main(argv=None):
     from training import TrainLoop20260830
 
     config = load_experiment_config(args.config)
-    target = Path(args.run_dir).resolve()
-    expected_root = (SUITE_ROOT / "runs").resolve()
-    target.relative_to(expected_root)
-    if target == expected_root:
-        raise ValueError("run-dir must be an experiment/batch directory below runs/")
+    target = assert_allowed_run_dir(args.run_dir)
     target.mkdir(parents=True, exist_ok=True)
     stored = target / "exp_config.json"
     if stored.exists() and read_json(stored) != config:
@@ -141,6 +143,9 @@ def main(argv=None):
         ode_reg_norm=str(config["ode_reg_norm"]),
         save_loss_details=bool(config["save_loss_details"]),
         cell_ode_reg_lambda_20260830=float(config["cell_ode_reg_lambda_20260830"]),
+        cell_ode_reg_schedule_20260830=str(config["cell_ode_reg_schedule_20260830"]),
+        cell_ode_reg_lambda_end_20260830=config["cell_ode_reg_lambda_end_20260830"],
+        cell_ode_reg_schedule_steps_20260830=int(config["cell_ode_reg_schedule_steps_20260830"]),
         detailed_loss_flush_interval=int(config["detailed_loss_flush_interval"]),
     ).run_loop()
     return 0

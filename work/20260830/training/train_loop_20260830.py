@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import csv
 import functools
+import math
 import os
 
 import torch as th
@@ -88,16 +89,39 @@ class TrainLoop20260830(TrainLoop):
         self,
         *,
         cell_ode_reg_lambda_20260830: float,
+        cell_ode_reg_schedule_20260830: str = "constant",
+        cell_ode_reg_lambda_end_20260830: float | None = None,
+        cell_ode_reg_schedule_steps_20260830: int | None = None,
         detailed_loss_flush_interval: int = 100,
         **kwargs,
     ):
         value = float(cell_ode_reg_lambda_20260830)
         if value < 0:
             raise ValueError("cell_ode_reg_lambda_20260830 must be non-negative")
+        schedule = str(cell_ode_reg_schedule_20260830)
+        if schedule not in ("constant", "log_linear"):
+            raise ValueError("cell_ode_reg_schedule_20260830 must be constant or log_linear")
+        end_value = value if cell_ode_reg_lambda_end_20260830 is None else float(
+            cell_ode_reg_lambda_end_20260830
+        )
+        schedule_steps = int(
+            cell_ode_reg_schedule_steps_20260830
+            if cell_ode_reg_schedule_steps_20260830 is not None
+            else kwargs.get("lr_anneal_steps", 0)
+        )
+        if schedule == "log_linear" and (value <= 0 or end_value <= 0):
+            raise ValueError("log_linear consistency weights must be positive")
+        if end_value < 0:
+            raise ValueError("cell_ode_reg_lambda_end_20260830 must be non-negative")
+        if schedule_steps <= 0:
+            raise ValueError("cell_ode_reg_schedule_steps_20260830 must be positive")
         flush_interval = int(detailed_loss_flush_interval)
         if flush_interval <= 0:
             raise ValueError("detailed_loss_flush_interval must be positive")
         self.cell_ode_reg_lambda_20260830 = value
+        self.cell_ode_reg_schedule_20260830 = schedule
+        self.cell_ode_reg_lambda_end_20260830 = end_value
+        self.cell_ode_reg_schedule_steps_20260830 = schedule_steps
         self.detailed_loss_flush_interval = flush_interval
         self._detailed_loss_buffer_20260830 = []
         super().__init__(**kwargs)
@@ -129,6 +153,19 @@ class TrainLoop20260830(TrainLoop):
         for param_group in self.opt.param_groups:
             param_group["lr"] = lr
 
+    def cell_ode_reg_lambda_at_step_20260830(self, training_step: int) -> float:
+        """Return the resume-safe consistency weight for a 1-based optimizer step."""
+
+        if self.cell_ode_reg_schedule_20260830 == "constant":
+            return self.cell_ode_reg_lambda_20260830
+        if self.cell_ode_reg_schedule_steps_20260830 == 1:
+            return self.cell_ode_reg_lambda_end_20260830
+        bounded_step = min(max(int(training_step), 1), self.cell_ode_reg_schedule_steps_20260830)
+        progress = (bounded_step - 1) / (self.cell_ode_reg_schedule_steps_20260830 - 1)
+        start_log = math.log(self.cell_ode_reg_lambda_20260830)
+        end_log = math.log(self.cell_ode_reg_lambda_end_20260830)
+        return math.exp(start_log + progress * (end_log - start_log))
+
     def forward_backward(self, batch, cond):
         self.mp_trainer.zero_grad()
         aggregate = None
@@ -136,6 +173,8 @@ class TrainLoop20260830(TrainLoop):
         if batch_size <= 0:
             raise ValueError("training batch must be non-empty")
         learning_rate = float(self.opt.param_groups[0]["lr"])
+        training_step = self.step + self.resume_step + 1
+        current_cell_ode_lambda = self.cell_ode_reg_lambda_at_step_20260830(training_step)
         for i in range(0, batch.shape[0], self.microbatch):
             micro = batch[i : i + self.microbatch].to(dist_util.dev())
             micro_cond = {
@@ -180,7 +219,7 @@ class TrainLoop20260830(TrainLoop):
                 self.ode_reg_lambda,
                 consistency,
                 weights,
-                self.cell_ode_reg_lambda_20260830,
+                current_cell_ode_lambda,
                 ode_offmask_base_raw=ode_base,
             )
             loss = components["total_loss"]
@@ -203,7 +242,6 @@ class TrainLoop20260830(TrainLoop):
 
         if aggregate is None:
             raise RuntimeError("no microbatch was processed")
-        training_step = self.step + self.resume_step + 1
         legacy_step = self.step + self.resume_step
         model_ref = getattr(self.ddp_model, "module", self.ddp_model)
         off_mask_lambda = float(model_ref.ode_model.off_mask_lambda)
@@ -220,7 +258,7 @@ class TrainLoop20260830(TrainLoop):
             **aggregate,
             "off_mask_lambda": off_mask_lambda,
             "ode_reg_lambda": float(self.ode_reg_lambda),
-            "cell_ode_reg_lambda_20260830": self.cell_ode_reg_lambda_20260830,
+            "cell_ode_reg_lambda_20260830": current_cell_ode_lambda,
             "learning_rate": learning_rate,
             "step": legacy_step,
         }

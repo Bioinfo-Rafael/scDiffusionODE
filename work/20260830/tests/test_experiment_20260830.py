@@ -16,7 +16,13 @@ for path in (REPO_ROOT, SUITE_ROOT, SUITE_ROOT / "scripts"):
     if str(path) not in sys.path:
         sys.path.insert(0, str(path))
 
-from common import EXPERIMENT_ORDER, load_experiment_config  # noqa: E402
+from common import (  # noqa: E402
+    ALL_EXPERIMENTS,
+    EXPERIMENT_ORDER,
+    assert_allowed_run_dir,
+    load_experiment_config,
+    run_dir,
+)
 from launch import background_child_command  # noqa: E402
 from models import build_ode_from_config  # noqa: E402
 from models.cellunet_ode_regularized_20260830 import CellUNetODERegularized20260830  # noqa: E402
@@ -67,6 +73,11 @@ def ode(ode_type, d=4, mask=None):
 
 
 class ExperimentTests(unittest.TestCase):
+    def test_runs2_is_an_allowed_isolated_output_root(self):
+        target = run_dir("13_centered_signed_hill_lambda0p01", "batch", "runs2")
+        self.assertEqual(target.parent.parent.name, "runs2")
+        self.assertEqual(assert_allowed_run_dir(target), target.resolve())
+
     def test_background_launcher_uses_python_interpreter(self):
         child = background_child_command(["--batch-id", "test", "--background"])
         self.assertEqual(Path(child[0]).resolve(), Path(sys.executable).resolve())
@@ -244,6 +255,23 @@ class ExperimentTests(unittest.TestCase):
         loop._anneal_lr()
         self.assertEqual(loop.opt.param_groups[0]["lr"], 0.0)
 
+    def test_log_linear_consistency_schedule_is_resume_safe(self):
+        loop = object.__new__(TrainLoop20260830)
+        loop.cell_ode_reg_lambda_20260830 = 10.0
+        loop.cell_ode_reg_lambda_end_20260830 = 0.001
+        loop.cell_ode_reg_schedule_steps_20260830 = 100000
+        loop.cell_ode_reg_schedule_20260830 = "log_linear"
+        self.assertAlmostEqual(loop.cell_ode_reg_lambda_at_step_20260830(1), 10.0)
+        self.assertAlmostEqual(loop.cell_ode_reg_lambda_at_step_20260830(100000), 0.001)
+        self.assertAlmostEqual(
+            loop.cell_ode_reg_lambda_at_step_20260830(50000),
+            10.0 * (0.001 / 10.0) ** (49999 / 99999),
+        )
+        self.assertEqual(
+            loop.cell_ode_reg_lambda_at_step_20260830(50000),
+            loop.cell_ode_reg_lambda_at_step_20260830(50000),
+        )
+
     def test_microbatch_logging_aggregates_the_whole_optimizer_step(self):
         class DeterministicDiffusion:
             num_timesteps = 1000
@@ -334,6 +362,16 @@ class ExperimentTests(unittest.TestCase):
             for value in (0.1, 1.0, 10.0)
         ]
         self.assertEqual(observed, expected)
+
+    def test_exploratory_fixed_and_scheduled_configs(self):
+        self.assertEqual(len(ALL_EXPERIMENTS), 24)
+        fixed = load_experiment_config("13_centered_signed_hill_lambda0p01")
+        self.assertEqual(fixed["cell_ode_reg_lambda_20260830"], 0.01)
+        self.assertEqual(fixed["cell_ode_reg_schedule_20260830"], "constant")
+        scheduled = load_experiment_config("15_centered_signed_hill_lambda10_to_0p001")
+        self.assertEqual(scheduled["cell_ode_reg_lambda_20260830"], 10.0)
+        self.assertEqual(scheduled["cell_ode_reg_lambda_end_20260830"], 0.001)
+        self.assertEqual(scheduled["cell_ode_reg_schedule_20260830"], "log_linear")
 
 
 if __name__ == "__main__":

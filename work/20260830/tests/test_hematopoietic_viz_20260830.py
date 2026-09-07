@@ -88,12 +88,12 @@ class RecordingDiffusion:
 class HematopoieticVizTests(unittest.TestCase):
     def test_protected_pipeline_files_match_pre_visualization_hashes(self):
         expected = {
-            "work/20260830/scripts/launch.py": "ed0fab922ac06d3ea65d23ab1ae1216c661eba7346928205f7cb254ead3ccdc5",
-            "work/20260830/scripts/train.py": "5fc976c5a4b23a67bf5d4c6389968e2e0b25ceb78b1d22544e9feb000f51f5db",
-            "work/20260830/scripts/sample.py": "e313f830131dded178bad9a34229c80f3109503f545a8bb92ba1310d5e68ea8c",
+            "work/20260830/scripts/launch.py": "e39398631b818aa58fc953ed100a656b2ec4d25165c079ad5a119a43f6a1d291",
+            "work/20260830/scripts/train.py": "a7f14a15a5740b4a47bb8521e88facb65c3381b8aba1c8a5254bbff1ee3666f8",
+            "work/20260830/scripts/sample.py": "8b0d7d6d540327e71e7a55d05704b51c64a9a7113c01ae8e100ced5b8ec919c7",
             "work/20260830/scripts/analyze.py": "819269fa5b20d9fa38da8a8378ed487e8e4a858f0ff5bbc232abda8e894f787b",
             "work/20260830/training/__init__.py": "5a336e8a7fbe61dcf3243d52649e069d4c10d74ba415d108d65390e8278d6920",
-            "work/20260830/training/train_loop_20260830.py": "95c1cc9cd39eda5db2d54d635e69b0383bc83193d7e5083174d9e430985ebc06",
+            "work/20260830/training/train_loop_20260830.py": "d8fbfcf8f62dd723e4ca71b32908e8fc3a37d4a7dfe0cb94b376033a7493f5dc",
         }
         for relative, digest in expected.items():
             actual = hashlib.sha256((REPO_ROOT / relative).read_bytes()).hexdigest()

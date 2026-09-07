@@ -76,3 +76,7 @@ cell_ode_consistency_weighted_20260830
 
 full plotはoutlierを含む全範囲、zoomはtitleとfilenameに `t>=1` を明記します。
 percentileによるylim切断はしません。
+
+loss figure `08` と `09` はraw scatterを表示せず、既定100 optimizer stepの
+rolling meanを線、rolling mean +/- population stdを帯として表示します。CSVには
+mean/stdに加え、既存解析との互換性のためmedian/Q25/Q75も残します。

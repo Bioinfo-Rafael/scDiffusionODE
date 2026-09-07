@@ -304,6 +304,8 @@ class AnalysisTests(unittest.TestCase):
             "cell_ode_consistency_raw_20260830", "ode_regularization_weighted",
             "cell_ode_consistency_weighted_20260830", "total_loss",
         ):
+            history[f"{column}_rolling_mean_w2"] = history[column]
+            history[f"{column}_rolling_std_w2"] = 0.0
             history[f"{column}_rolling_median_w2"] = history[column]
             history[f"{column}_rolling_q25_w2"] = history[column]
             history[f"{column}_rolling_q75_w2"] = history[column]
@@ -327,9 +329,9 @@ class AnalysisTests(unittest.TestCase):
         expected = {
             "guided_diffusion/gaussian_diffusion.py": "eeb83640dc140f91e3519976fa5cf031076d7713d049d2a1b9debc8b0390b9ab",
             "guided_diffusion/train_util.py": "8aba336eee5240a788d5c2de46092a91d1c5f21a0e215e46106e5b28fe710c19",
-            "work/20260830/training/train_loop_20260830.py": "95c1cc9cd39eda5db2d54d635e69b0383bc83193d7e5083174d9e430985ebc06",
-            "work/20260830/scripts/train.py": "5fc976c5a4b23a67bf5d4c6389968e2e0b25ceb78b1d22544e9feb000f51f5db",
-            "work/20260830/scripts/sample.py": "e313f830131dded178bad9a34229c80f3109503f545a8bb92ba1310d5e68ea8c",
+            "work/20260830/training/train_loop_20260830.py": "d8fbfcf8f62dd723e4ca71b32908e8fc3a37d4a7dfe0cb94b376033a7493f5dc",
+            "work/20260830/scripts/train.py": "a7f14a15a5740b4a47bb8521e88facb65c3381b8aba1c8a5254bbff1ee3666f8",
+            "work/20260830/scripts/sample.py": "8b0d7d6d540327e71e7a55d05704b51c64a9a7113c01ae8e100ced5b8ec919c7",
         }
         for relative, digest in expected.items():
             actual = hashlib.sha256((REPO_ROOT / relative).read_bytes()).hexdigest()

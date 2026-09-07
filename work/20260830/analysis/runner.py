@@ -227,6 +227,12 @@ def analyze_run(run_dir, options: AnalysisOptions) -> dict:
         "experiment": config["experiment"],
         "ode_type": config["ode_type"],
         "cell_ode_reg_lambda_20260830": float(config["cell_ode_reg_lambda_20260830"]),
+        "cell_ode_reg_schedule_20260830": config.get(
+            "cell_ode_reg_schedule_20260830", "constant"
+        ),
+        "cell_ode_reg_lambda_end_20260830": config.get(
+            "cell_ode_reg_lambda_end_20260830"
+        ),
         "run_directory": str(run),
         "checkpoint_path": str(final_checkpoint.resolve()),
         "checkpoint_training_step": final_training_step,
@@ -435,13 +441,21 @@ def summarize_run(run_dir) -> tuple[dict, list[dict]]:
     fraction = pd.read_csv(root / "loss_fraction.csv")
     gradient_path = root / "gradient_metrics.csv"
     gradients = pd.read_csv(gradient_path) if gradient_path.exists() and gradient_path.stat().st_size else pd.DataFrame()
+    merge_columns = [
+        "experiment", "ode_type", "cell_ode_reg_lambda_20260830",
+        "run_directory", "checkpoint_path", "checkpoint_training_step",
+        "diffusion_timestep", "analyzed_cells", "diffusion_target",
+    ]
+    merge_columns.extend(
+        column for column in (
+            "cell_ode_reg_schedule_20260830",
+            "cell_ode_reg_lambda_end_20260830",
+        )
+        if column in diffusion.columns and column in cell_ode.columns
+    )
     joined = diffusion.merge(
         cell_ode,
-        on=[
-            "experiment", "ode_type", "cell_ode_reg_lambda_20260830",
-            "run_directory", "checkpoint_path", "checkpoint_training_step",
-            "diffusion_timestep", "analyzed_cells", "diffusion_target",
-        ],
+        on=merge_columns,
         how="inner",
     )
     joined["norm_ratio_deviation_from_1"] = (
@@ -462,6 +476,12 @@ def summarize_run(run_dir) -> tuple[dict, list[dict]]:
         "experiment": config["experiment"],
         "ode_type": config["ode_type"],
         "cell_ode_reg_lambda_20260830": float(config["cell_ode_reg_lambda_20260830"]),
+        "cell_ode_reg_schedule_20260830": config.get(
+            "cell_ode_reg_schedule_20260830", "constant"
+        ),
+        "cell_ode_reg_lambda_end_20260830": config.get(
+            "cell_ode_reg_lambda_end_20260830"
+        ),
         "run_directory": str(run),
     }
     row = dict(base)
