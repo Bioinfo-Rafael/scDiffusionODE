@@ -1,0 +1,4 @@
+# 論文公開時期のAPIと公式コードに合わせて固定する。
+# scvelo 0.2.5との両立のため、Dynamoの下限を満たす3.7系列に固定する。
+matplotlib==3.7.5
+dynamo-release==1.4.1

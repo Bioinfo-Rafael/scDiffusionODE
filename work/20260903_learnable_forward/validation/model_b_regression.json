@@ -1,0 +1,13 @@
+{
+  "baseline_commit": "9a7e72431ba5a61fcd171627ffddfcffd86c9045",
+  "model": "free_affine",
+  "bitwise_identical": true,
+  "tensor_count": 80,
+  "coverage": [
+    "paper_elbo and epsilon_surrogate losses",
+    "all parameter gradients",
+    "raw checkpoint state and strict reload",
+    "reverse SDE fixed-seed samples",
+    "analysis parameter categories"
+  ]
+}

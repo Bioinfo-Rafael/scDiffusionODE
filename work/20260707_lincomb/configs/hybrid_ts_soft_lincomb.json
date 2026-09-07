@@ -1,0 +1,14 @@
+{
+  "experiment": "hybrid_ts_soft_lincomb",
+  "denoiser_mode": "hybrid",
+  "hybrid_norm_mode": "none",
+  "reverse_coef": false,
+  "regime_gate_mode": "Ts_I_vs_II_III",
+  "regime_gate_type": "sigmoid",
+  "t_s": "auto",
+  "gate_tau": 20.0,
+  "ts_n_cells": 200000,
+  "ts_layer": null,
+  "gate_mode": "raw"
+}
+

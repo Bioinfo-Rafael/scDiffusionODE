@@ -1,0 +1,11 @@
+{
+  "source": "work/20260801/hybrid_ts_soft_weight_curve/ts_estimate_and_weight_summary.json",
+  "data_shape": [156726, 1024],
+  "lambda_max": 47.37206891051204,
+  "t_s": 616,
+  "diffusion_steps": 1000,
+  "gate_tau": 80.0,
+  "w_ode_at_t0": 0.9995473777766684,
+  "w_ode_at_ts": 0.5,
+  "w_ode_at_tmax": 0.008264400239886663
+}

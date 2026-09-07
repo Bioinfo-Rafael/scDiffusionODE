@@ -1,0 +1,17 @@
+{
+  "experiment": "hybrid_ts_soft_softmax_gate_ratio_reg",
+  "denoiser_mode": "hybrid",
+  "hybrid_norm_mode": "ratio_reg",
+  "reverse_coef": false,
+  "regime_gate_mode": "Ts_I_vs_II_III",
+  "regime_gate_type": "sigmoid",
+  "t_s": "auto",
+  "gate_tau": 20.0,
+  "ts_n_cells": 200000,
+  "ts_layer": null,
+  "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+  "gate_mode": "softmax",
+  "gate_temperature": 1.0,
+  "ratio_reg_weight": 5.0,
+  "ratio_reg_target": 1.0
+}

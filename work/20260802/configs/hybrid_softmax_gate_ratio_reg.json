@@ -1,0 +1,11 @@
+{
+  "experiment": "hybrid_softmax_gate_ratio_reg",
+  "denoiser_mode": "hybrid",
+  "hybrid_norm_mode": "ratio_reg",
+  "reverse_coef": false,
+  "regime_gate_mode": "none",
+  "gate_mode": "softmax",
+  "gate_temperature": 1.0,
+  "ratio_reg_weight": 5.0,
+  "ratio_reg_target": 1.0
+}

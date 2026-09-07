@@ -1,0 +1,1018 @@
+{
+  "benchmark": "dense_learnable_forward",
+  "configuration": {
+    "batch_size": 4,
+    "device": "cpu",
+    "dimension": 1024,
+    "dtypes": [
+      "float32",
+      "float64"
+    ],
+    "models": [
+      "stationary_qd"
+    ],
+    "num_threads": 4,
+    "physical_fraction": 0.5,
+    "repeats": 3,
+    "seed": 1234,
+    "warmup": 1
+  },
+  "objective": "Equation (7) truncated and made a valid ELBO with the complete Appendix-I/Theorem-3 boundary correction; exact compact form",
+  "results": [
+    {
+      "approximation": null,
+      "backward": {
+        "all_finite": true,
+        "all_present": true,
+        "parameters": {
+          "denoiser.projection.bias": {
+            "finite": true,
+            "l2_norm": 0.15765316784381866,
+            "present": true
+          },
+          "denoiser.projection.weight": {
+            "finite": true,
+            "l2_norm": 5.0686726570129395,
+            "present": true
+          },
+          "forward_process.raw_d_lower": {
+            "finite": true,
+            "l2_norm": 4.891209125518799,
+            "present": true
+          },
+          "forward_process.raw_q_upper": {
+            "finite": true,
+            "l2_norm": 5.380280110323099e-10,
+            "present": true
+          }
+        },
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "total_l2_norm": 7.04558185921079,
+        "wall_seconds": 0.2894994580000001
+      },
+      "batch_size": 4,
+      "dense_exact": true,
+      "device": "cpu",
+      "dimension": 1024,
+      "dtype": "float32",
+      "fallback_used": false,
+      "forward_parameter_count": 1048576,
+      "forward_stats": {
+        "all_finite": true,
+        "cholesky": {
+          "cholesky_ex_info": 0,
+          "finite": true,
+          "minimum_diagonal": 0.9968187212944031,
+          "relative_reconstruction_error": 5.998570884457877e-08,
+          "status": "success"
+        },
+        "configured_covariance_jitter": 0.0,
+        "covariance_evaluation": "stationary_identity",
+        "covariance_finite": true,
+        "covariance_series_terms": 0,
+        "mean_finite": true,
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "transition_matrix_finite": true,
+        "wall_seconds": 0.027591374999999863
+      },
+      "fractional_timestep": 705.4938414800517,
+      "full_paper_elbo_forward": {
+        "all_components_finite": true,
+        "components": {
+          "boundary_final_per_dim": {
+            "finite": true,
+            "mean": -3.180168628692627
+          },
+          "boundary_nll": {
+            "finite": true,
+            "mean": -3.180168628692627
+          },
+          "boundary_nll_raw": {
+            "finite": true,
+            "mean": -3256.49267578125
+          },
+          "dimension": {
+            "finite": true,
+            "mean": 1024.0
+          },
+          "forward_regularization": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "fractional_diffusion_timestep": {
+            "finite": true,
+            "mean": 705.4938354492188
+          },
+          "grn_penalty_final_weighted": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_raw": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_weight": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "loss": {
+            "finite": true,
+            "mean": 1.8510000705718994
+          },
+          "paper_elbo_per_dim": {
+            "finite": true,
+            "mean": 1.8510000705718994
+          },
+          "path_after_duration": {
+            "finite": true,
+            "mean": 5151.896484375
+          },
+          "path_final_per_dim": {
+            "finite": true,
+            "mean": 5.031148910522461
+          },
+          "path_loss": {
+            "finite": true,
+            "mean": 5.031148910522461
+          },
+          "path_loss_raw": {
+            "finite": true,
+            "mean": 509.20074462890625
+          },
+          "plain_epsilon_mse": {
+            "finite": true,
+            "mean": 0.9882150888442993
+          },
+          "sampled_physical_time": {
+            "finite": true,
+            "mean": 5.058906555175781
+          },
+          "terminal_final_per_dim": {
+            "finite": true,
+            "mean": 1.9833649275824428e-05
+          },
+          "terminal_kl": {
+            "finite": true,
+            "mean": 1.9833649275824428e-05
+          },
+          "terminal_kl_raw": {
+            "finite": true,
+            "mean": 0.020309656858444214
+          },
+          "total_loss": {
+            "finite": true,
+            "mean": 1.8510000705718994
+          }
+        },
+        "loss_mean": 1.8510000705718994,
+        "path_boundary_terminal_cholesky_status": "success",
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "wall_seconds": 0.08700333299999996
+      },
+      "matrix_exponential_dimension": 1024,
+      "model": "stationary_qd",
+      "repeat": 0,
+      "sampled_physical_time": 5.058906773706719,
+      "status": "success",
+      "time_map": {
+        "boundary_time": 0.00010000500033334732,
+        "duration": 10.11761353741277,
+        "num_timesteps": 1000,
+        "terminal_time": 10.117713542413105
+      },
+      "total_parameter_count": 2098176
+    },
+    {
+      "approximation": null,
+      "backward": {
+        "all_finite": true,
+        "all_present": true,
+        "parameters": {
+          "denoiser.projection.bias": {
+            "finite": true,
+            "l2_norm": 0.15881179663539302,
+            "present": true
+          },
+          "denoiser.projection.weight": {
+            "finite": true,
+            "l2_norm": 5.260283344973602,
+            "present": true
+          },
+          "forward_process.raw_d_lower": {
+            "finite": true,
+            "l2_norm": 5.077220554147368,
+            "present": true
+          },
+          "forward_process.raw_q_upper": {
+            "finite": true,
+            "l2_norm": 6.798362359123806e-19,
+            "present": true
+          }
+        },
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "total_l2_norm": 7.3125898703273196,
+        "wall_seconds": 1.2738606250000006
+      },
+      "batch_size": 4,
+      "dense_exact": true,
+      "device": "cpu",
+      "dimension": 1024,
+      "dtype": "float64",
+      "fallback_used": false,
+      "forward_parameter_count": 1048576,
+      "forward_stats": {
+        "all_finite": true,
+        "cholesky": {
+          "cholesky_ex_info": 0,
+          "finite": true,
+          "minimum_diagonal": 0.9968186894121096,
+          "relative_reconstruction_error": 1.117320805532499e-16,
+          "status": "success"
+        },
+        "configured_covariance_jitter": 0.0,
+        "covariance_evaluation": "stationary_identity",
+        "covariance_finite": true,
+        "covariance_series_terms": 0,
+        "mean_finite": true,
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "transition_matrix_finite": true,
+        "wall_seconds": 0.07193562500000006
+      },
+      "fractional_timestep": 705.4938414800517,
+      "full_paper_elbo_forward": {
+        "all_components_finite": true,
+        "components": {
+          "boundary_final_per_dim": {
+            "finite": true,
+            "mean": -3.1871476384592685
+          },
+          "boundary_nll": {
+            "finite": true,
+            "mean": -3.1871476384592685
+          },
+          "boundary_nll_raw": {
+            "finite": true,
+            "mean": -3263.639181782291
+          },
+          "dimension": {
+            "finite": true,
+            "mean": 1024.0
+          },
+          "forward_regularization": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "fractional_diffusion_timestep": {
+            "finite": true,
+            "mean": 705.4938354492188
+          },
+          "grn_penalty_final_weighted": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_raw": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_weight": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "loss": {
+            "finite": true,
+            "mean": 2.035774068242547
+          },
+          "paper_elbo_per_dim": {
+            "finite": true,
+            "mean": 2.035774068242547
+          },
+          "path_after_duration": {
+            "finite": true,
+            "mean": 5348.2512751785
+          },
+          "path_final_per_dim": {
+            "finite": true,
+            "mean": 5.222901635916504
+          },
+          "path_loss": {
+            "finite": true,
+            "mean": 5.222901635916504
+          },
+          "path_loss_raw": {
+            "finite": true,
+            "mean": 528.6079820504915
+          },
+          "plain_epsilon_mse": {
+            "finite": true,
+            "mean": 1.0258789049291437
+          },
+          "sampled_physical_time": {
+            "finite": true,
+            "mean": 5.058906687678559
+          },
+          "terminal_final_per_dim": {
+            "finite": true,
+            "mean": 2.0070785312592837e-05
+          },
+          "terminal_kl": {
+            "finite": true,
+            "mean": 2.0070785312592837e-05
+          },
+          "terminal_kl_raw": {
+            "finite": true,
+            "mean": 0.020552484160095065
+          },
+          "total_loss": {
+            "finite": true,
+            "mean": 2.035774068242547
+          }
+        },
+        "loss_mean": 2.035774068242547,
+        "path_boundary_terminal_cholesky_status": "success",
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "wall_seconds": 0.21658450000000018
+      },
+      "matrix_exponential_dimension": 1024,
+      "model": "stationary_qd",
+      "repeat": 0,
+      "sampled_physical_time": 5.058906773706719,
+      "status": "success",
+      "time_map": {
+        "boundary_time": 0.00010000500033334732,
+        "duration": 10.11761353741277,
+        "num_timesteps": 1000,
+        "terminal_time": 10.117713542413105
+      },
+      "total_parameter_count": 2098176
+    },
+    {
+      "approximation": null,
+      "backward": {
+        "all_finite": true,
+        "all_present": true,
+        "parameters": {
+          "denoiser.projection.bias": {
+            "finite": true,
+            "l2_norm": 0.15833623707294464,
+            "present": true
+          },
+          "denoiser.projection.weight": {
+            "finite": true,
+            "l2_norm": 5.171348571777344,
+            "present": true
+          },
+          "forward_process.raw_d_lower": {
+            "finite": true,
+            "l2_norm": 4.993338584899902,
+            "present": true
+          },
+          "forward_process.raw_q_upper": {
+            "finite": true,
+            "l2_norm": 5.362315591561639e-10,
+            "present": true
+          }
+        },
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "total_l2_norm": 7.19036484736652,
+        "wall_seconds": 0.28805716699999984
+      },
+      "batch_size": 4,
+      "dense_exact": true,
+      "device": "cpu",
+      "dimension": 1024,
+      "dtype": "float32",
+      "fallback_used": false,
+      "forward_parameter_count": 1048576,
+      "forward_stats": {
+        "all_finite": true,
+        "cholesky": {
+          "cholesky_ex_info": 0,
+          "finite": true,
+          "minimum_diagonal": 0.9968187212944031,
+          "relative_reconstruction_error": 5.998570884457877e-08,
+          "status": "success"
+        },
+        "configured_covariance_jitter": 0.0,
+        "covariance_evaluation": "stationary_identity",
+        "covariance_finite": true,
+        "covariance_series_terms": 0,
+        "mean_finite": true,
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "transition_matrix_finite": true,
+        "wall_seconds": 0.02888504199999975
+      },
+      "fractional_timestep": 705.4938414800517,
+      "full_paper_elbo_forward": {
+        "all_components_finite": true,
+        "components": {
+          "boundary_final_per_dim": {
+            "finite": true,
+            "mean": -3.1958155632019043
+          },
+          "boundary_nll": {
+            "finite": true,
+            "mean": -3.1958155632019043
+          },
+          "boundary_nll_raw": {
+            "finite": true,
+            "mean": -3272.51513671875
+          },
+          "dimension": {
+            "finite": true,
+            "mean": 1024.0
+          },
+          "forward_regularization": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "fractional_diffusion_timestep": {
+            "finite": true,
+            "mean": 705.4938354492188
+          },
+          "grn_penalty_final_weighted": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_raw": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_weight": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "loss": {
+            "finite": true,
+            "mean": 1.9267610311508179
+          },
+          "paper_elbo_per_dim": {
+            "finite": true,
+            "mean": 1.9267610311508179
+          },
+          "path_after_duration": {
+            "finite": true,
+            "mean": 5245.498046875
+          },
+          "path_final_per_dim": {
+            "finite": true,
+            "mean": 5.122556686401367
+          },
+          "path_loss": {
+            "finite": true,
+            "mean": 5.122556686401367
+          },
+          "path_loss_raw": {
+            "finite": true,
+            "mean": 518.4521484375
+          },
+          "plain_epsilon_mse": {
+            "finite": true,
+            "mean": 1.006169319152832
+          },
+          "sampled_physical_time": {
+            "finite": true,
+            "mean": 5.058906555175781
+          },
+          "terminal_final_per_dim": {
+            "finite": true,
+            "mean": 1.9908155081793666e-05
+          },
+          "terminal_kl": {
+            "finite": true,
+            "mean": 1.9908155081793666e-05
+          },
+          "terminal_kl_raw": {
+            "finite": true,
+            "mean": 0.020385950803756714
+          },
+          "total_loss": {
+            "finite": true,
+            "mean": 1.9267610311508179
+          }
+        },
+        "loss_mean": 1.9267610311508179,
+        "path_boundary_terminal_cholesky_status": "success",
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "wall_seconds": 0.08495870900000035
+      },
+      "matrix_exponential_dimension": 1024,
+      "model": "stationary_qd",
+      "repeat": 1,
+      "sampled_physical_time": 5.058906773706719,
+      "status": "success",
+      "time_map": {
+        "boundary_time": 0.00010000500033334732,
+        "duration": 10.11761353741277,
+        "num_timesteps": 1000,
+        "terminal_time": 10.117713542413105
+      },
+      "total_parameter_count": 2098176
+    },
+    {
+      "approximation": null,
+      "backward": {
+        "all_finite": true,
+        "all_present": true,
+        "parameters": {
+          "denoiser.projection.bias": {
+            "finite": true,
+            "l2_norm": 0.1596007788789358,
+            "present": true
+          },
+          "denoiser.projection.weight": {
+            "finite": true,
+            "l2_norm": 5.0859633642134146,
+            "present": true
+          },
+          "forward_process.raw_d_lower": {
+            "finite": true,
+            "l2_norm": 4.927114253670334,
+            "present": true
+          },
+          "forward_process.raw_q_upper": {
+            "finite": true,
+            "l2_norm": 6.729457568817738e-19,
+            "present": true
+          }
+        },
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "total_l2_norm": 7.083004349812385,
+        "wall_seconds": 1.2208911250000005
+      },
+      "batch_size": 4,
+      "dense_exact": true,
+      "device": "cpu",
+      "dimension": 1024,
+      "dtype": "float64",
+      "fallback_used": false,
+      "forward_parameter_count": 1048576,
+      "forward_stats": {
+        "all_finite": true,
+        "cholesky": {
+          "cholesky_ex_info": 0,
+          "finite": true,
+          "minimum_diagonal": 0.9968186894121096,
+          "relative_reconstruction_error": 1.117320805532499e-16,
+          "status": "success"
+        },
+        "configured_covariance_jitter": 0.0,
+        "covariance_evaluation": "stationary_identity",
+        "covariance_finite": true,
+        "covariance_series_terms": 0,
+        "mean_finite": true,
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "transition_matrix_finite": true,
+        "wall_seconds": 0.0691771250000004
+      },
+      "fractional_timestep": 705.4938414800517,
+      "full_paper_elbo_forward": {
+        "all_components_finite": true,
+        "components": {
+          "boundary_final_per_dim": {
+            "finite": true,
+            "mean": -3.187136705136548
+          },
+          "boundary_nll": {
+            "finite": true,
+            "mean": -3.187136705136548
+          },
+          "boundary_nll_raw": {
+            "finite": true,
+            "mean": -3263.627986059825
+          },
+          "dimension": {
+            "finite": true,
+            "mean": 1024.0
+          },
+          "forward_regularization": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "fractional_diffusion_timestep": {
+            "finite": true,
+            "mean": 705.4938354492188
+          },
+          "grn_penalty_final_weighted": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_raw": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_weight": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "loss": {
+            "finite": true,
+            "mean": 1.877915232007719
+          },
+          "paper_elbo_per_dim": {
+            "finite": true,
+            "mean": 1.877915232007719
+          },
+          "path_after_duration": {
+            "finite": true,
+            "mean": 5186.592993845399
+          },
+          "path_final_per_dim": {
+            "finite": true,
+            "mean": 5.065032220552148
+          },
+          "path_loss": {
+            "finite": true,
+            "mean": 5.065032220552148
+          },
+          "path_loss_raw": {
+            "finite": true,
+            "mean": 512.6300757255144
+          },
+          "plain_epsilon_mse": {
+            "finite": true,
+            "mean": 0.9948702981726869
+          },
+          "sampled_physical_time": {
+            "finite": true,
+            "mean": 5.058906687678559
+          },
+          "terminal_final_per_dim": {
+            "finite": true,
+            "mean": 1.9716592119220794e-05
+          },
+          "terminal_kl": {
+            "finite": true,
+            "mean": 1.9716592119220794e-05
+          },
+          "terminal_kl_raw": {
+            "finite": true,
+            "mean": 0.020189790330082093
+          },
+          "total_loss": {
+            "finite": true,
+            "mean": 1.877915232007719
+          }
+        },
+        "loss_mean": 1.877915232007719,
+        "path_boundary_terminal_cholesky_status": "success",
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "wall_seconds": 0.19933033400000078
+      },
+      "matrix_exponential_dimension": 1024,
+      "model": "stationary_qd",
+      "repeat": 1,
+      "sampled_physical_time": 5.058906773706719,
+      "status": "success",
+      "time_map": {
+        "boundary_time": 0.00010000500033334732,
+        "duration": 10.11761353741277,
+        "num_timesteps": 1000,
+        "terminal_time": 10.117713542413105
+      },
+      "total_parameter_count": 2098176
+    },
+    {
+      "approximation": null,
+      "backward": {
+        "all_finite": true,
+        "all_present": true,
+        "parameters": {
+          "denoiser.projection.bias": {
+            "finite": true,
+            "l2_norm": 0.15845425426959991,
+            "present": true
+          },
+          "denoiser.projection.weight": {
+            "finite": true,
+            "l2_norm": 4.990555763244629,
+            "present": true
+          },
+          "forward_process.raw_d_lower": {
+            "finite": true,
+            "l2_norm": 4.825897216796875,
+            "present": true
+          },
+          "forward_process.raw_q_upper": {
+            "finite": true,
+            "l2_norm": 5.664944624506063e-10,
+            "present": true
+          }
+        },
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "total_l2_norm": 6.944064985571358,
+        "wall_seconds": 0.2873769159999995
+      },
+      "batch_size": 4,
+      "dense_exact": true,
+      "device": "cpu",
+      "dimension": 1024,
+      "dtype": "float32",
+      "fallback_used": false,
+      "forward_parameter_count": 1048576,
+      "forward_stats": {
+        "all_finite": true,
+        "cholesky": {
+          "cholesky_ex_info": 0,
+          "finite": true,
+          "minimum_diagonal": 0.9968187212944031,
+          "relative_reconstruction_error": 5.998570884457877e-08,
+          "status": "success"
+        },
+        "configured_covariance_jitter": 0.0,
+        "covariance_evaluation": "stationary_identity",
+        "covariance_finite": true,
+        "covariance_series_terms": 0,
+        "mean_finite": true,
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "transition_matrix_finite": true,
+        "wall_seconds": 0.026616833000000284
+      },
+      "fractional_timestep": 705.4938414800517,
+      "full_paper_elbo_forward": {
+        "all_components_finite": true,
+        "components": {
+          "boundary_final_per_dim": {
+            "finite": true,
+            "mean": -3.1807210445404053
+          },
+          "boundary_nll": {
+            "finite": true,
+            "mean": -3.1807210445404053
+          },
+          "boundary_nll_raw": {
+            "finite": true,
+            "mean": -3257.058349609375
+          },
+          "dimension": {
+            "finite": true,
+            "mean": 1024.0
+          },
+          "forward_regularization": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "fractional_diffusion_timestep": {
+            "finite": true,
+            "mean": 705.4938354492188
+          },
+          "grn_penalty_final_weighted": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_raw": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_weight": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "loss": {
+            "finite": true,
+            "mean": 1.7824313640594482
+          },
+          "paper_elbo_per_dim": {
+            "finite": true,
+            "mean": 1.7824313640594482
+          },
+          "path_after_duration": {
+            "finite": true,
+            "mean": 5082.24658203125
+          },
+          "path_final_per_dim": {
+            "finite": true,
+            "mean": 4.963131427764893
+          },
+          "path_loss": {
+            "finite": true,
+            "mean": 4.963131427764893
+          },
+          "path_loss_raw": {
+            "finite": true,
+            "mean": 502.31671142578125
+          },
+          "plain_epsilon_mse": {
+            "finite": true,
+            "mean": 0.9748550057411194
+          },
+          "sampled_physical_time": {
+            "finite": true,
+            "mean": 5.058906555175781
+          },
+          "terminal_final_per_dim": {
+            "finite": true,
+            "mean": 2.1040643332526088e-05
+          },
+          "terminal_kl": {
+            "finite": true,
+            "mean": 2.1040643332526088e-05
+          },
+          "terminal_kl_raw": {
+            "finite": true,
+            "mean": 0.021545618772506714
+          },
+          "total_loss": {
+            "finite": true,
+            "mean": 1.7824313640594482
+          }
+        },
+        "loss_mean": 1.7824313640594482,
+        "path_boundary_terminal_cholesky_status": "success",
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "wall_seconds": 0.08444674999999968
+      },
+      "matrix_exponential_dimension": 1024,
+      "model": "stationary_qd",
+      "repeat": 2,
+      "sampled_physical_time": 5.058906773706719,
+      "status": "success",
+      "time_map": {
+        "boundary_time": 0.00010000500033334732,
+        "duration": 10.11761353741277,
+        "num_timesteps": 1000,
+        "terminal_time": 10.117713542413105
+      },
+      "total_parameter_count": 2098176
+    },
+    {
+      "approximation": null,
+      "backward": {
+        "all_finite": true,
+        "all_present": true,
+        "parameters": {
+          "denoiser.projection.bias": {
+            "finite": true,
+            "l2_norm": 0.15738135153986943,
+            "present": true
+          },
+          "denoiser.projection.weight": {
+            "finite": true,
+            "l2_norm": 4.999952111028251,
+            "present": true
+          },
+          "forward_process.raw_d_lower": {
+            "finite": true,
+            "l2_norm": 4.839290246938983,
+            "present": true
+          },
+          "forward_process.raw_q_upper": {
+            "finite": true,
+            "l2_norm": 6.6392284960324715e-19,
+            "present": true
+          }
+        },
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "total_l2_norm": 6.9601020176795645,
+        "wall_seconds": 1.2197136250000007
+      },
+      "batch_size": 4,
+      "dense_exact": true,
+      "device": "cpu",
+      "dimension": 1024,
+      "dtype": "float64",
+      "fallback_used": false,
+      "forward_parameter_count": 1048576,
+      "forward_stats": {
+        "all_finite": true,
+        "cholesky": {
+          "cholesky_ex_info": 0,
+          "finite": true,
+          "minimum_diagonal": 0.9968186894121096,
+          "relative_reconstruction_error": 1.117320805532499e-16,
+          "status": "success"
+        },
+        "configured_covariance_jitter": 0.0,
+        "covariance_evaluation": "stationary_identity",
+        "covariance_finite": true,
+        "covariance_series_terms": 0,
+        "mean_finite": true,
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "transition_matrix_finite": true,
+        "wall_seconds": 0.06805366600000085
+      },
+      "fractional_timestep": 705.4938414800517,
+      "full_paper_elbo_forward": {
+        "all_components_finite": true,
+        "components": {
+          "boundary_final_per_dim": {
+            "finite": true,
+            "mean": -3.1923836570537736
+          },
+          "boundary_nll": {
+            "finite": true,
+            "mean": -3.1923836570537736
+          },
+          "boundary_nll_raw": {
+            "finite": true,
+            "mean": -3269.000864823064
+          },
+          "dimension": {
+            "finite": true,
+            "mean": 1024.0
+          },
+          "forward_regularization": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "fractional_diffusion_timestep": {
+            "finite": true,
+            "mean": 705.4938354492188
+          },
+          "grn_penalty_final_weighted": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_raw": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "grn_penalty_weight": {
+            "finite": true,
+            "mean": 0.0
+          },
+          "loss": {
+            "finite": true,
+            "mean": 1.777869864857645
+          },
+          "paper_elbo_per_dim": {
+            "finite": true,
+            "mean": 1.777869864857645
+          },
+          "path_after_duration": {
+            "finite": true,
+            "mean": 5089.5194858724335
+          },
+          "path_final_per_dim": {
+            "finite": true,
+            "mean": 4.970233872922298
+          },
+          "path_loss": {
+            "finite": true,
+            "mean": 4.970233872922298
+          },
+          "path_loss_raw": {
+            "finite": true,
+            "mean": 503.0355693121188
+          },
+          "plain_epsilon_mse": {
+            "finite": true,
+            "mean": 0.9762500690673122
+          },
+          "sampled_physical_time": {
+            "finite": true,
+            "mean": 5.058906687678559
+          },
+          "terminal_final_per_dim": {
+            "finite": true,
+            "mean": 1.9648989120008303e-05
+          },
+          "terminal_kl": {
+            "finite": true,
+            "mean": 1.9648989120008303e-05
+          },
+          "terminal_kl_raw": {
+            "finite": true,
+            "mean": 0.020120564858888502
+          },
+          "total_loss": {
+            "finite": true,
+            "mean": 1.777869864857645
+          }
+        },
+        "loss_mean": 1.777869864857645,
+        "path_boundary_terminal_cholesky_status": "success",
+        "peak_cuda_memory_bytes_above_baseline": null,
+        "wall_seconds": 0.20122179200000012
+      },
+      "matrix_exponential_dimension": 1024,
+      "model": "stationary_qd",
+      "repeat": 2,
+      "sampled_physical_time": 5.058906773706719,
+      "status": "success",
+      "time_map": {
+        "boundary_time": 0.00010000500033334732,
+        "duration": 10.11761353741277,
+        "num_timesteps": 1000,
+        "terminal_time": 10.117713542413105
+      },
+      "total_parameter_count": 2098176
+    }
+  ],
+  "summary": {
+    "all_successful": true,
+    "case_count": 6,
+    "failure_count": 0,
+    "fallback_used": false,
+    "success_count": 6
+  },
+  "system": {
+    "cuda_available": false,
+    "mps_available": true,
+    "platform": "macOS-26.5-arm64-arm-64bit",
+    "python": "3.9.23 | packaged by conda-forge | (main, Jun  4 2025, 18:02:02) \n[Clang 18.1.8 ]",
+    "requested_execution_device": "cpu",
+    "torch": "2.5.1",
+    "torch_num_interop_threads": 10,
+    "torch_num_threads": 4
+  }
+}

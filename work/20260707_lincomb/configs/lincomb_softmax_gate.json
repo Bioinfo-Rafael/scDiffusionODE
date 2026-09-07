@@ -1,0 +1,7 @@
+{
+  "experiment": "lincomb_softmax_gate",
+  "denoiser_mode": "lincomb_only",
+  "gate_mode": "softmax",
+  "gate_temperature": 1.0
+}
+

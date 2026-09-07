@@ -1,0 +1,14 @@
+{
+  "experiment": "hybrid_softmax_gate_scale_model_ml_emb",
+  "denoiser_mode": "hybrid",
+  "hybrid_norm_mode": "scale_model",
+  "reverse_coef": false,
+  "regime_gate_mode": "none",
+  "gate_mode": "softmax",
+  "gate_temperature": 1.0,
+  "scale_model_type": "simple",
+  "scale_input_source": "ml_emb",
+  "ode_input_source": "none",
+  "scale_hidden": 128,
+  "scale_eps": 1e-08
+}

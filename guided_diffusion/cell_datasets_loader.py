@@ -84,7 +84,8 @@ def load_data(
     deterministic=False,
     train_vae=False,
     hidden_dim=128,
-    preprocess=True
+    preprocess=True,
+    layer=None,
 ):
     """
     For a dataset, create a generator over (cells, kwargs) pairs.
@@ -131,11 +132,15 @@ def load_data(
 
 
 
-    # Handle both sparse and dense matrices
-    if hasattr(adata.X, 'toarray'):
-        cell_data = adata.X.toarray()
+    # Handle both sparse and dense matrices. The optional layer is explicit so
+    # T_s estimation and the actual denoiser input can use the same space.
+    if layer is not None and layer not in adata.layers:
+        raise KeyError(f"AnnData layer '{layer}' does not exist")
+    source = adata.X if layer is None else adata.layers[layer]
+    if hasattr(source, 'toarray'):
+        cell_data = source.toarray()
     else:
-        cell_data = adata.X
+        cell_data = source
 
     # turn the gene expression into latent space. use this if training the diffusion backbone.
     if not train_vae:
@@ -187,4 +192,3 @@ class CellDataset(Dataset):
         if self.class_name is not None:
             out_dict["y"] = np.array(self.class_name[idx], dtype=np.int64)
         return arr, out_dict
-

@@ -1,0 +1,8 @@
+{
+  "experiment": "lincomb_entropy_reg",
+  "denoiser_mode": "lincomb_only",
+  "gate_mode": "softmax",
+  "gate_temperature": 1.0,
+  "entropy_lambda": 0.01
+}
+
