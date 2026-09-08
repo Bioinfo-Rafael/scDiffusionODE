@@ -37,6 +37,13 @@ from analysis.runner import (  # noqa: E402
 from guided_diffusion.script_util import create_gaussian_diffusion  # noqa: E402
 from models import build_model_from_config  # noqa: E402
 from scripts.common import EXPERIMENT_ORDER, load_experiment_config, write_json  # noqa: E402
+from scripts.plot_hill_after_linear_parameters import (  # noqa: E402
+    CHECKPOINTS,
+    CONDITIONS,
+    load_snapshot_categories,
+    plot_category_grid,
+    resolve_condition_runs,
+)
 
 
 def tiny_model(experiment="01_centered_signed_hill_lambda0p1"):
@@ -59,6 +66,85 @@ def tiny_model(experiment="01_centered_signed_hill_lambda0p1"):
 
 
 class AnalysisTests(unittest.TestCase):
+    @staticmethod
+    def _write_parameter_checkpoint(path, offset=0.0):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        state = {
+            "ml_model.layers.0.fc.weight": torch.tensor(
+                [[1.0, -1.0], [2.0, -2.0]]
+            ) + offset,
+            "ml_model.layers.0.fc.bias": torch.tensor([0.5, -0.5]) + offset,
+            "ode_model.W": torch.arange(9, dtype=torch.float32).reshape(3, 3) + offset,
+            "ode_model.b": torch.tensor([0.0, 1.0, 2.0]) + offset,
+            "ode_model.raw_K": torch.tensor([-1.0, 0.0, 1.0]) + offset,
+            "ode_model.raw_V": torch.tensor([-2.0, 0.0, 2.0]) + offset,
+            "ode_model.raw_delta": torch.tensor([-3.0, 0.0, 3.0]) + offset,
+            "ode_model.mask": torch.tensor(
+                [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0]]
+            ),
+        }
+        torch.save(state, path)
+
+    def test_hill_parameter_snapshot_includes_ode_mask_splits_and_cellunet(self):
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "model000000.pt"
+            self._write_parameter_checkpoint(checkpoint)
+            categories, mask, cell_names = load_snapshot_categories(
+                checkpoint, positive_epsilon=1e-6
+            )
+        self.assertEqual(categories["W_all"].size, 9)
+        self.assertEqual(categories["W_mask_present"].size, 3)
+        self.assertEqual(categories["W_mask_absent"].size, 6)
+        self.assertEqual(int(mask.sum()), 3)
+        self.assertEqual(
+            cell_names, ("layers.0.fc.bias", "layers.0.fc.weight")
+        )
+        self.assertEqual(categories["CellUnet_all_parameters"].size, 6)
+        self.assertEqual(categories["CellUnet_all_weights"].size, 4)
+        self.assertEqual(categories["CellUnet_all_biases"].size, 2)
+        self.assertTrue(np.all(categories["K_effective"] > 0.0))
+        self.assertTrue(np.all(categories["V_effective"] > 0.0))
+        self.assertTrue(np.all(categories["delta_effective"] > 0.0))
+
+    def test_hill_parameter_run_discovery_requires_common_complete_batches(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            roots = {"runs": root / "runs", "runs2": root / "runs2"}
+            for condition in CONDITIONS:
+                run = roots[condition.runs_root_name] / condition.experiment / "batch-ok"
+                config = load_experiment_config(condition.experiment)
+                write_json(run / "exp_config.json", config)
+                ema_rate = str(config["ema_rate"])
+                for index, checkpoint in enumerate(CHECKPOINTS):
+                    filename = (
+                        f"ema_{ema_rate}_{checkpoint.training_step:06d}.pt"
+                        if checkpoint.use_ema
+                        else f"model{checkpoint.training_step:06d}.pt"
+                    )
+                    self._write_parameter_checkpoint(
+                        run / "checkpoints/segment_000/model" / filename,
+                        offset=index / 100.0,
+                    )
+            runs, batches = resolve_condition_runs(
+                roots["runs"], roots["runs2"],
+                runs_batch_id="batch-ok", runs2_batch_id="batch-ok",
+            )
+            self.assertEqual(batches, {"runs": "batch-ok", "runs2": "batch-ok"})
+            self.assertEqual(len(runs), 6)
+
+    def test_hill_parameter_grid_is_six_by_seven_and_writes_png(self):
+        snapshots = {}
+        for row, condition in enumerate(CONDITIONS):
+            for column, checkpoint in enumerate(CHECKPOINTS):
+                snapshots[(condition.experiment, checkpoint.training_step)] = {
+                    "b": np.array([row, column, row + column], dtype=float)
+                }
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "b.png"
+            plot_category_grid(snapshots, "b", output, bins=8, dpi=40)
+            self.assertTrue(output.is_file())
+            self.assertGreater(output.stat().st_size, 0)
+
     def test_training_review_both_branches_are_trainable_model_parameters(self):
         _, _, model, _ = tiny_model()
         optimizer_scope = {id(parameter) for parameter in model.parameters()}

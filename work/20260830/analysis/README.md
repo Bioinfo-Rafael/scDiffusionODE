@@ -80,3 +80,29 @@ percentileによるylim切断はしません。
 loss figure `08` と `09` はraw scatterを表示せず、既定100 optimizer stepの
 rolling meanを線、rolling mean +/- population stdを帯として表示します。CSVには
 mean/stdに加え、既存解析との互換性のためmedian/Q25/Q75も残します。
+
+## hill_after_linear parameter distributions
+
+`scripts/plot_hill_after_linear_parameters.py` は `hill_after_linear` の6条件を、
+行にconsistency weight `10, 1, 0.1, 0.01, 0.001, 10 -> 0.001 (exp)`、列に
+raw `model000000.pt` と5,000 step刻みのEMA
+`ema_0.9999_005000.pt`〜`ema_0.9999_030000.pt`として比較します。`runs` と
+`runs2` から、それぞれ3条件すべてに共通し必要checkpointが揃う最新batchを
+自動選択します。`model000000.pt` は厳密な学習前stateではなく、legacy TrainLoopが
+最初のoptimizer update後にstep 0という名前で保存したraw checkpointです。
+再現性のため `--runs-batch-id` と `--runs2-batch-id` でbatchを
+明示することもできます。
+
+ODEについては `W` 全体、mask内、mask外（mask=0の対角成分を含む）、`b`,
+`raw_K`, `raw_V`, `raw_delta` と、ODE式で使う変換後の `K`, `V`, `delta` を
+1 parameter groupにつき1 PNGで保存します。CellUnetについては全parameter、
+全weight、全biasの集約3 PNGに加え、state dict内の各学習parameterをそれぞれ
+1 PNGで保存します。すべてのpanelはraw pointを描かず、共通binのhistogram、mean、
+population std、要素数を表示します。CSVにはfull-rangeの要約統計、metadataには
+選択batchと全checkpoint pathを記録します。
+
+```bash
+/path/to/scdiffusion/bin/python \
+  work/20260830/scripts/plot_hill_after_linear_parameters.py \
+  --output-dir work/20260830/analysis_results/hill_after_linear_parameter_distributions/example
+```

@@ -429,6 +429,15 @@ stepの最大100,000行を読み、rolling mean/stdを計算します。figure 0
   --gradient-only --gradient-timesteps 0,499,999 --force
 ```
 
+`hill_after_linear` のODEおよびCellUnet学習parameterを、6種類のconsistency weightと
+step 0〜30,000のcheckpointで比較する専用のdistribution gridは次で生成します。
+詳細な出力定義は `analysis/README.md` を参照してください。
+
+```bash
+/path/to/scdiffusion/bin/python \
+  work/20260830/scripts/plot_hill_after_linear_parameters.py
+```
+
 custom timestepは `--timesteps 0,1,2,5-100:5,200-999:25` のように指定できます。
 CSVではoptimizer軸を `training_step`、forward diffusion軸を
 `diffusion_timestep` と明記しています。
