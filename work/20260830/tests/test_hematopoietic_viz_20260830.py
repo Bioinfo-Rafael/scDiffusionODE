@@ -33,7 +33,12 @@ from hematopoietic_viz.core import (  # noqa: E402
 from hematopoietic_viz.plotting import compute_velocity_embeddings  # noqa: E402
 from hematopoietic_viz import runner as viz_runner  # noqa: E402
 from models import build_model_from_config  # noqa: E402
-from scripts.common import EXPERIMENT_ORDER, load_experiment_config, write_json  # noqa: E402
+from scripts.common import (  # noqa: E402
+    EXPERIMENT_ORDER,
+    EXPLORATORY_EXPERIMENT_ORDER,
+    load_experiment_config,
+    write_json,
+)
 from guided_diffusion.script_util import create_gaussian_diffusion  # noqa: E402
 
 
@@ -228,6 +233,35 @@ class HematopoieticVizTests(unittest.TestCase):
                 np.asarray(archive["cell_gen"])
             self.assertEqual(before, file_sha256(sample))
 
+    def test_exact_checkpoint_step_resolves_matching_sample(self):
+        with tempfile.TemporaryDirectory() as directory:
+            run = Path(directory)
+            model_dir = run / "checkpoints/segment_000/model"
+            samples = run / "samples"
+            model_dir.mkdir(parents=True)
+            samples.mkdir()
+            expected_sample = None
+            expected_checkpoint = None
+            for step in (30000, 100000):
+                raw = model_dir / f"model{step:06d}.pt"
+                optimizer = model_dir / f"opt{step:06d}.pt"
+                ema = model_dir / f"ema_0.9999_{step:06d}.pt"
+                raw.touch(); optimizer.touch(); ema.touch()
+                sample = samples / f"samples_ema_0.9999_{step:06d}.npz"
+                sample.touch()
+                write_json(sample.with_suffix(".json"), {
+                    "checkpoint": str(ema.resolve()),
+                    "sample_path": str(sample.resolve()),
+                })
+                if step == 30000:
+                    expected_sample = sample.resolve()
+                    expected_checkpoint = ema.resolve()
+            sample, checkpoint, _ = viz_runner.resolve_current_sample(
+                run, {"ema_rate": "0.9999"}, checkpoint_step=30000
+            )
+        self.assertEqual(sample, expected_sample)
+        self.assertEqual(checkpoint, expected_checkpoint)
+
     def test_partial_launcher_skips_unfinished_and_completed_runs(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory) / "runs"
@@ -243,8 +277,8 @@ class HematopoieticVizTests(unittest.TestCase):
             })
             executed = []
 
-            def fake_resolve(run, config, explicit=""):
-                del config, explicit
+            def fake_resolve(run, config, explicit="", checkpoint_step=None):
+                del config, explicit, checkpoint_step
                 return run / "samples/sample.npz", run / "checkpoints/model.pt", {}
 
             def fake_execute(run, options):
@@ -265,6 +299,43 @@ class HematopoieticVizTests(unittest.TestCase):
             self.assertEqual(summary["failed"], 0)
             self.assertEqual(executed, [ready.resolve()])
             self.assertTrue(Path(summary["summary_path"]).is_file())
+
+    def test_exploratory_batch_uses_runs2_and_weight_priority_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "runs2"
+            batch = "exploratory-batch"
+            for name in EXPLORATORY_EXPERIMENT_ORDER:
+                write_json(root / name / batch / "exp_config.json", {"experiment": name})
+            executed = []
+
+            def fake_resolve(run, config, explicit="", checkpoint_step=None):
+                del config, explicit
+                self.assertEqual(checkpoint_step, 30000)
+                return run / "samples/sample.npz", run / "checkpoints/model.pt", {}
+
+            def fake_execute(run, options):
+                self.assertTrue(options.sampling_umap_only)
+                executed.append(run.parent.name)
+                return {"status": "completed", "run_dir": str(run)}
+
+            with mock.patch.dict(
+                viz_runner.RUN_ROOTS, {"runs2": root}, clear=False
+            ), mock.patch.object(
+                viz_runner, "resolve_current_sample", side_effect=fake_resolve
+            ):
+                summary = viz_runner.run_all_available(
+                    batch,
+                    viz_runner.HematopoieticVizOptions(
+                        sampling_umap_only=True, checkpoint_step=30000
+                    ),
+                    runs_root="runs2",
+                    exploratory=True,
+                    execute=fake_execute,
+                )
+            self.assertEqual(executed, list(EXPLORATORY_EXPERIMENT_ORDER))
+            self.assertEqual(summary["completed"], 12)
+            self.assertEqual(summary["runs_root"], "runs2")
+            self.assertTrue(summary["exploratory"])
 
     def test_current_repository_dataset_inventory_if_present(self):
         data_path = REPO_ROOT / "work/20260215_embryonic/data/Embryonic.h5ad"

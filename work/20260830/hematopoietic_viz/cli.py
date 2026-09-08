@@ -21,6 +21,16 @@ def add_common_arguments(parser):
     parser.add_argument("--no-h5ad", action="store_true")
     parser.add_argument("--no-paga", action="store_true")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--sampling-umap-only",
+        action="store_true",
+        help="only plot real/generated sampling UMAPs; skip vector-field analysis",
+    )
+    parser.add_argument(
+        "--checkpoint-step",
+        type=int,
+        help="use the sample associated with this exact training checkpoint",
+    )
 
 
 def options_from_args(args):
@@ -41,6 +51,8 @@ def options_from_args(args):
         save_h5ad=not args.no_h5ad,
         paga=not args.no_paga,
         force=args.force,
+        sampling_umap_only=args.sampling_umap_only,
+        checkpoint_step=args.checkpoint_step,
     )
 
 

@@ -1,6 +1,6 @@
 # Hematopoietic post-hoc visualization
 
-This package is independent of the running 100k training pipeline. It reads existing
+This package is independent of the training pipeline. It reads existing
 run artifacts and never calls training, sampling, `backward()`, or an optimizer. The
 protected `launch.py`, `train.py`, `sample.py`, `analyze.py`, `training/`,
 `guided_diffusion/`, and `ODE/` files are unchanged.
@@ -163,3 +163,22 @@ python work/20260830/scripts/hematopoietic_viz_all.py \
 
 Use `--force` to regenerate. `--no-h5ad` avoids large h5ad output, and `--no-paga`
 disables the optional PAGA attempt.
+
+For the exploratory 30k runs under `runs2`, generate only the two combined
+real/generated UMAP figures for the exact `Erythropoietic` superclass:
+
+```bash
+python work/20260830/scripts/hematopoietic_viz_all.py \
+  --batch-id low-lambda-expdecay-20260907-140431 \
+  --runs-root runs2 \
+  --exploratory \
+  --checkpoint-step 30000 \
+  --superclass Erythropoietic \
+  --sampling-umap-only \
+  --no-h5ad
+```
+
+This reuses each sample whose JSON sidecar points to that run's exact 30k EMA
+checkpoint. It writes `01_sampling_umap_real_hema_vs_generated.png` and
+`02_sampling_umap_celltypes_plus_generated.png` for every completed condition and
+does not run ODE/CellUnet velocity-field analysis.

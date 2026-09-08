@@ -14,8 +14,10 @@ from analysis.runner import create_diffusion, git_commit, load_checkpoint, selec
 from models import build_model_from_config
 from scripts.common import (
     EXPERIMENT_ORDER,
+    EXPLORATORY_EXPERIMENT_ORDER,
+    RUN_ROOTS,
     RUNS_ROOT,
-    choose_sampling_checkpoint,
+    choose_sampling_checkpoint_at_step,
     read_json,
     safe_component,
     validate_config,
@@ -60,6 +62,8 @@ class HematopoieticVizOptions:
     save_h5ad: bool = True
     paga: bool = True
     force: bool = False
+    sampling_umap_only: bool = False
+    checkpoint_step: int | None = None
 
 
 def parse_timesteps(spec: str) -> tuple[int, ...]:
@@ -80,11 +84,18 @@ def _sample_candidates(run: Path, explicit: str = "") -> list[Path]:
     return [path for path in candidates if path.is_file() and path.with_suffix(".json").is_file()]
 
 
-def resolve_current_sample(run_dir, config: dict, explicit: str = "") -> tuple[Path, Path, dict]:
+def resolve_current_sample(
+    run_dir,
+    config: dict,
+    explicit: str = "",
+    checkpoint_step: int | None = None,
+) -> tuple[Path, Path, dict]:
     """Resolve a sample whose sidecar points to the current sampling checkpoint."""
 
     run = Path(run_dir).resolve()
-    expected_checkpoint = choose_sampling_checkpoint(run, config["ema_rate"]).resolve()
+    expected_checkpoint = choose_sampling_checkpoint_at_step(
+        run, config["ema_rate"], checkpoint_step
+    ).resolve()
     matches = []
     for sample in _sample_candidates(run, explicit):
         sidecar_path = sample.with_suffix(".json")
@@ -163,16 +174,21 @@ def _completion_matches(metadata: dict, sample_path: Path, checkpoint: Path) -> 
     return recorded_sample == sample_path.resolve() and recorded_checkpoint == checkpoint.resolve()
 
 
+def _metadata_path(run: Path, options: HematopoieticVizOptions) -> Path:
+    name = "sampling_umap_metadata.json" if options.sampling_umap_only else "metadata.json"
+    return run / "hematopoietic_viz" / name
+
+
 def run_visualization(run_dir, options: HematopoieticVizOptions) -> dict:
     import scanpy as sc
 
     run = Path(run_dir).resolve()
     config = read_json(run / "exp_config.json")
-    validate_config(config)
+    validate_config(config, allow_legacy_exploratory_100k=True)
     paths = _paths(run)
-    metadata_path = paths["root"] / "metadata.json"
+    metadata_path = _metadata_path(run, options)
     sample_path, checkpoint, sample_sidecar = resolve_current_sample(
-        run, config, options.sample_path
+        run, config, options.sample_path, options.checkpoint_step
     )
     if metadata_path.is_file() and not options.force:
         existing = read_json(metadata_path)
@@ -275,6 +291,54 @@ def run_visualization(run_dir, options: HematopoieticVizOptions) -> dict:
         sampling_adata.write_h5ad(sampling_h5ad, compression="gzip")
         h5ad_paths.append(str(sampling_h5ad))
     del sampling_adata, generated
+
+    if options.sampling_umap_only:
+        sample_hash_after = file_sha256(sample_path)
+        if sample_hash_before != sample_hash_after:
+            raise RuntimeError("visualization modified the existing sample archive")
+        config_path = run / "exp_config.json"
+        sample_sidecar_path = sample_path.with_suffix(".json")
+        sample_code_path = Path(__file__).resolve().parent.parent / "scripts/sample.py"
+        metadata = {
+            "status": "completed",
+            "analysis_mode": "sampling_umap_only",
+            "run_dir": str(run),
+            "checkpoint": str(checkpoint),
+            "checkpoint_step": options.checkpoint_step,
+            "exp_config_path": str(config_path),
+            "exp_config_sha256": file_sha256(config_path),
+            "sample_path": str(sample_path),
+            "sample_sidecar_path": str(sample_sidecar_path),
+            "sample_sidecar_sha256": file_sha256(sample_sidecar_path),
+            "sample_code_path": str(sample_code_path),
+            "sample_code_sha256": file_sha256(sample_code_path),
+            "sample_sha256_before": sample_hash_before,
+            "sample_sha256_after": sample_hash_after,
+            "sample_is_unconditional": True,
+            "generated_label_warning": (
+                "Generated cells are unconditional samples and are not intrinsically "
+                "Erythropoietic-labeled."
+            ),
+            "data_path": str(data_path),
+            **subset_metadata,
+            **alignment,
+            "gene_order_csv": str(paths["csv"] / "gene_order.csv"),
+            "obs_inventory": obs_inventory,
+            "sampling_embedding_parameters": sampling_embedding,
+            "historical_palette_source": str(HISTORICAL_PALETTE_SOURCE),
+            "figures": [str(path) for path in sampling_figures],
+            "h5ad_outputs": h5ad_paths,
+            "options": _jsonable_options(options),
+            "git_commit": git_commit(),
+        }
+        write_json(metadata_path, metadata)
+        return {
+            "status": "completed",
+            "run_dir": str(run),
+            "metadata": str(metadata_path),
+            "selected_cells": int(real_subset.n_obs),
+            "figures": len(sampling_figures),
+        }
 
     vector_adata = real_subset.copy()
     vector_embedding = compute_common_umap(
@@ -453,12 +517,18 @@ def run_all_available(
     batch_id: str,
     options: HematopoieticVizOptions,
     *,
+    runs_root: str = "runs",
+    exploratory: bool = False,
     execute: Callable[[Path, HematopoieticVizOptions], dict] = run_visualization,
 ) -> dict:
     batch = safe_component(batch_id, "batch id")
+    if runs_root not in RUN_ROOTS:
+        raise ValueError(f"runs_root must be one of {tuple(RUN_ROOTS)}")
+    root = RUNS_ROOT if runs_root == "runs" else RUN_ROOTS[runs_root]
+    experiments = EXPLORATORY_EXPERIMENT_ORDER if exploratory else EXPERIMENT_ORDER
     results = []
-    for experiment in EXPERIMENT_ORDER:
-        run = (RUNS_ROOT / experiment / batch).resolve()
+    for experiment in experiments:
+        run = (root / experiment / batch).resolve()
         if not (run / "exp_config.json").is_file():
             message = "unfinished: missing run config"
             warnings.warn(f"{experiment}: {message}")
@@ -467,7 +537,7 @@ def run_all_available(
         config = read_json(run / "exp_config.json")
         try:
             sample_path, checkpoint, _sidecar = resolve_current_sample(
-                run, config, options.sample_path
+                run, config, options.sample_path, options.checkpoint_step
             )
         except (FileNotFoundError, ValueError) as error:
             warnings.warn(f"{experiment}: sample unavailable; skipped: {error}")
@@ -477,7 +547,7 @@ def run_all_available(
                 "reason": str(error),
             })
             continue
-        metadata = run / "hematopoietic_viz" / "metadata.json"
+        metadata = _metadata_path(run, options)
         if (
             metadata.is_file()
             and not options.force
@@ -497,13 +567,15 @@ def run_all_available(
             })
     summary = {
         "batch_id": batch,
+        "runs_root": runs_root,
+        "exploratory": bool(exploratory),
         "results": results,
         "completed": sum(row["status"] == "completed" for row in results),
         "skipped_completed": sum(row["status"] == "skipped_completed" for row in results),
         "skipped_unfinished": sum(row["status"] == "skipped_unfinished" for row in results),
         "failed": sum(row["status"] == "failed" for row in results),
     }
-    destination = RUNS_ROOT / "_hematopoietic_viz_batches" / batch / "summary.json"
+    destination = root / "_hematopoietic_viz_batches" / batch / "summary.json"
     write_json(destination, summary)
     summary["summary_path"] = str(destination.resolve())
     return summary

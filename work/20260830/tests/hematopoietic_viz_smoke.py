@@ -150,6 +150,30 @@ def main() -> int:
         assert vector.layers["velocity_cellunet_t009_20260830"].shape == (40, 6)
         expected_umap = pd.read_csv(output / "csv/vector_field_umap_coordinates.csv")
         assert expected_umap.shape[0] == 40
+
+        sampling_only = run_visualization(
+            run,
+            HematopoieticVizOptions(
+                device="cpu",
+                pca_components=5,
+                neighbors=8,
+                neighbor_pcs=4,
+                superclasses=("Erythropoietic",),
+                save_h5ad=False,
+                paga=False,
+                force=True,
+                sampling_umap_only=True,
+                checkpoint_step=100000,
+            ),
+        )
+        assert sampling_only["status"] == "completed", sampling_only
+        sampling_metadata = json.loads(
+            (output / "sampling_umap_metadata.json").read_text(encoding="utf-8")
+        )
+        assert sampling_metadata["analysis_mode"] == "sampling_umap_only"
+        assert sampling_metadata["selected_superclasses"] == ["Erythropoietic"]
+        assert sampling_metadata["selected_cell_count"] == 20
+        assert sampling_metadata["checkpoint_step"] == 100000
         print(json.dumps({"status": "ok", "figures": len(observed)}, indent=2))
     return 0
 

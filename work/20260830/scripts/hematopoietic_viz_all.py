@@ -17,14 +17,22 @@ for path in (REPO_ROOT, SUITE_ROOT):
 
 from hematopoietic_viz.cli import add_common_arguments, options_from_args  # noqa: E402
 from hematopoietic_viz.runner import run_all_available  # noqa: E402
+from scripts.common import RUN_ROOTS  # noqa: E402
 
 
 def main(argv=None):
     parser = argparse.ArgumentParser()
     parser.add_argument("--batch-id", required=True)
+    parser.add_argument("--runs-root", choices=tuple(RUN_ROOTS), default="runs")
+    parser.add_argument("--exploratory", action="store_true")
     add_common_arguments(parser)
     args = parser.parse_args(argv)
-    summary = run_all_available(args.batch_id, options_from_args(args))
+    summary = run_all_available(
+        args.batch_id,
+        options_from_args(args),
+        runs_root=args.runs_root,
+        exploratory=args.exploratory,
+    )
     print(json.dumps(summary, indent=2, ensure_ascii=False))
     return 1 if summary["failed"] else 0
 
