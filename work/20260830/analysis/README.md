@@ -93,13 +93,14 @@ raw `model000000.pt` と5,000 step刻みのEMA
 再現性のため `--runs-batch-id` と `--runs2-batch-id` でbatchを
 明示することもできます。
 
-ODEについては `W` 全体、mask内、mask外（mask=0の対角成分を含む）、`b`,
-`raw_K`, `raw_V`, `raw_delta` と、ODE式で使う変換後の `K`, `V`, `delta` を
-1 parameter groupにつき1 PNGで保存します。CellUnetについては全parameter、
-全weight、全biasの集約3 PNGに加え、state dict内の各学習parameterをそれぞれ
-1 PNGで保存します。すべてのpanelはraw pointを描かず、共通binのhistogram、mean、
-population std、要素数を表示します。CSVにはfull-rangeの要約統計、metadataには
-選択batchと全checkpoint pathを記録します。
+既定出力は `01`〜`03` の `W` 全体、mask内、mask外（mask=0の対角成分を含む）と、
+`11`〜`13` のCellUnet全parameter、全weight、全biasの6 PNGです。200 binsを使い、
+6 PNGすべてで同一のx範囲とbin境界を共有します。`--all-parameters` を付けると、
+ODEの `b`, `raw_K`, `raw_V`, `raw_delta`、式で使う変換後の `K`, `V`, `delta`、
+およびstate dict内のCellUnet各学習parameterもそれぞれ1 PNGで保存します。
+`--independent-x` を付けた場合だけPNGごとに横軸を決めます。すべてのpanelはraw
+pointを描かず、histogram、mean、population std、要素数を表示します。CSVには
+表示対象のfull-range要約統計、metadataには選択batchと全checkpoint pathを記録します。
 
 ```bash
 /path/to/scdiffusion/bin/python \

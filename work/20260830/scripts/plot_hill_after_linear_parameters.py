@@ -305,6 +305,7 @@ def load_snapshot_categories(
     checkpoint_path: Path,
     *,
     positive_epsilon: float,
+    include_individual_cellunet: bool = True,
 ) -> tuple[dict[str, np.ndarray], np.ndarray, tuple[str, ...]]:
     """Load ODE and CellUnet categories from one checkpoint in a single pass."""
 
@@ -346,7 +347,12 @@ def load_snapshot_categories(
         "delta_effective": positive(raw_delta),
     }
     cell_parameters = _cellunet_parameters(state)
-    categories.update(_cellunet_categories(cell_parameters))
+    cell_categories = _cellunet_categories(cell_parameters)
+    if not include_individual_cellunet:
+        cell_categories = {
+            name: cell_categories[name] for name in CELLUNET_AGGREGATE_ORDER
+        }
+    categories.update(cell_categories)
     for name, values in categories.items():
         if values.size == 0:
             raise ValueError(f"parameter group {name} is empty in {checkpoint_path}")
@@ -385,8 +391,9 @@ def plot_category_grid(
     category: str,
     output_path: Path,
     *,
-    bins: int = 60,
+    bins: int = 200,
     dpi: int = 220,
+    shared_edges: np.ndarray | None = None,
 ) -> None:
     import matplotlib
 
@@ -399,7 +406,13 @@ def plot_category_grid(
         for condition in CONDITIONS
         for checkpoint in CHECKPOINTS
     ]
-    edges = _histogram_edges(values_list, bins)
+    edges = (
+        np.asarray(shared_edges, dtype=np.float64)
+        if shared_edges is not None
+        else _histogram_edges(values_list, bins)
+    )
+    if edges.ndim != 1 or edges.size < 3 or not np.all(np.diff(edges) > 0):
+        raise ValueError("histogram edges must be a strictly increasing 1D array")
     figure, axes = plt.subplots(
         len(CONDITIONS),
         len(CHECKPOINTS),
@@ -473,9 +486,11 @@ def analyze(
     output_dir: Path,
     runs_batch_id: str = "",
     runs2_batch_id: str = "",
-    bins: int = 60,
+    bins: int = 200,
     dpi: int = 220,
     force: bool = False,
+    all_parameters: bool = False,
+    independent_x: bool = False,
 ) -> dict:
     if int(bins) < 2:
         raise ValueError("bins must be at least 2")
@@ -497,7 +512,6 @@ def analyze(
 
     snapshots: dict[tuple[str, int], dict[str, np.ndarray]] = {}
     sources = []
-    summary_rows = []
     reference_mask: np.ndarray | None = None
     cellunet_parameter_names: tuple[str, ...] | None = None
     for condition in CONDITIONS:
@@ -511,7 +525,9 @@ def analyze(
                 flush=True,
             )
             categories, mask, current_cellunet_names = load_snapshot_categories(
-                checkpoint_path, positive_epsilon=epsilon
+                checkpoint_path,
+                positive_epsilon=epsilon,
+                include_individual_cellunet=all_parameters,
             )
             if reference_mask is None:
                 reference_mask = mask.copy()
@@ -532,7 +548,43 @@ def analyze(
                 "checkpoint_kind": "EMA" if checkpoint.use_ema else "raw model",
                 "checkpoint_path": str(checkpoint_path),
             })
-            for category in categories:
+    assert cellunet_parameter_names is not None
+    complete_category_order = (
+        *CATEGORY_ORDER,
+        *CELLUNET_AGGREGATE_ORDER,
+        *(f"CellUnet::{name}" for name in cellunet_parameter_names),
+    )
+    selected_categories = (
+        complete_category_order
+        if all_parameters
+        else (
+            "W_all",
+            "W_mask_present",
+            "W_mask_absent",
+            *CELLUNET_AGGREGATE_ORDER,
+        )
+    )
+    shared_edges = None
+    if not independent_x:
+        shared_edges = _histogram_edges(
+            [
+                snapshots[(condition.experiment, checkpoint.training_step)][category]
+                for category in selected_categories
+                for condition in CONDITIONS
+                for checkpoint in CHECKPOINTS
+            ],
+            bins,
+        )
+
+    summary_rows = []
+    source_by_snapshot = {
+        (source["experiment"], source["training_step"]): source for source in sources
+    }
+    for condition in CONDITIONS:
+        for checkpoint in CHECKPOINTS:
+            source = source_by_snapshot[(condition.experiment, checkpoint.training_step)]
+            categories = snapshots[(condition.experiment, checkpoint.training_step)]
+            for category in selected_categories:
                 summary_rows.append({
                     "weight_label": condition.label,
                     "experiment": condition.experiment,
@@ -540,23 +592,25 @@ def analyze(
                     "batch_id": batches[condition.runs_root_name],
                     "training_step": checkpoint.training_step,
                     "checkpoint_kind": "ema" if checkpoint.use_ema else "raw_model",
-                    "checkpoint_path": str(checkpoint_path),
+                    "checkpoint_path": source["checkpoint_path"],
                     "parameter_group": category,
                     **summarize(categories[category]),
                 })
 
-    assert cellunet_parameter_names is not None
-    all_categories = (
-        *CATEGORY_ORDER,
-        *CELLUNET_AGGREGATE_ORDER,
-        *(f"CellUnet::{name}" for name in cellunet_parameter_names),
-    )
     figure_paths = []
-    for index, category in enumerate(all_categories, 1):
+    for category in selected_categories:
+        index = complete_category_order.index(category) + 1
         safe_name = re.sub(r"[^A-Za-z0-9]+", "_", category).strip("_")
         destination = output / f"{index:02d}_{safe_name}.png"
         print(f"PLOT {destination.name}", flush=True)
-        plot_category_grid(snapshots, category, destination, bins=bins, dpi=dpi)
+        plot_category_grid(
+            snapshots,
+            category,
+            destination,
+            bins=bins,
+            dpi=dpi,
+            shared_edges=shared_edges,
+        )
         figure_paths.append(str(destination))
 
     summary_path = output / "parameter_distribution_summary.csv"
@@ -589,19 +643,21 @@ def analyze(
             "absent_count": int((~reference_mask).sum()),
             "absent_definition": "mask == 0, including diagonal entries when absent",
         },
-        "parameter_groups": list(all_categories),
+        "parameter_groups": list(selected_categories),
+        "available_parameter_groups": list(complete_category_order),
         "ode_trainable_parameter_groups": ["W", "b", "raw_K", "raw_V", "raw_delta"],
         "derived_effective_groups": ["K_effective", "V_effective", "delta_effective"],
         "cellunet": {
             "aggregate_groups": list(CELLUNET_AGGREGATE_ORDER),
             "individual_parameter_names": list(cellunet_parameter_names),
-            "individual_png_per_parameter": True,
+            "individual_png_per_parameter": bool(all_parameters),
             "buffer_policy": "Cell_Unet has no running-statistic buffers; ml_model tensors are trainable parameters",
         },
         "histogram": {
             "bins": int(bins),
             "y_axis": "percent of entries per bin",
             "common_edges_within_each_png": True,
+            "common_edges_across_all_pngs": not independent_x,
             "full_min_max_range_without_clipping": True,
             "mean_line": "red dashed",
             "std_definition": "population standard deviation (ddof=0)",
@@ -635,9 +691,19 @@ def build_parser() -> argparse.ArgumentParser:
             / datetime.now().strftime("%Y%m%d-%H%M%S")
         ),
     )
-    parser.add_argument("--bins", type=int, default=60)
+    parser.add_argument("--bins", type=int, default=200)
     parser.add_argument("--dpi", type=int, default=220)
     parser.add_argument("--force", action="store_true")
+    parser.add_argument(
+        "--all-parameters",
+        action="store_true",
+        help="also plot ODE K/V/b/delta and every individual CellUnet tensor",
+    )
+    parser.add_argument(
+        "--independent-x",
+        action="store_true",
+        help="choose a separate horizontal range for each PNG instead of one shared range",
+    )
     return parser
 
 
@@ -652,6 +718,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         bins=args.bins,
         dpi=args.dpi,
         force=args.force,
+        all_parameters=args.all_parameters,
+        independent_x=args.independent_x,
     )
     print(json.dumps({
         "status": metadata["status"],

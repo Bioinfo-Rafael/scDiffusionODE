@@ -40,6 +40,7 @@ from scripts.common import EXPERIMENT_ORDER, load_experiment_config, write_json 
 from scripts.plot_hill_after_linear_parameters import (  # noqa: E402
     CHECKPOINTS,
     CONDITIONS,
+    build_parser as build_parameter_plot_parser,
     load_snapshot_categories,
     plot_category_grid,
     resolve_condition_runs,
@@ -105,6 +106,25 @@ class AnalysisTests(unittest.TestCase):
         self.assertTrue(np.all(categories["K_effective"] > 0.0))
         self.assertTrue(np.all(categories["V_effective"] > 0.0))
         self.assertTrue(np.all(categories["delta_effective"] > 0.0))
+
+    def test_hill_parameter_plot_defaults_to_six_shared_x_fine_bin_figures(self):
+        args = build_parameter_plot_parser().parse_args([])
+        self.assertEqual(args.bins, 200)
+        self.assertFalse(args.all_parameters)
+        self.assertFalse(args.independent_x)
+        with tempfile.TemporaryDirectory() as directory:
+            checkpoint = Path(directory) / "model000000.pt"
+            self._write_parameter_checkpoint(checkpoint)
+            categories, _, _ = load_snapshot_categories(
+                checkpoint,
+                positive_epsilon=1e-6,
+                include_individual_cellunet=False,
+            )
+        self.assertTrue(all(name in categories for name in (
+            "W_all", "W_mask_present", "W_mask_absent",
+            "CellUnet_all_parameters", "CellUnet_all_weights", "CellUnet_all_biases",
+        )))
+        self.assertFalse(any(name.startswith("CellUnet::") for name in categories))
 
     def test_hill_parameter_run_discovery_requires_common_complete_batches(self):
         with tempfile.TemporaryDirectory() as directory:
