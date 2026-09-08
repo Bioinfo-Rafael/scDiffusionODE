@@ -109,3 +109,12 @@ pointを描かず、histogram、mean、population std、要素数を表示しま
   work/20260830/scripts/plot_hill_after_linear_parameters.py \
   --output-dir work/20260830/analysis_results/hill_after_linear_parameter_distributions/example
 ```
+
+作成済みの `std_over_mean/` 内の6 CSVは、次の専用scriptで元parameter groupごとに
+1枚の折れ線図へ変換できます。横軸はtraining step、縦軸は `std_over_mean`、線は
+6種類のconsistency weightです。CSVの7点をそのまま結び、smoothingや補間はしません。
+
+```bash
+/path/to/scdiffusion/bin/python work/20260830/scripts/plot_std_over_mean.py \
+  --input-dir /path/to/std_over_mean
+```

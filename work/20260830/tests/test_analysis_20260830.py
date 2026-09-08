@@ -45,6 +45,12 @@ from scripts.plot_hill_after_linear_parameters import (  # noqa: E402
     plot_category_grid,
     resolve_condition_runs,
 )
+from scripts.plot_std_over_mean import (  # noqa: E402
+    EXPECTED_STEPS as STD_MEAN_STEPS,
+    FIGURE_FILES as STD_MEAN_FILES,
+    WEIGHT_ORDER as STD_MEAN_WEIGHTS,
+    run as plot_std_over_mean,
+)
 
 
 def tiny_model(experiment="01_centered_signed_hill_lambda0p1"):
@@ -67,6 +73,30 @@ def tiny_model(experiment="01_centered_signed_hill_lambda0p1"):
 
 
 class AnalysisTests(unittest.TestCase):
+    def test_std_over_mean_plot_writes_one_unsmoothed_figure_per_source(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source = root / "std_over_mean"
+            output = root / "figures"
+            source.mkdir()
+            for filename in STD_MEAN_FILES:
+                figure = filename.removesuffix("_std_over_mean.csv")
+                rows = [
+                    {
+                        "figure": figure,
+                        "weight_label": weight,
+                        "training_step": step,
+                        "std_over_mean": weight_index + step / 30000,
+                    }
+                    for weight_index, weight in enumerate(STD_MEAN_WEIGHTS)
+                    for step in STD_MEAN_STEPS
+                ]
+                pd.DataFrame(rows).to_csv(source / filename, index=False)
+            result = plot_std_over_mean(source, output, dpi=40)
+            self.assertEqual(result["status"], "completed")
+            self.assertFalse(result["smoothing"])
+            self.assertEqual(len(result["figures"]), 6)
+            self.assertTrue(all(Path(item["output"]).is_file() for item in result["figures"]))
     @staticmethod
     def _write_parameter_checkpoint(path, offset=0.0):
         path.parent.mkdir(parents=True, exist_ok=True)
