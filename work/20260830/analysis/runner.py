@@ -17,6 +17,7 @@ from ODE.ode_20260609_mathmlp import clean_state_dict
 
 from models import build_model_from_config
 from scripts.common import (
+    ALL_EXPERIMENTS,
     EXPERIMENT_ORDER,
     RUNS_ROOT,
     checkpoint_files,
@@ -131,7 +132,13 @@ def discover_run_directories(
         missing = [name for name in EXPERIMENT_ORDER if name not in names]
         if missing:
             raise FileNotFoundError("missing canonical runs: " + ", ".join(missing))
-    return sorted(found, key=lambda run: EXPERIMENT_ORDER.index(read_json(run / "exp_config.json")["experiment"]))
+    experiment_order = {name: index for index, name in enumerate(ALL_EXPERIMENTS)}
+    return sorted(
+        found,
+        key=lambda run: experiment_order[
+            read_json(run / "exp_config.json")["experiment"]
+        ],
+    )
 
 
 def select_device(name: str) -> torch.device:
