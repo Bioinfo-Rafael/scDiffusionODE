@@ -29,7 +29,11 @@ from analysis.metrics import (  # noqa: E402
     safe_row_pearson,
 )
 from analysis.plotting import plot_run_figures  # noqa: E402
-from analysis.runner import parse_timestep_spec, summarize_runs  # noqa: E402
+from analysis.runner import (  # noqa: E402
+    discover_run_directories,
+    parse_timestep_spec,
+    summarize_runs,
+)
 from guided_diffusion.script_util import create_gaussian_diffusion  # noqa: E402
 from models import build_model_from_config  # noqa: E402
 from scripts.common import EXPERIMENT_ORDER, load_experiment_config, write_json  # noqa: E402
@@ -196,6 +200,24 @@ class AnalysisTests(unittest.TestCase):
         self.assertEqual(selected[-1]["checkpoint_training_step"], 1000)
         self.assertTrue(any("early_10pct" in row["checkpoint_stage"] for row in selected))
         self.assertEqual(parse_timestep_spec("0,1,5-9:2", 1000), (0, 1, 5, 7, 9))
+
+    def test_discovery_accepts_and_orders_explicit_exploratory_runs(self):
+        names = (
+            "14_centered_signed_hill_lambda0p001",
+            "13_centered_signed_hill_lambda0p01",
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runs = []
+            for name in names:
+                run = root / name / "batch"
+                write_json(run / "exp_config.json", load_experiment_config(name))
+                runs.append(str(run))
+            discovered = discover_run_directories(run_dirs=runs)
+        self.assertEqual(
+            [run.parent.name for run in discovered],
+            list(reversed(names)),
+        )
 
     def test_checkpoint_selection_for_100k_training(self):
         paths = [Path(f"model{step:06d}.pt") for step in range(5000, 100001, 5000)]
