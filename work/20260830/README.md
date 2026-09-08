@@ -34,7 +34,9 @@ L_total = L_diffusion
 `0.1, 1.0, 10.0` を使用します。追加の探索条件では固定 `0.01`, `0.001` と、
 optimizer stepに対して `10.0` から `0.001` まで指数的に減衰する
 `log_linear` scheduleを使用できます。scheduleは1始まりのglobal training stepから
-決まるため、checkpoint resumeでも同じstepに同じ重みが再現されます。
+決まるため、checkpoint resumeでも同じstepに同じ重みが再現されます。探索条件は
+30,000 optimizer stepで学習し、`--exploratory` は固定0.01の4モデル、固定0.001の
+4モデル、指数減衰の4モデルという重み優先順で実行します。
 
 詳細lossは各optimizer stepでmemory bufferへ記録し、既定100 stepごと、および
 checkpoint・正常終了・例外終了時に `loss_components_20260830.csv` へappend/flush
@@ -160,7 +162,7 @@ sampling、seed は比較軸として変更していません。
 - `data_dir=/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad`
 - `edge_tsv_path=/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv`
 
-| condition | 20260803_ODE_hill_exp | 20260817_singleODE | 20260830 final |
+| condition | 20260803_ODE_hill_exp | 20260817_singleODE | 20260830 canonical |
 |---|---|---|---|
 | `data_dir` | Embryonic.h5ad | 同左 | 同左 |
 | `edge_tsv_path` | tf_target_edges.tsv | 同左 | 同左 |
@@ -201,7 +203,7 @@ sampling、seed は比較軸として変更していません。
 `hill_n=2`, `hill_K_init=1`, `hill_V_init=1`、simple-softplusは歴史的な
 `gamma=0.1`, input scale `1/sqrt(d)`を維持します。
 
-### Final fixed conditions
+### Canonical fixed conditions
 
 | setting | value |
 |---|---:|
@@ -217,11 +219,13 @@ sampling、seed は比較軸として変更していません。
 
 ### Checkpoint容量概算
 
-`save_interval=5000`は変更していません。step 0を含め最終100,000まで約21組です。
+canonical条件の`save_interval=5000`は変更していません。step 0を含め最終100,000まで約21組です。
 FP32では1組（raw model + EMA + Adamの2 moment）は概ねparameter byte数の4倍です。
 入力gene数を`d=2000`と仮定すると、centered/shiftedは約0.78 GiB/組（約16.4
 GiB/run）、hill/simpleは約0.66 GiB/組（約13.9 GiB/run）、12 run合計は概ね
-182 GiB + serialization overheadです。実容量はAnnDataの`n_vars`に依存します。
+182 GiB + serialization overheadです。探索条件は30,000 step（約7組/run）なので、
+同じ仮定では追加12 run合計で概ね60 GiB + serialization overheadです。実容量は
+AnnDataの`n_vars`に依存します。
 容量が問題なら`save_interval=10000`で概ね半減できますが、比較条件維持のため今回は
 5000のままです。
 
@@ -250,12 +254,18 @@ launcher と config validator の両方がこの順序・ODE・lambda の組を�
 
 - 固定 `lambda=0.01`
 - 固定 `lambda=0.001`
-- `lambda=10.0 -> 0.001` の100,000-step log-linear schedule
+- `lambda=10.0 -> 0.001` の30,000-step log-linear schedule
 
-scheduleは対数空間で等間隔なので、概ね step 1 / 25,001 / 50,001 / 75,001 /
-100,000で `10 / 1 / 0.1 / 0.01 / 0.001` になります。引数なしのlauncherは比較互換性の
+scheduleは対数空間で等間隔なので、概ね step 1 / 7,501 / 15,001 / 22,501 /
+30,000で `10 / 1 / 0.1 / 0.01 / 0.001` になります。引数なしのlauncherは比較互換性の
 ため従来のcanonical 12条件だけを実行します。追加条件は `--experiment` で選択するか、
 `--exploratory` で追加12条件をまとめて実行します。
+
+探索条件の実行順は次のとおりです。
+
+1. 固定0.01: `13`, `16`, `19`, `22`
+2. 固定0.001: `14`, `17`, `20`, `23`
+3. 10→0.001指数減衰: `15`, `18`, `21`, `24`
 
 ## Commands
 
@@ -297,7 +307,7 @@ background 実行:
 
 # 追加12条件をすべて実行
 /path/to/scdiffusion/bin/python work/20260830/scripts/launch.py \
-  --exploratory --runs-root runs2 --batch-id exploratory-20260830
+  --exploratory --runs-root runs2 --batch-id exploratory-30k-20260830
 ```
 
 `--runs-root runs2` を指定した場合、training checkpoint、sampling、analysis、
@@ -322,6 +332,17 @@ sampling only / analysis only:
   --experiment 01_centered_signed_hill_lambda0p1 \
   --batch-id main-20260830 --analysis-only
 ```
+
+既存runの特定checkpoint（例: 30,000 step）を解析する場合:
+
+```bash
+/path/to/scdiffusion/bin/python work/20260830/scripts/analyze.py \
+  --run-dir /path/to/run --checkpoint-step 30000 --full --force
+```
+
+この場合、通常metrics、gradient checkpoint、loss履歴、作図範囲はすべて指定step
+以前に限定されます。samplingは `sample.py --model-path` で同じEMA checkpointを
+明示します。
 
 実行計画だけを確認:
 

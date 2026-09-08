@@ -19,9 +19,13 @@ for path in (REPO_ROOT, SUITE_ROOT, SUITE_ROOT / "scripts"):
 from common import (  # noqa: E402
     ALL_EXPERIMENTS,
     EXPERIMENT_ORDER,
+    EXPLORATORY_EXPERIMENT_ORDER,
     assert_allowed_run_dir,
+    choose_sampling_checkpoint_at_step,
+    consistency_lambda_at_step,
     load_experiment_config,
     run_dir,
+    validate_config,
 )
 from launch import background_child_command  # noqa: E402
 from models import build_ode_from_config  # noqa: E402
@@ -77,6 +81,19 @@ class ExperimentTests(unittest.TestCase):
         target = run_dir("13_centered_signed_hill_lambda0p01", "batch", "runs2")
         self.assertEqual(target.parent.parent.name, "runs2")
         self.assertEqual(assert_allowed_run_dir(target), target.resolve())
+
+    def test_exact_sampling_checkpoint_selection(self):
+        with tempfile.TemporaryDirectory() as directory:
+            model_dir = Path(directory) / "checkpoints/segment_000/model"
+            model_dir.mkdir(parents=True)
+            for step in (30000, 100000):
+                (model_dir / f"model{step:06d}.pt").touch()
+                (model_dir / f"opt{step:06d}.pt").touch()
+                (model_dir / f"ema_0.9999_{step:06d}.pt").touch()
+            selected = choose_sampling_checkpoint_at_step(
+                directory, "0.9999", 30000
+            )
+        self.assertEqual(selected.name, "ema_0.9999_030000.pt")
 
     def test_background_launcher_uses_python_interpreter(self):
         child = background_child_command(["--batch-id", "test", "--background"])
@@ -365,6 +382,27 @@ class ExperimentTests(unittest.TestCase):
 
     def test_exploratory_fixed_and_scheduled_configs(self):
         self.assertEqual(len(ALL_EXPERIMENTS), 24)
+        self.assertEqual(EXPLORATORY_EXPERIMENT_ORDER, (
+            "13_centered_signed_hill_lambda0p01",
+            "16_shifted_hill_rho_lambda0p01",
+            "19_hill_after_linear_lambda0p01",
+            "22_simple_softplus_lambda0p01",
+            "14_centered_signed_hill_lambda0p001",
+            "17_shifted_hill_rho_lambda0p001",
+            "20_hill_after_linear_lambda0p001",
+            "23_simple_softplus_lambda0p001",
+            "15_centered_signed_hill_lambda10_to_0p001",
+            "18_shifted_hill_rho_lambda10_to_0p001",
+            "21_hill_after_linear_lambda10_to_0p001",
+            "24_simple_softplus_lambda10_to_0p001",
+        ))
+        for name in EXPLORATORY_EXPERIMENT_ORDER:
+            config = load_experiment_config(name)
+            self.assertEqual(config["total_steps"], 30000)
+            self.assertEqual(config["lr_anneal_steps"], 30000)
+            self.assertEqual(
+                config["cell_ode_reg_schedule_steps_20260830"], 30000
+            )
         fixed = load_experiment_config("13_centered_signed_hill_lambda0p01")
         self.assertEqual(fixed["cell_ode_reg_lambda_20260830"], 0.01)
         self.assertEqual(fixed["cell_ode_reg_schedule_20260830"], "constant")
@@ -372,6 +410,20 @@ class ExperimentTests(unittest.TestCase):
         self.assertEqual(scheduled["cell_ode_reg_lambda_20260830"], 10.0)
         self.assertEqual(scheduled["cell_ode_reg_lambda_end_20260830"], 0.001)
         self.assertEqual(scheduled["cell_ode_reg_schedule_20260830"], "log_linear")
+        self.assertAlmostEqual(consistency_lambda_at_step(scheduled, 1), 10.0)
+        self.assertAlmostEqual(consistency_lambda_at_step(scheduled, 30000), 0.001)
+        self.assertAlmostEqual(
+            consistency_lambda_at_step(scheduled, 15000),
+            10.0 * (0.001 / 10.0) ** (14999 / 29999),
+        )
+
+        legacy = dict(fixed)
+        legacy["total_steps"] = 100000
+        legacy["lr_anneal_steps"] = 100000
+        legacy["cell_ode_reg_schedule_steps_20260830"] = 100000
+        with self.assertRaises(ValueError):
+            validate_config(legacy)
+        validate_config(legacy, allow_legacy_exploratory_100k=True)
 
 
 if __name__ == "__main__":

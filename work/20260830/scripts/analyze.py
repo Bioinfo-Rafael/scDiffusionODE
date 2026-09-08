@@ -54,6 +54,7 @@ def build_parser():
     parser.add_argument("--seed", type=int, default=1234)
     parser.add_argument("--device", default="auto")
     parser.add_argument("--force", action="store_true")
+    parser.add_argument("--checkpoint-step", type=int)
     parser.add_argument("--summary-output", default="")
     return parser
 
@@ -81,6 +82,7 @@ def main(argv=None):
         device=args.device,
         force=args.force,
         gradient_only=args.gradient_only,
+        checkpoint_step=args.checkpoint_step,
     )
     results = []
     if not args.summary_only:

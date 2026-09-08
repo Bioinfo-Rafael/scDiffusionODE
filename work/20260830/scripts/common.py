@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import re
 from datetime import datetime
 from pathlib import Path
@@ -31,16 +32,16 @@ EXPERIMENT_ORDER = (
 )
 EXPLORATORY_EXPERIMENT_ORDER = (
     "13_centered_signed_hill_lambda0p01",
-    "14_centered_signed_hill_lambda0p001",
-    "15_centered_signed_hill_lambda10_to_0p001",
     "16_shifted_hill_rho_lambda0p01",
-    "17_shifted_hill_rho_lambda0p001",
-    "18_shifted_hill_rho_lambda10_to_0p001",
     "19_hill_after_linear_lambda0p01",
-    "20_hill_after_linear_lambda0p001",
-    "21_hill_after_linear_lambda10_to_0p001",
     "22_simple_softplus_lambda0p01",
+    "14_centered_signed_hill_lambda0p001",
+    "17_shifted_hill_rho_lambda0p001",
+    "20_hill_after_linear_lambda0p001",
     "23_simple_softplus_lambda0p001",
+    "15_centered_signed_hill_lambda10_to_0p001",
+    "18_shifted_hill_rho_lambda10_to_0p001",
+    "21_hill_after_linear_lambda10_to_0p001",
     "24_simple_softplus_lambda10_to_0p001",
 )
 ALL_EXPERIMENTS = EXPERIMENT_ORDER + EXPLORATORY_EXPERIMENT_ORDER
@@ -72,14 +73,14 @@ _EXPERIMENT_SPECS = {
                 EXPLORATORY_EXPERIMENT_ORDER,
                 (
                     (ode_type, start, schedule, end)
-                    for ode_type in (
-                        "centered_signed_hill", "shifted_hill_rho",
-                        "hill_after_linear", "simple_softplus",
-                    )
                     for start, schedule, end in (
                         (0.01, "constant", None),
                         (0.001, "constant", None),
                         (10.0, "log_linear", 0.001),
+                    )
+                    for ode_type in (
+                        "centered_signed_hill", "shifted_hill_rho",
+                        "hill_after_linear", "simple_softplus",
                     )
                 ),
             )
@@ -114,7 +115,7 @@ def deep_merge(base, override):
     return result
 
 
-def validate_config(config):
+def validate_config(config, *, allow_legacy_exploratory_100k=False):
     name = str(config.get("experiment", ""))
     if name not in _EXPERIMENT_SPECS:
         raise ValueError(f"experiment is not registered, got {name!r}")
@@ -138,10 +139,18 @@ def validate_config(config):
         raise ValueError("off_mask_lambda is inherited and fixed at 5.0")
     if float(config.get("ode_reg_lambda", 1.0)) != 1.0:
         raise ValueError("ode_reg_lambda is inherited and fixed at 1.0")
-    if int(config.get("total_steps", 0)) != 100000:
-        raise ValueError("all 20260830 conditions must use total_steps=100000")
-    if int(config.get("lr_anneal_steps", 0)) != 100000:
-        raise ValueError("all 20260830 conditions must use lr_anneal_steps=100000")
+    expected_steps = 30000 if name in EXPLORATORY_EXPERIMENT_ORDER else 100000
+    configured_steps = int(config.get("total_steps", 0))
+    configured_annealing = int(config.get("lr_anneal_steps", 0))
+    legacy_exploratory = (
+        allow_legacy_exploratory_100k
+        and name in EXPLORATORY_EXPERIMENT_ORDER
+        and configured_steps == configured_annealing == 100000
+    )
+    if configured_steps != expected_steps and not legacy_exploratory:
+        raise ValueError(f"{name} must use total_steps={expected_steps}")
+    if configured_annealing != expected_steps and not legacy_exploratory:
+        raise ValueError(f"{name} must use lr_anneal_steps={expected_steps}")
     if int(config.get("total_steps")) != int(config.get("lr_anneal_steps")):
         raise ValueError("total_steps and lr_anneal_steps must be identical")
     if int(config.get("cell_ode_reg_schedule_steps_20260830", 0)) != int(config["total_steps"]):
@@ -160,6 +169,21 @@ def load_experiment_config(experiment_or_path):
     config = deep_merge(read_json(CONFIG_ROOT / "base.json"), read_json(override_path))
     validate_config(config)
     return config
+
+
+def consistency_lambda_at_step(config, training_step):
+    """Return the configured consistency weight at a 1-based optimizer step."""
+
+    start = float(config["cell_ode_reg_lambda_20260830"])
+    if str(config.get("cell_ode_reg_schedule_20260830", "constant")) == "constant":
+        return start
+    end = float(config["cell_ode_reg_lambda_end_20260830"])
+    steps = int(config["cell_ode_reg_schedule_steps_20260830"])
+    if steps == 1:
+        return end
+    bounded_step = min(max(int(training_step), 1), steps)
+    progress = (bounded_step - 1) / (steps - 1)
+    return math.exp(math.log(start) + progress * (math.log(end) - math.log(start)))
 
 
 def safe_component(value, label):
@@ -225,9 +249,28 @@ def latest_raw_checkpoint(run_path):
 
 
 def choose_sampling_checkpoint(run_path, ema_rate):
-    raw = latest_raw_checkpoint(run_path)
+    return choose_sampling_checkpoint_at_step(run_path, ema_rate)
+
+
+def choose_sampling_checkpoint_at_step(run_path, ema_rate, training_step=None):
+    if training_step is None:
+        raw = latest_raw_checkpoint(run_path)
+    else:
+        requested = int(training_step)
+        if requested <= 0:
+            raise ValueError("training_step must be positive")
+        raw = None
+        for candidate in reversed(checkpoint_files(run_path)):
+            step = int(candidate.stem.replace("model", ""))
+            if step != requested:
+                continue
+            optimizer = candidate.with_name(f"opt{step:06d}.pt")
+            if optimizer.is_file() and list(candidate.parent.glob(f"ema_*_{step:06d}.pt")):
+                raw = candidate
+                break
     if raw is None:
-        raise FileNotFoundError("no checkpoint found")
+        detail = "latest" if training_step is None else f"step {int(training_step)}"
+        raise FileNotFoundError(f"no complete checkpoint found for {detail}")
     step = int(raw.stem.replace("model", ""))
     rate = str(ema_rate).split(",")[0]
     ema = raw.with_name(f"ema_{rate}_{step:06d}.pt")

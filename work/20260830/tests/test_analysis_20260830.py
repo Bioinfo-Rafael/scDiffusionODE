@@ -227,6 +227,14 @@ class AnalysisTests(unittest.TestCase):
             [10000, 35000, 65000, 100000],
         )
 
+    def test_checkpoint_selection_for_30k_training(self):
+        paths = [Path(f"model{step:06d}.pt") for step in range(5000, 30001, 5000)]
+        selected = select_analysis_checkpoints(paths)
+        self.assertEqual(
+            [row["checkpoint_training_step"] for row in selected],
+            [5000, 10000, 20000, 30000],
+        )
+
     def test_canonical_lambda_mapping_is_four_by_three(self):
         observed = [
             (

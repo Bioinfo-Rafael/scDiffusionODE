@@ -1,1 +1,1 @@
-{"experiment":"23_simple_softplus_lambda0p001","ode_type":"simple_softplus","cell_ode_reg_lambda_20260830":0.001}
+{"experiment":"23_simple_softplus_lambda0p001","ode_type":"simple_softplus","cell_ode_reg_lambda_20260830":0.001,"total_steps":30000,"lr_anneal_steps":30000,"cell_ode_reg_schedule_steps_20260830":30000}

@@ -22,6 +22,8 @@ from scripts.common import (
     RUNS_ROOT,
     checkpoint_files,
     choose_sampling_checkpoint,
+    choose_sampling_checkpoint_at_step,
+    consistency_lambda_at_step,
     read_json,
     validate_config,
     write_json,
@@ -55,6 +57,7 @@ class AnalysisOptions:
     device: str = "auto"
     force: bool = False
     gradient_only: bool = False
+    checkpoint_step: int | None = None
 
 
 def parse_timestep_spec(spec: str, num_timesteps: int) -> tuple[int, ...]:
@@ -126,7 +129,10 @@ def discover_run_directories(
     for run in found:
         if not (run / "exp_config.json").is_file():
             raise FileNotFoundError(f"missing exp_config.json: {run}")
-        validate_config(read_json(run / "exp_config.json"))
+        validate_config(
+            read_json(run / "exp_config.json"),
+            allow_legacy_exploratory_100k=True,
+        )
     if require_all:
         names = {read_json(run / "exp_config.json")["experiment"] for run in found}
         missing = [name for name in EXPERIMENT_ORDER if name not in names]
@@ -214,7 +220,7 @@ def _analysis_dirs(run: Path) -> dict[str, Path]:
 def analyze_run(run_dir, options: AnalysisOptions) -> dict:
     run = Path(run_dir).resolve()
     config = read_json(run / "exp_config.json")
-    validate_config(config)
+    validate_config(config, allow_legacy_exploratory_100k=True)
     paths = _analysis_dirs(run)
     completion = paths["root"] / "analysis_complete.json"
 
@@ -228,7 +234,9 @@ def analyze_run(run_dir, options: AnalysisOptions) -> dict:
     )
     x_start, genes, indices = load_analysis_cells(config, cells, options.seed)
     np.save(paths["root"] / "cell_indices.npy", indices)
-    final_checkpoint = choose_sampling_checkpoint(run, config["ema_rate"])
+    final_checkpoint = choose_sampling_checkpoint_at_step(
+        run, config["ema_rate"], options.checkpoint_step
+    )
     final_training_step = checkpoint_training_step(final_checkpoint)
     base_metadata = {
         "experiment": config["experiment"],
@@ -243,8 +251,16 @@ def analyze_run(run_dir, options: AnalysisOptions) -> dict:
         "run_directory": str(run),
         "checkpoint_path": str(final_checkpoint.resolve()),
         "checkpoint_training_step": final_training_step,
+        "cell_ode_reg_lambda_effective_20260830": consistency_lambda_at_step(
+            config, final_training_step
+        ),
     }
-    selections = select_analysis_checkpoints(checkpoint_files(run))
+    eligible_checkpoints = [
+        checkpoint
+        for checkpoint in checkpoint_files(run)
+        if checkpoint_training_step(checkpoint) <= final_training_step
+    ]
+    selections = select_analysis_checkpoints(eligible_checkpoints)
     existing_config_path = paths["root"] / "analysis_config.json"
     reuse_partial = False
     stored = read_json(existing_config_path) if existing_config_path.exists() else {}
@@ -340,6 +356,8 @@ def analyze_run(run_dir, options: AnalysisOptions) -> dict:
         history, fractions = load_loss_history(
             run, config, rolling_window=options.rolling_window
         )
+        history = history[history["training_step"] <= final_training_step].copy()
+        fractions = fractions[fractions["training_step"] <= final_training_step].copy()
         for frame in (history, fractions):
             for column, value in reversed((
                 ("experiment", config["experiment"]),
@@ -375,13 +393,20 @@ def analyze_run(run_dir, options: AnalysisOptions) -> dict:
         if not missing_timesteps:
             continue
         load_checkpoint(model, selection["checkpoint_path"], device)
-        metadata = {**base_metadata, **selection}
+        effective_lambda = consistency_lambda_at_step(
+            config, selection["checkpoint_training_step"]
+        )
+        metadata = {
+            **base_metadata,
+            **selection,
+            "cell_ode_reg_lambda_effective_20260830": effective_lambda,
+        }
         current = analyze_gradients(
             model,
             diffusion,
             x_start[: min(gradient_cells, len(x_start))],
             missing_timesteps,
-            cell_ode_lambda=float(config["cell_ode_reg_lambda_20260830"]),
+            cell_ode_lambda=effective_lambda,
             ode_reg_lambda=float(config["ode_reg_lambda"]),
             seed=options.seed,
             device=device,

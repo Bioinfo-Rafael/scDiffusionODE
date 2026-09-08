@@ -91,7 +91,7 @@ class HematopoieticVizTests(unittest.TestCase):
             "work/20260830/scripts/launch.py": "e39398631b818aa58fc953ed100a656b2ec4d25165c079ad5a119a43f6a1d291",
             "work/20260830/scripts/train.py": "a7f14a15a5740b4a47bb8521e88facb65c3381b8aba1c8a5254bbff1ee3666f8",
             "work/20260830/scripts/sample.py": "8b0d7d6d540327e71e7a55d05704b51c64a9a7113c01ae8e100ced5b8ec919c7",
-            "work/20260830/scripts/analyze.py": "819269fa5b20d9fa38da8a8378ed487e8e4a858f0ff5bbc232abda8e894f787b",
+            "work/20260830/scripts/analyze.py": "8fad2ab662b0b78bb08cd9e4cb770cf0298a7df5aa77f6c5b5bb771e46122a23",
             "work/20260830/training/__init__.py": "5a336e8a7fbe61dcf3243d52649e069d4c10d74ba415d108d65390e8278d6920",
             "work/20260830/training/train_loop_20260830.py": "d8fbfcf8f62dd723e4ca71b32908e8fc3a37d4a7dfe0cb94b376033a7493f5dc",
         }
