@@ -110,6 +110,7 @@ class AnalysisTests(unittest.TestCase):
     def test_hill_parameter_plot_defaults_to_six_shared_x_fine_bin_figures(self):
         args = build_parameter_plot_parser().parse_args([])
         self.assertEqual(args.bins, 200)
+        self.assertEqual((args.x_min, args.x_max, args.y_max), (-0.5, 0.5, 30.0))
         self.assertFalse(args.all_parameters)
         self.assertFalse(args.independent_x)
         with tempfile.TemporaryDirectory() as directory:

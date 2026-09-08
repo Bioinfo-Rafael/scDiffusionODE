@@ -394,6 +394,7 @@ def plot_category_grid(
     bins: int = 200,
     dpi: int = 220,
     shared_edges: np.ndarray | None = None,
+    y_max: float | None = None,
 ) -> None:
     import matplotlib
 
@@ -452,6 +453,8 @@ def plot_category_grid(
                 bbox={"facecolor": "white", "edgecolor": "0.8", "alpha": 0.82, "pad": 2.5},
             )
             axis.grid(axis="y", alpha=0.2, linewidth=0.6)
+            if y_max is not None:
+                axis.set_ylim(0.0, float(y_max))
             axis.yaxis.set_major_locator(MaxNLocator(nbins=4))
             formatter = ScalarFormatter(useMathText=True)
             formatter.set_powerlimits((-3, 3))
@@ -491,11 +494,18 @@ def analyze(
     force: bool = False,
     all_parameters: bool = False,
     independent_x: bool = False,
+    x_min: float = -0.5,
+    x_max: float = 0.5,
+    y_max: float = 30.0,
 ) -> dict:
     if int(bins) < 2:
         raise ValueError("bins must be at least 2")
     if int(dpi) <= 0:
         raise ValueError("dpi must be positive")
+    if not math.isfinite(float(x_min)) or not math.isfinite(float(x_max)) or x_min >= x_max:
+        raise ValueError("x-min and x-max must be finite with x-min < x-max")
+    if not math.isfinite(float(y_max)) or y_max <= 0:
+        raise ValueError("y-max must be finite and positive")
     output = Path(output_dir).expanduser().resolve()
     if output.exists() and any(output.iterdir()) and not force:
         raise FileExistsError(f"output directory is not empty (use --force): {output}")
@@ -566,15 +576,7 @@ def analyze(
     )
     shared_edges = None
     if not independent_x:
-        shared_edges = _histogram_edges(
-            [
-                snapshots[(condition.experiment, checkpoint.training_step)][category]
-                for category in selected_categories
-                for condition in CONDITIONS
-                for checkpoint in CHECKPOINTS
-            ],
-            bins,
-        )
+        shared_edges = np.linspace(float(x_min), float(x_max), int(bins) + 1)
 
     summary_rows = []
     source_by_snapshot = {
@@ -610,6 +612,7 @@ def analyze(
             bins=bins,
             dpi=dpi,
             shared_edges=shared_edges,
+            y_max=y_max,
         )
         figure_paths.append(str(destination))
 
@@ -658,6 +661,9 @@ def analyze(
             "y_axis": "percent of entries per bin",
             "common_edges_within_each_png": True,
             "common_edges_across_all_pngs": not independent_x,
+            "fixed_x_range": [float(x_min), float(x_max)] if not independent_x else None,
+            "fixed_y_range": [0.0, float(y_max)],
+            "values_outside_x_range": "excluded from displayed bars but retained in summary statistics",
             "full_min_max_range_without_clipping": True,
             "mean_line": "red dashed",
             "std_definition": "population standard deviation (ddof=0)",
@@ -693,6 +699,9 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--bins", type=int, default=200)
     parser.add_argument("--dpi", type=int, default=220)
+    parser.add_argument("--x-min", type=float, default=-0.5)
+    parser.add_argument("--x-max", type=float, default=0.5)
+    parser.add_argument("--y-max", type=float, default=30.0)
     parser.add_argument("--force", action="store_true")
     parser.add_argument(
         "--all-parameters",
@@ -720,6 +729,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         force=args.force,
         all_parameters=args.all_parameters,
         independent_x=args.independent_x,
+        x_min=args.x_min,
+        x_max=args.x_max,
+        y_max=args.y_max,
     )
     print(json.dumps({
         "status": metadata["status"],

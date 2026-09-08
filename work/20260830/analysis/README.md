@@ -95,7 +95,9 @@ raw `model000000.pt` と5,000 step刻みのEMA
 
 既定出力は `01`〜`03` の `W` 全体、mask内、mask外（mask=0の対角成分を含む）と、
 `11`〜`13` のCellUnet全parameter、全weight、全biasの6 PNGです。200 binsを使い、
-6 PNGすべてで同一のx範囲とbin境界を共有します。`--all-parameters` を付けると、
+6 PNGすべてで `x=-0.5..0.5`, `y=0..30 percent/bin` とbin境界を共有します。
+x範囲外の値はbarから除外しますが、CSVとpanel内のmean/stdには含めます。
+`--all-parameters` を付けると、
 ODEの `b`, `raw_K`, `raw_V`, `raw_delta`、式で使う変換後の `K`, `V`, `delta`、
 およびstate dict内のCellUnet各学習parameterもそれぞれ1 PNGで保存します。
 `--independent-x` を付けた場合だけPNGごとに横軸を決めます。すべてのpanelはraw
