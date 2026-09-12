@@ -1,0 +1,122 @@
+{
+  "settings": {
+    "T": 1000,
+    "M": 20,
+    "S": 100,
+    "N": 20
+  },
+  "models": [
+    {
+      "suite": "20260803",
+      "experiment": "ode_only_lincomb__exp",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "ode_only_lincomb__hill_after_linear",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "ode_only_lincomb__racipe",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "standard_hybrid_lincomb__exp",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "standard_hybrid_lincomb__hill_after_linear",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "standard_hybrid_lincomb__racipe",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "standard_hybrid_single__exp",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "standard_hybrid_single__hill_after_linear",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "standard_hybrid_single__racipe",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "ts_soft_tau80_hybrid_lincomb__exp",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "ts_soft_tau80_hybrid_lincomb__hill_after_linear",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260803",
+      "experiment": "ts_soft_tau80_hybrid_lincomb__racipe",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260816",
+      "experiment": "linear_centered_signed_hill",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260816",
+      "experiment": "linear_shifted_hill_rho",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260816",
+      "experiment": "ts_soft_tau80_centered_signed_hill",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    },
+    {
+      "suite": "20260816",
+      "experiment": "ts_soft_tau80_shifted_hill_rho",
+      "enabled": true,
+      "run_dir": null,
+      "checkpoint": null
+    }
+  ]
+}
