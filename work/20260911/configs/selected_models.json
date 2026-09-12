@@ -1,0 +1,31 @@
+{
+  "settings": {
+    "T": 1000,
+    "M": 20,
+    "S": 100,
+    "N": 20
+  },
+  "models": [
+    {
+      "suite": "20260803",
+      "experiment": "standard_hybrid_single__hill_after_linear",
+      "enabled": true,
+      "run_dir": "/home/suzuki/Projects/scDiffusion-github/work/20260803_ODE_hill_exp/runs/standard_hybrid_single__hill_after_linear/20260803_full_30000",
+      "checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260803_ODE_hill_exp/runs/standard_hybrid_single__hill_after_linear/20260803_full_30000/train/checkpoints/segment_000/ode_hill_20260803/ema_0.9999_030000.pt"
+    },
+    {
+      "suite": "20260816",
+      "experiment": "linear_centered_signed_hill",
+      "enabled": true,
+      "run_dir": "/home/suzuki/Projects/scDiffusion-github/work/20260816/runs/linear_centered_signed_hill/hill_variants_20260816",
+      "checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260816/runs/linear_centered_signed_hill/hill_variants_20260816/train/checkpoints/segment_000/direct_hill_20260816/ema_0.9999_030000.pt"
+    },
+    {
+      "suite": "20260816",
+      "experiment": "linear_shifted_hill_rho",
+      "enabled": true,
+      "run_dir": "/home/suzuki/Projects/scDiffusion-github/work/20260816/runs/linear_shifted_hill_rho/hill_variants_20260816",
+      "checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260816/runs/linear_shifted_hill_rho/hill_variants_20260816/train/checkpoints/segment_000/direct_hill_20260816/ema_0.9999_030000.pt"
+    }
+  ]
+}
