@@ -1,0 +1,6 @@
+{
+  "condition": "hill_after_linear_recon_soft",
+  "objective": "recon",
+  "source_suite": "20260803_ODE_hill_exp",
+  "source_experiment": "standard_hybrid_single__hill_after_linear"
+}

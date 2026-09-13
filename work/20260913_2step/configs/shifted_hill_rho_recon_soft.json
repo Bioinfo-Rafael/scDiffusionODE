@@ -1,0 +1,6 @@
+{
+  "condition": "shifted_hill_rho_recon_soft",
+  "objective": "recon",
+  "source_suite": "20260816",
+  "source_experiment": "linear_shifted_hill_rho"
+}

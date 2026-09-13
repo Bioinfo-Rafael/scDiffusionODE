@@ -1,0 +1,20 @@
+{
+  "suite_version": "20260913_2step_v1",
+  "ot": {
+    "epsilon": 0.1,
+    "max_iterations": 200,
+    "tolerance": 0.00001,
+    "cost": "mean_squared_gene_distance",
+    "debias": true,
+    "compute_dtype": "float64",
+    "batch_size": 128
+  },
+  "post_ode_steps": 100,
+  "post_ode_dt": 0.001,
+  "post_ode_integrator": "euler",
+  "max_state_norm": 1000000.0,
+  "analysis_cells": 2000,
+  "analysis_pairs": 100000,
+  "analysis_ot_cells": 128,
+  "division_epsilon": 1e-12
+}

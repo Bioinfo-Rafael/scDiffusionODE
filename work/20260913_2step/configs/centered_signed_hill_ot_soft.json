@@ -1,0 +1,6 @@
+{
+  "condition": "centered_signed_hill_ot_soft",
+  "objective": "ot",
+  "source_suite": "20260816",
+  "source_experiment": "linear_centered_signed_hill"
+}

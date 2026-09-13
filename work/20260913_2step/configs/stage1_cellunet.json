@@ -1,0 +1,6 @@
+{
+  "condition": "stage1_cellunet",
+  "objective": "stage1",
+  "source_suite": "20260803_ODE_hill_exp",
+  "source_experiment": "standard_hybrid_single__hill_after_linear"
+}
