@@ -2,3 +2,5 @@ __pycache__/
 .test_tmp/
 .pytest_cache/
 .ruff_cache/
+
+launches/

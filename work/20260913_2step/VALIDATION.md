@@ -63,3 +63,21 @@ These are implementation checks, not evidence that the scientific hypothesis,
 training stability, Sinkhorn defaults on real cells, or post-ODE integration
 will succeed. The README documents the remaining numerical assumptions and
 future remote commands.
+
+## Background launcher follow-up
+
+Added `scripts/run_all.sh` (existing conda environment) and `scripts/run_all.py`
+(detached worker, logs, output-path propagation and fail-fast sequencing).
+
+- `python -B -m unittest discover -s work/20260913_2step/tests -p 'test_*.py'`
+  — **32 tests passed**, including six launcher checks: all 42 commands and
+  dependencies, side-effect-free dry-run, detached launch/no overwrite, stopping
+  on first failure, exact output-path capture, and invalid argument rejection.
+  Detached spawning was mocked; output capture ran only a one-line Python print.
+- `bash -n work/20260913_2step/scripts/run_all.sh` passed.
+- `bash work/20260913_2step/scripts/run_all.sh --dry-run` successfully used the
+  existing `scdiffusion` conda environment and printed exactly 42 commands.
+- Ruff lint and formatting checks passed for 27 Python files.
+
+The full launcher was not started; no experiment training, sampling, real-data
+analysis, real UMAP fit or figure generation was executed.

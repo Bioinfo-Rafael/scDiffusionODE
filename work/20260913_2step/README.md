@@ -321,7 +321,8 @@ training/                        objectives, self-contained checkpoints, loop
 losses/sinkhorn.py                local differentiable OT
 sampling/trajectory.py            streamed reverse / continuation arrays
 analysis/                        diagnostics, distributions, UMAP, rendering
-scripts/                         explicit train/sample/analyze/embed/plot CLIs
+scripts/                         run_all launcher + train/sample/analyze/embed/plot CLIs
+launches/<campaign>/             launch manifest, PID, combined/per-stage logs
 tests/test_suite.py               small synthetic CPU tests, no figure files
 runs/<campaign>/canonical_stage1.json
 runs/<campaign>/<condition>/<UTC-run-id>/
@@ -344,6 +345,59 @@ imports. Source-config hashes are recorded; Stage-1/Stage-2 gene hashes and edge
 TSV hashes are checked across the campaign. The dataset itself is not fully
 hashed (large files); copying an h5ad with the same genes but changed expression
 values cannot be detected by a gene-order hash alone.
+
+## 全工程をバックグラウンドで実行する（推奨）
+
+remoteのリポジトリ直下で次のブロックを実行する。
+`run_all.sh`が既存のconda環境`scdiffusion`を使い、バックグラウンド起動する。
+`nohup`や末尾の`&`は不要。起動後はSSHを切断しても処理が継続する。
+
+```bash
+git fetch origin && git switch feat/20260913-2step-ot && git merge --ff-only origin/feat/20260913-2step-ot
+bash work/20260913_2step/scripts/run_all.sh
+```
+
+既定の入力は元スイートの設定を引き継ぐ：
+
+- data: `/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad`
+- edges: `/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv`
+- device: `cuda`、sampling: 3,000 cells / batch 50、post-ODE dt: 0.001。
+
+入力の場所が異なる場合は起動コマンドに指定する：
+
+```bash
+bash work/20260913_2step/scripts/run_all.sh --data /path/to/Embryonic.h5ad --edge-tsv /path/to/tf_target_edges.tsv
+```
+
+実行順は **Stage 1を1回 → Stage 2を6条件 → 各7条件のsampling、
+数値解析、UMAP座標計算、数値指標の図、UMAPの図**。全42コマンドを逐次実行する。
+後続処理には各CLIが出力したcheckpoint/outputのパスを渡し、古いrunを自動選択しない。
+Stage 1にはpost-ODE更新は作らない。この全工程コマンドは実際に図を生成する。
+
+campaign名はUTC日時とランダムsuffixから自動作成する。`--campaign NAME`でも指定可能。
+既存campaignや同名launchへの上書き・自動resumeは行わない。
+起動時にPID、campaign、launchディレクトリと、そのまま使える`tail -f`コマンドを表示する。
+
+- 統合ログ：`launches/<campaign>/nohup.log`
+- 各工程ログ：同ディレクトリの`<condition>.<stage>.log`
+- 実行内容とcommit：`launch.json`、プロセスID：`pid`
+- 全完了：`completed.json`、失敗：`failed.json`（失敗工程とエラーを記録）
+
+途中のコマンドが失敗したら、その時点で停止する。以降の学習・解析は実行しない。
+入力ファイルの存在は起動前、CUDAの利用可否はworker開始時に確認する。
+長時間の処理中は同じcheckoutのコードを変更しないこと。
+
+実験を実行せずコマンドだけ確認するには：
+
+```bash
+bash work/20260913_2step/scripts/run_all.sh --dry-run
+```
+
+`--dry-run`はデータを開かず、ディレクトリも作らない。
+`--foreground`を付けるとバックグラウンド化せず終了まで待機する（ログ保存先は同じ）。
+conda環境名を変える場合は`TWOSTEP_CONDA_ENV=別の環境名 bash .../run_all.sh`。
+既に適切なPython環境を有効化している場合は`python -B .../scripts/run_all.py`で直接起動できる。
+このlauncher自体の追加時にも、本学習・sampling・解析・図生成は実行していない。
 
 ## Commands for later remote execution — not run during implementation
 
@@ -415,7 +469,7 @@ were implemented but **not executed** for this task.
 Lightweight validation, without real data, GPU, experiment trajectories or plots:
 
 ```bash
-PYTHONDONTWRITEBYTECODE=1 python -B work/20260913_2step/tests/test_suite.py
+PYTHONDONTWRITEBYTECODE=1 python -B -m unittest discover -s work/20260913_2step/tests -p 'test_*.py'
 python -B work/20260913_2step/scripts/train.py --help
 ```
 
