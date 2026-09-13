@@ -2,7 +2,7 @@
   "suite_version": "20260913_2step_v1",
   "ot": {
     "epsilon": 0.1,
-    "max_iterations": 200,
+    "max_iterations": 2000,
     "tolerance": 0.00001,
     "cost": "mean_squared_gene_distance",
     "debias": true,

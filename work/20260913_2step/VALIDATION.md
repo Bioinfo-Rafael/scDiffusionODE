@@ -81,3 +81,33 @@ Added `scripts/run_all.sh` (existing conda environment) and `scripts/run_all.py`
 
 The full launcher was not started; no experiment training, sampling, real-data
 analysis, real UMAP fit or figure generation was executed.
+
+## Sinkhorn convergence and campaign recovery follow-up
+
+The supplied remote log reports a marginal residual of `1.02642e-5` after 200
+iterations against a `1e-5` tolerance. This was an iteration-cap failure. The
+updated default cap is 2000 with the same epsilon/cost/tolerance and early
+convergence checks every ten iterations. Ten-iteration activation checkpointing
+recomputes identical iterations during backward to limit saved graph memory.
+
+- **41 tests passed** using CPU synthetic fixtures; no real-data/GPU jobs ran.
+- A deterministic 8-cell fixture fails at cap 200, then converges in 450
+  iterations at residual `9.492529890062218e-6` with the unchanged `1e-5` tolerance.
+  This reproduces the class of failure, not the unavailable remote batch.
+- Checkpointed and ordinarily unrolled solver losses and gradients agree.
+- Synthetic continuation restores raw model, EMA, AdamW moments/LR and frozen
+  CellUNet; the next identical-input optimizer update matches an uninterrupted
+  control. Source checkpoint file hashes remain unchanged.
+- Recovery selection skips completed training, uses the last complete raw/EMA/
+  optimizer bundle, ignores incomplete saves, rejects corruption/wrong campaign/
+  wrong Stage-1 origin, and emits a 38-command plan for four completed trainings.
+- Recovery dry-run selects the actual recovery plan without spawning a worker.
+- The conda wrapper's ordinary dry-run prints 42 commands, including a consistent
+  evaluation iteration cap for older reconstruction/Stage-1 checkpoints.
+- Ruff lint/format checks and shell syntax validation passed.
+
+No remote campaign was launched by the agent. Old checkpoints lack RNG/loader
+state: recovery explicitly records a restarted data/noise stream and does not
+claim bitwise equivalence to an uninterrupted experiment. The 2000-iteration cap
+is a finite numerical safeguard, not a guarantee of convergence for all real
+batches. Existing runs/checkpoints/results are never modified by recovery.

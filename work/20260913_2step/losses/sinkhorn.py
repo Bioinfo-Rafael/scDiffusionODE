@@ -7,6 +7,7 @@ All iterations are differentiated; no detached transport plan approximation.
 
 import math
 import torch
+from torch.utils.checkpoint import checkpoint
 from ..common import finite
 
 
@@ -35,18 +36,32 @@ def entropic_ot(x, y, *, epsilon, max_iterations, tolerance):
     kernel = -cost / epsilon
     u, v = torch.zeros_like(x[:, 0]), torch.zeros_like(y[:, 0])
     residual = float("inf")
-    for iteration in range(1, max_iterations + 1):
-        u = log_a - torch.logsumexp(kernel + v[None, :], dim=1)
-        v = log_b - torch.logsumexp(kernel + u[:, None], dim=0)
-        log_plan = kernel + u[:, None] + v[None, :]
-        if iteration % 10 == 0 or iteration == max_iterations:
-            with torch.no_grad():
-                residual = max(
-                    (log_plan.logsumexp(1).exp() - math.exp(log_a)).abs().max().item(),
-                    (log_plan.logsumexp(0).exp() - math.exp(log_b)).abs().max().item(),
-                )
-            if residual <= tolerance:
-                break
+
+    # Recompute each ten-iteration block during backward. This preserves the
+    # differentiated iterations while avoiding an O(iterations * batch²) tape.
+    def block(kernel, u, v, count):
+        for _ in range(count):
+            u = log_a - torch.logsumexp(kernel + v[None, :], dim=1)
+            v = log_b - torch.logsumexp(kernel + u[:, None], dim=0)
+        return u, v
+
+    iteration = 0
+    while iteration < max_iterations:
+        count = min(10, max_iterations - iteration)
+        if torch.is_grad_enabled() and kernel.requires_grad:
+            u, v = checkpoint(block, kernel, u, v, count, use_reentrant=False)
+        else:
+            u, v = block(kernel, u, v, count)
+        iteration += count
+        with torch.no_grad():
+            checked_plan = kernel + u[:, None] + v[None, :]
+            residual = max(
+                (checked_plan.logsumexp(1).exp() - math.exp(log_a)).abs().max().item(),
+                (checked_plan.logsumexp(0).exp() - math.exp(log_b)).abs().max().item(),
+            )
+        if residual <= tolerance:
+            break
+    log_plan = kernel + u[:, None] + v[None, :]
     if not math.isfinite(residual) or residual > tolerance:
         raise FloatingPointError(
             f"Sinkhorn did not converge: marginal residual={residual:g}, tolerance={tolerance:g}, iterations={iteration}"

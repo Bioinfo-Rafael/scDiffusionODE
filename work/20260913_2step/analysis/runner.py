@@ -1,3 +1,4 @@
+import copy
 from pathlib import Path
 import shutil
 import numpy as np
@@ -35,7 +36,12 @@ def load_trajectory(path):
 def analyze(args):
     trajectory = confined(args.trajectory)
     meta, states, predictions = load_trajectory(trajectory)
-    config = dict(meta["effective_config"])
+    config = copy.deepcopy(meta["effective_config"])
+    ot_cap = getattr(args, "ot_max_iterations", None)
+    if ot_cap is not None:
+        if ot_cap < config["ot"]["max_iterations"]:
+            raise ValueError("evaluation iteration cap must not decrease")
+        config["ot"]["max_iterations"] = ot_cap
     if args.data:
         config["data_dir"] = str(Path(args.data).expanduser().resolve())
     seed = config["seed"]
@@ -49,6 +55,8 @@ def analyze(args):
             "seed": seed,
             "checkpoint": meta["checkpoint"],
             "checkpoint_sha256": meta["checkpoint_sha256"],
+            "training_config": meta["effective_config"],
+            "ot_iteration_cap_override": ot_cap,
             "effective_config": config,
             "sampling_config": meta["sampling_config"],
             "action": args.action,

@@ -81,7 +81,9 @@ are saved. Defaults remain:
 The local loop is single-device, full-batch, and full precision. It exists to
 separate the two objectives and explicitly exclude frozen weights from optimizer
 and EMA arithmetic. It does not add DDP, mixed precision, microbatching, gradient
-clipping, or automatic resume. Source default `microbatch=-1` is preserved.
+clipping, or implicit resume. Explicit Stage-2 checkpoint continuation is available through
+`--resume-checkpoint` and the recovery launcher below. Source default
+`microbatch=-1` is preserved.
 
 ## Stage 1 and frozen Stage 2
 
@@ -164,11 +166,14 @@ The implementation uses uniform marginals and the generalized KL expression
 including `-sum(P)+1` (zero at exact unit mass). Costs use a matrix product,
 not a batch-by-batch-by-gene tensor. Cost calculation and iterations use float64;
 all executed Sinkhorn iterations are differentiated, including self terms.
+Ten-iteration blocks use non-reentrant PyTorch activation checkpointing during
+backward to limit the saved intermediate tensors. This recomputes the same
+iterations; it does not detach the transport plan or approximate its gradient.
 
 | Numerical setting | Default |
 | --- | --- |
 | Entropic epsilon, in mean-squared-gene-distance units | `0.1` |
-| Maximum iterations per cross/self solve | `200` |
+| Maximum iterations per cross/self solve | `2000` (early stop every 10) |
 | Absolute maximum row/column marginal residual tolerance | `1e-5` |
 | Convergence inspection | every 10 iterations and at the final iteration |
 | Debiasing | true |
@@ -339,7 +344,7 @@ results/<condition>/<UTC-run-id>/
 Filesystem outputs are confined to the suite. New directories use
 `exist_ok=False`; JSON/CSV/checkpoints and figures use exclusive creation.
 Run IDs combine UTC timestamp and random suffix. No automatic overwrite,
-restart into a partial directory, merging to main, or source-run manifest update
+writing into a partial directory, merging to main, or source-run manifest update
 is performed. Preserve the git commit recorded in a run to reproduce its source
 imports. Source-config hashes are recorded; Stage-1/Stage-2 gene hashes and edge
 TSV hashes are checked across the campaign. The dataset itself is not fully
@@ -375,7 +380,8 @@ bash work/20260913_2step/scripts/run_all.sh --data /path/to/Embryonic.h5ad --edg
 Stage 1にはpost-ODE更新は作らない。この全工程コマンドは実際に図を生成する。
 
 campaign名はUTC日時とランダムsuffixから自動作成する。`--campaign NAME`でも指定可能。
-既存campaignや同名launchへの上書き・自動resumeは行わない。
+通常起動は既存campaignや同名launchへの上書き・自動resumeを行わない。
+中断後は下記の`--resume-campaign`を明示する。
 起動時にPID、campaign、launchディレクトリと、そのまま使える`tail -f`コマンドを表示する。
 
 - 統合ログ：`launches/<campaign>/nohup.log`
@@ -398,6 +404,57 @@ bash work/20260913_2step/scripts/run_all.sh --dry-run
 conda環境名を変える場合は`TWOSTEP_CONDA_ENV=別の環境名 bash .../run_all.sh`。
 既に適切なPython環境を有効化している場合は`python -B .../scripts/run_all.py`で直接起動できる。
 このlauncher自体の追加時にも、本学習・sampling・解析・図生成は実行していない。
+
+## Sinkhorn収束上限で停止したcampaignを続行する
+
+2026-09-13のremote実行では、`hill_after_linear_ot_soft`のstep 5000保存後に、
+200反復時点のmarginal residualが`1.02642e-5`となり、許容値`1e-5`を
+満たさず停止した。対処は**epsilon=0.1と許容値=1e-5を維持したまま上限を
+200から2000に増加**すること。10反復ごとに検査し、収束した時点で終了する。
+上限でも未収束ならエラーを出し、未収束lossの採用やバッチの読み飛ばしはしない。
+新しい学習の既定値と全工程launcherの評価用上限も2000に統一した。
+
+今回のcampaignはremoteリポジトリ直下で次のコマンドから続行できる：
+
+```bash
+git fetch origin && git switch feat/20260913-2step-ot && git merge --ff-only origin/feat/20260913-2step-ot &&
+bash work/20260913_2step/scripts/run_all.sh --resume-campaign two_step_20260913_070659_2e7ec730
+```
+
+- 完了済みStage 1とrecon 3条件の最終EMAを検証して再利用する。
+- 未完了Stage 2は、同じcampaign/conditionの最新の完全なraw + EMA + optimizer
+  bundleを読み込む。今回のログどおりならhill-after-linear OTはstep 5000から
+  残り25,000更新を実行する（再開先のloss CSVはstep 5001から）。
+- raw重み、EMA履歴、AdamW状態とLR、累積step、共通の凍結CellUNetを維持する。
+  元のepsilon、tolerance、soft constraint、ODE・diffusion設定は変更しない。
+  checkpoint/sidecarのSHA、condition、Stage-1由来、gene order、raw/EMAの
+  組み合わせを検証する。完全なbundleがまだなければ、その未完了条件のみ初期化する。
+- **旧checkpointにはRNG/DataLoader状態がない。再開後は設定seedから新しい
+  noise/timestep/batch streamを開始するため、中断なし実行とのbitwise一致は保証しない。**
+  この制限と読み込んだ3ファイルのパス/hash/stepを`continuation` metadataに保存する。
+- 旧run・checkpoint・失敗ログには書き込まず、新しいrunディレクトリに保存する。
+  recoveryログは`launches/<campaign>/recovery_<UTC-id>/`に作成し、
+  `recovery_selection.json`と`execution_plan.json`に再利用・再開対象を保存する。
+- 残り2つのOT条件の学習後、全7条件のsampling・解析・図生成へ進む。
+  このrecovery機能が再利用するのは**学習結果**。後続のsampling/解析/図は
+  新しい出力先で実行し、既存の後処理出力を上書きしない。
+- 完了・失敗のどちらの状態もない既存run/launcherを検出した場合は重複実行を避けて
+  停止する。複数の完了trialがある場合も曖昧な自動選択は行わない。
+
+`--resume-campaign NAME --dry-run`はcheckpointを読み取り検証して再開計画だけを
+表示する。学習データは開かず、worker・出力ディレクトリは作らない。
+バックグラウンド動作・ログ確認方法は通常起動と同じ。
+
+旧checkpointを個別に数値解析する場合も、元の200反復上限をそのまま使わないよう
+明示する（全工程launcherはこの引数を自動で付ける）：
+
+```bash
+python work/20260913_2step/scripts/analyze.py --trajectory /path/to/trajectory --device cuda --ot-max-iterations 2000
+```
+
+評価用のcap変更は元checkpointと分けて解析metadataに記録する。
+新しい上限で実データ上の全バッチが収束することを保証するものではない。
+必要時は新しいrecovery起動に`--ot-max-iterations 10000`などの上限を明示できる。
 
 ## Commands for later remote execution — not run during implementation
 
@@ -428,7 +485,7 @@ OT conditions use the same canonical EMA:
 for family in hill_after_linear centered_signed_hill shifted_hill_rho; do
   python work/20260913_2step/scripts/train.py \
     --campaign two_step_001 --condition "${family}_ot_soft" --device cuda \
-    --ot-epsilon 0.1 --ot-max-iterations 200 --ot-tolerance 1e-5
+    --ot-epsilon 0.1 --ot-max-iterations 2000 --ot-tolerance 1e-5
 done
 ```
 
@@ -478,10 +535,10 @@ python -B work/20260913_2step/scripts/train.py --help
 Epsilon=0.1 and Euler dt=0.001 are documented starting values, not tuned results.
 OT magnitude and its gradient can be small near t=0 relative to the inherited
 soft constraint. Monitor primary/soft loss separately. High-dimensional,
-poorly conditioned or low-entropy batches can exceed 200 Sinkhorn iterations;
+poorly conditioned or low-entropy batches can exceed the 2000-iteration cap;
 the default fails loudly and requires an explicit new run/config decision.
-Differentiating iterations costs O(iterations * batch²) graph memory. Solver
-truncation can cause tiny negative divergence estimates; values are not clipped.
+Backward recomputes ten-iteration blocks to reduce graph memory at the cost of
+additional computation. The iteration cap remains finite; solver truncation can cause tiny negative divergence estimates; values are not clipped.
 
 The +ODE continuation uses the **positive raw learned branch** as a vector field
 because that is the requested experiment. Epsilon training does not itself

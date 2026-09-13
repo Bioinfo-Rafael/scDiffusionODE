@@ -29,12 +29,17 @@ from ..models import (
 )
 from .checkpoints import canonical_stage1, save_checkpoint
 from .objectives import timestep_sampler, training_loss
+from .recovery import load_bundle, resume_config, restore_training_state
 
 
 def train(args):
     config = effective_config(args.condition)
     campaign = confined(SUITE / "runs" / args.campaign)
     origin, stage1_state = None, None
+    bundle = None
+    resume_path = getattr(args, "resume_checkpoint", None)
+    if resume_path and config["objective"] == "stage1":
+        raise ValueError("resume requires a Stage-2 condition")
     if config["objective"] == "stage1":
         if args.data:
             config["data_dir"] = str(Path(args.data).expanduser().resolve())
@@ -67,6 +72,9 @@ def train(args):
             )
         for key in ("data_dir", "edge_tsv_path"):
             config[key] = first[key]
+    if resume_path:
+        bundle = load_bundle(resume_path, campaign, args.condition, origin)
+        config = resume_config(bundle, config)
     if (
         config["objective"] == "ot"
         and config["ot"]["batch_size"] != config["batch_size"]
@@ -78,6 +86,10 @@ def train(args):
         if value is not None:
             if config["objective"] != "ot":
                 raise ValueError("OT training overrides apply only to OT conditions")
+            if bundle and (key != "max_iterations" or value < config["ot"][key]):
+                raise ValueError(
+                    "continuation may only increase the Sinkhorn iteration cap"
+                )
             config["ot"][key] = value
     run = new_dir(campaign / args.condition / run_id())
     seed_all(config["seed"])
@@ -107,7 +119,11 @@ def train(args):
                 raise ValueError("campaign TF-target edge file changed")
         del data
         diffusion = build_diffusion(config)
-        model = build_model(config, genes)
+        if bundle and genes != bundle["raw"]["metadata"]["gene_names"]:
+            raise ValueError("resume genes differ from checkpoint")
+        model = build_model(
+            config, genes, state=bundle["raw"]["state_dict"] if bundle else None
+        )
         frozen_hash = (
             freeze_from_stage1(model, stage1_state)
             if stage1_state is not None
@@ -116,7 +132,19 @@ def train(args):
         del stage1_state
         model.to(device).train()
         opt = optimizer_for(model, config)
-        ema = {k: v.detach().clone() for k, v in model.state_dict().items()}
+        ema = (
+            restore_training_state(bundle, model, opt, frozen_hash)
+            if bundle
+            else {k: v.detach().clone() for k, v in model.state_dict().items()}
+        )
+        start_step = bundle["provenance"]["step"] if bundle else 0
+        continuation = bundle["provenance"] if bundle else None
+        if continuation:
+            print(
+                f"CONTINUING_FROM_STEP={start_step}; RNG/data stream restarts from seed",
+                flush=True,
+            )
+        del bundle
         from guided_diffusion.cell_datasets_loader import load_data
 
         batches = load_data(
@@ -129,6 +157,7 @@ def train(args):
         sampler = timestep_sampler(config, diffusion)
         checkpoints = new_dir(run / "checkpoints")
         metadata = {
+            "continuation": continuation,
             "effective_config": config,
             "gene_names": genes,
             "gene_order_hash": gene_hash,
@@ -145,7 +174,7 @@ def train(args):
                 f, fieldnames=["step", "primary", "soft", "total", "sinkhorn"]
             )
             writer.writeheader()
-            for index in range(config["total_steps"]):
+            for index in range(start_step, config["total_steps"]):
                 batch, _ = next(batches)  # unconditional; source CellUNet ignores y
                 batch = finite("training batch", batch.to(device))
                 t, weights = sampler.sample(len(batch), device)

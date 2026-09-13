@@ -3,6 +3,7 @@
 import argparse
 from datetime import datetime, timezone
 import json
+import importlib
 import math
 import os
 from pathlib import Path
@@ -49,6 +50,8 @@ def plan(args):
             "--device",
             args.device,
         ]
+        if condition.endswith("_ot_soft"):
+            argv += ["--ot-max-iterations", str(args.ot_max_iterations)]
         if condition == "stage1_cellunet":
             argv += ["--data", args.data, "--edge-tsv", args.edge_tsv]
         add(
@@ -82,7 +85,14 @@ def plan(args):
         add(
             condition + ".analyze",
             "analyze.py",
-            ["--trajectory", trajectory, "--device", args.device],
+            [
+                "--trajectory",
+                trajectory,
+                "--device",
+                args.device,
+                "--ot-max-iterations",
+                str(args.ot_max_iterations),
+            ],
             {"ANALYSIS_DIR": analysis},
         )
         add(
@@ -129,6 +139,36 @@ def run_step(step, artifacts, launch):
         artifacts[step["capture"][key]] = values[0]
 
 
+def recovery_steps(manifest):
+    """Verify saved training, reuse finals, and continue partial bundles in new runs."""
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
+    checkpoints = importlib.import_module("work.20260913_2step.training.checkpoints")
+    recovery = importlib.import_module("work.20260913_2step.training.recovery")
+    campaign = SUITE / "runs" / manifest["campaign"]
+    _, canonical = checkpoints.canonical_stage1(campaign)
+    artifacts = {"@stage1_cellunet.checkpoint": canonical["checkpoint"]}
+    selections = {"stage1_cellunet": {"completed_checkpoint": canonical["checkpoint"]}}
+    steps = []
+    for original in manifest["steps"]:
+        step = {**original, "argv": list(original["argv"])}
+        if not step["name"].endswith(".train"):
+            steps.append(step)
+            continue
+        condition = step["name"].removesuffix(".train")
+        if condition == "stage1_cellunet":
+            continue
+        selected = recovery.select_training(campaign, condition, canonical)
+        selections[condition] = selected
+        if "completed_checkpoint" in selected:
+            artifacts[f"@{condition}.checkpoint"] = selected["completed_checkpoint"]
+        else:
+            if "resume_checkpoint" in selected:
+                step["argv"] += ["--resume-checkpoint", selected["resume_checkpoint"]]
+            steps.append(step)
+    return steps, artifacts, selections
+
+
 def worker(manifest_path):
     manifest_path = Path(manifest_path).resolve()
     launch = manifest_path.parent
@@ -148,7 +188,15 @@ def worker(manifest_path):
             print(
                 torch.cuda.get_device_name(torch.device(manifest["device"])), flush=True
             )
-        for step in manifest["steps"]:
+        steps = manifest["steps"]
+        if manifest.get("resume_campaign"):
+            steps, artifacts, selections = recovery_steps(manifest)
+            write_json(launch / "recovery_selection.json", selections)
+            write_json(
+                launch / "execution_plan.json", {"steps": steps, "artifacts": artifacts}
+            )
+            print("RECOVERY_SELECTION=" + json.dumps(selections), flush=True)
+        for step in steps:
             current = step["name"]
             run_step(step, artifacts, launch)
             write_json(launch / (current + ".completed.json"), {"artifacts": artifacts})
@@ -183,6 +231,16 @@ def parser():
         + "_"
         + uuid.uuid4().hex[:8],
     )
+    p.add_argument(
+        "--resume-campaign",
+        help="reuse completed training and continue partial Stage-2 bundles; new logs/results",
+    )
+    p.add_argument(
+        "--ot-max-iterations",
+        type=int,
+        default=2000,
+        help="hard cap with convergence checks every 10 iterations (default: 2000)",
+    )
     p.add_argument("--data", default=defaults["data_dir"])
     p.add_argument("--edge-tsv", default=defaults["edge_tsv_path"])
     p.add_argument("--device", default="cuda")
@@ -207,33 +265,74 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if args.worker:
         return worker(args.worker)
+    if args.resume_campaign:
+        args.campaign = args.resume_campaign
     if Path(args.campaign).name != args.campaign or args.campaign in ("", ".", ".."):
         raise ValueError("campaign must be one safe path component")
     if (
-        args.num_samples < 2
+        args.ot_max_iterations < 2000
+        or args.num_samples < 2
         or args.batch_size < 1
         or not math.isfinite(args.post_ode_dt)
         or args.post_ode_dt <= 0
     ):
         raise ValueError(
-            "requires >=2 samples, positive batch size and finite positive post-ODE dt"
+            "requires OT cap >=2000, >=2 samples, positive batch size and finite positive post-ODE dt"
         )
     args.data = str(Path(args.data).expanduser().resolve())
     args.edge_tsv = str(Path(args.edge_tsv).expanduser().resolve())
     steps = plan(args)
     if args.dry_run:
+        if args.resume_campaign:
+            steps, _, selections = recovery_steps(
+                {"campaign": args.campaign, "steps": steps}
+            )
+            print("RECOVERY_SELECTION=" + json.dumps(selections))
         for step in steps:
             print(shlex.join(step["argv"]))
         return 0
+    if args.resume_campaign:
+        campaign = SUITE / "runs" / args.campaign
+        canonical = json.loads((campaign / "canonical_stage1.json").read_text())
+        stage1 = json.loads(
+            Path(canonical["checkpoint"]).with_suffix(".json").read_text()
+        )
+        args.data = stage1["effective_config"]["data_dir"]
+        args.edge_tsv = stage1["effective_config"]["edge_tsv_path"]
+        for started in campaign.glob("*/*/started.json"):
+            if not any(
+                (started.parent / name).exists()
+                for name in ("completed.json", "failed.json")
+            ):
+                raise RuntimeError(
+                    f"training run has no terminal status: {started.parent}; verify it is stopped"
+                )
+        launch_root = SUITE / "launches" / args.campaign
+        for prior in launch_root.rglob("launch.json"):
+            if not any(
+                (prior.parent / name).exists()
+                for name in ("completed.json", "failed.json")
+            ):
+                raise RuntimeError(
+                    f"launcher has no terminal status: {prior.parent}; verify it is stopped"
+                )
     for path in (args.data, args.edge_tsv):
         if not Path(path).is_file():
             raise FileNotFoundError(path)
-    if (SUITE / "runs" / args.campaign).exists():
+    if not args.resume_campaign and (SUITE / "runs" / args.campaign).exists():
         raise FileExistsError("campaign already exists; choose a new --campaign")
     launch = SUITE / "launches" / args.campaign
+    if args.resume_campaign:
+        launch = launch / (
+            "recovery_"
+            + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+            + "_"
+            + uuid.uuid4().hex[:8]
+        )
     launch.mkdir(parents=True, exist_ok=False)
     manifest = {
         "campaign": args.campaign,
+        "resume_campaign": bool(args.resume_campaign),
         "device": args.device,
         "steps": steps,
         "python": sys.executable,

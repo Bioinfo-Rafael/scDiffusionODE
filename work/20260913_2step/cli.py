@@ -21,6 +21,10 @@ def parser(command):
             "--edge-tsv", help="Stage 1 only: unchanged source TF-target TSV"
         )
         p.add_argument("--device", default="auto")
+        p.add_argument(
+            "--resume-checkpoint",
+            help="same-campaign intermediate raw checkpoint; continues in a new run directory",
+        )
         p.add_argument("--ot-epsilon", type=float)
         p.add_argument("--ot-max-iterations", type=int)
         p.add_argument("--ot-tolerance", type=float)
@@ -38,6 +42,11 @@ def parser(command):
             help="optional relocated identical h5ad; exact gene order is checked",
         )
         p.add_argument("--device", default="cpu")
+        p.add_argument(
+            "--ot-max-iterations",
+            type=int,
+            help="explicit evaluation solver cap; epsilon/tolerance unchanged",
+        )
         p.set_defaults(action=command)
     elif command == "plot":
         p.add_argument(
