@@ -40,6 +40,10 @@ def soft_constraint(model, config):
 
 
 def training_loss(model, diffusion, x0, t, weights, config, noise=None):
+    if config["objective"] == "trajectory_ot":
+        raise ValueError(
+            "trajectory OT requires cached sources and an independent real-target stream"
+        )
     if noise is None:
         noise = torch.randn_like(
             x0, dtype=torch.float64

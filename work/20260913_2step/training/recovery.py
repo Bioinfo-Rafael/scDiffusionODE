@@ -5,7 +5,7 @@ from pathlib import Path
 
 import torch
 
-from ..common import file_hash, finite, read_json, state_hash
+from ..common import effective_config, file_hash, finite, read_json, state_hash
 from ..models import assert_frozen
 from .checkpoints import read_checkpoint
 
@@ -19,7 +19,17 @@ def verified_checkpoint(path):
     return payload
 
 
+def check_objective(stored, current):
+    if stored["objective"] != current["objective"] or stored.get(
+        "objective_schema_version"
+    ) != current.get("objective_schema_version"):
+        raise ValueError(
+            "incompatible objective/schema: legacy one-step OT cannot resume into trajectory OT; initialize fresh ODE parameters"
+        )
+
+
 def check_origin(meta, condition, canonical):
+    check_objective(meta["effective_config"], effective_config(condition))
     if meta["effective_config"]["condition"] != condition:
         raise ValueError("checkpoint condition mismatch")
     if meta["gene_order_hash"] != canonical["gene_order_hash"]:
@@ -35,10 +45,11 @@ def check_origin(meta, condition, canonical):
 
 def load_bundle(raw_path, campaign, condition, canonical):
     raw_path = Path(raw_path).resolve()
+    raw = verified_checkpoint(raw_path)
+    check_objective(raw["metadata"]["effective_config"], effective_config(condition))
     expected_parent = Path(campaign).resolve() / condition
     if raw_path.parent.name != "checkpoints" or raw_path.parents[2] != expected_parent:
         raise ValueError("resume checkpoint must belong to the same campaign/condition")
-    raw = verified_checkpoint(raw_path)
     meta = raw["metadata"]
     check_origin(meta, condition, canonical)
     config = meta["effective_config"]
@@ -89,9 +100,10 @@ def resume_config(bundle, current):
     # Use the stored experiment configuration, with only an increased numerical
     # iteration cap. Never silently change epsilon, tolerance or the objective.
     config = copy.deepcopy(bundle["raw"]["metadata"]["effective_config"])
+    check_objective(config, current)
     if config["objective"] == "stage1":
         raise ValueError("Stage-1 continuation is not supported")
-    if config["objective"] == "ot":
+    if config["objective"] in ("ot", "trajectory_ot"):
         config["ot"]["max_iterations"] = max(
             config["ot"]["max_iterations"], current["ot"]["max_iterations"]
         )

@@ -131,7 +131,7 @@ class SuiteTests(unittest.TestCase):
             torch.testing.assert_close(weights, torch.ones_like(weights))
 
     def test_all_six_freeze_optimizer_ema_and_self_contained_restore(self):
-        for condition in common.CONDITIONS[1:]:
+        for condition in common.CONDITIONS[1:4] + common.LEGACY_CONDITIONS:
             with self.subTest(condition=condition):
                 c, model, before = self.hybrid(condition)
                 self.assertEqual(
@@ -260,7 +260,7 @@ class SuiteTests(unittest.TestCase):
         self.assertEqual(values["sinkhorn"], {})
 
     def test_ot_no_mse_uses_pred_xstart_and_true_set(self):
-        c, model, _ = self.hybrid(common.CONDITIONS[4])
+        c, model, _ = self.hybrid(common.LEGACY_CONDITIONS[0])
         t = torch.tensor([0, 1, 10, 30, 49])
         with patch.object(
             self.diffusion, "training_losses", side_effect=AssertionError("MSE called")

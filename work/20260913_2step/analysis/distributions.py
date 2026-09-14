@@ -2,7 +2,8 @@
 
 import numpy as np
 import torch
-from ..common import finite, write_csv
+from ..common import SUITE, finite, read_json, write_csv
+from .sliced_wasserstein import sliced_wasserstein
 from ..losses.sinkhorn import sinkhorn_divergence
 
 
@@ -76,9 +77,26 @@ def trajectory_metrics(states, real, table, output, config, *, seed):
     generated_ids = np.sort(rng.choice(len(states), n, replace=False))
     real_ids = np.sort(rng.choice(len(real), n, replace=False))
     target = torch.as_tensor(real[real_ids], dtype=torch.float64)
-    diversity_rows, distance_rows = [], []
+    diversity_rows, distance_rows, sw_rows = [], [], []
+    evaluation = config.get(
+        "evaluation",
+        read_json(SUITE / "configs/trajectory_defaults.json")["evaluation"],
+    )
     for row in table:
         k = row["snapshot_index"]
+        sw_rows.append(
+            {
+                **row,
+                "representation": "state_after_update",
+                **sliced_wasserstein(
+                    states[:, k],
+                    real,
+                    projections=evaluation["sliced_wasserstein_projections"],
+                    points=evaluation["sliced_wasserstein_points"],
+                    seed=evaluation["seed"],
+                ),
+            }
+        )
         diversity_rows.append(
             {
                 **row,
@@ -108,6 +126,7 @@ def trajectory_metrics(states, real, table, output, config, *, seed):
                 "marginal_residual": residual,
             }
         )
+    write_csv(output / "sliced_wasserstein_snapshots.csv", sw_rows)
     write_csv(output / "trajectory_diversity.csv", diversity_rows)
     write_csv(output / "sinkhorn_to_real.csv", distance_rows)
     with (output / "distribution_subsample_ids.npz").open("xb") as f:

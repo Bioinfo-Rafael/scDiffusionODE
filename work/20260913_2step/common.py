@@ -26,8 +26,10 @@ FAMILIES = {
     "shifted_hill_rho": ("20260816", "linear_shifted_hill_rho"),
 }
 CONDITIONS = ["stage1_cellunet"] + [
-    f"{f}_{o}_soft" for o in ("recon", "ot") for f in FAMILIES
+    f"{f}_{o}_soft" for o in ("recon", "trajectory_ot") for f in FAMILIES
 ]
+
+LEGACY_CONDITIONS = [f"{f}_ot_soft" for f in FAMILIES]
 
 
 def read_json(path):
@@ -130,7 +132,7 @@ def metric_helpers():
 
 
 def effective_config(condition):
-    if condition not in CONDITIONS:
+    if condition not in CONDITIONS + LEGACY_CONDITIONS:
         raise ValueError(f"unknown condition: {condition}")
     condition_config = read_json(SUITE / "configs" / f"{condition}.json")
     source = ROOT / "work" / condition_config["source_suite"] / "configs"
@@ -139,6 +141,8 @@ def effective_config(condition):
         **read_json(source / f"{condition_config['source_experiment']}.json"),
     }
     config.update(read_json(SUITE / "configs/base.json"))
+    if condition_config["objective"] == "trajectory_ot":
+        config.update(read_json(SUITE / "configs/trajectory_defaults.json"))
     config.update(condition_config)
     config["experiment"] = condition
     config["source_config_sha256"] = {

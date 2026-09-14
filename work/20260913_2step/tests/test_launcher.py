@@ -29,9 +29,9 @@ class LauncherTests(unittest.TestCase):
     def test_plan_all_conditions_and_output_dependencies(self):
         args = launcher.parser().parse_args(["--campaign", "test"])
         steps = launcher.plan(args)
-        self.assertEqual(len(steps), 42)
+        self.assertEqual(len(steps), 51)
         self.assertEqual(
-            [step["name"] for step in steps[:7]],
+            [step["name"] for step in steps if step["name"].endswith(".train")],
             [c + ".train" for c in launcher.CONDITIONS],
         )
         available = set()
@@ -41,7 +41,33 @@ class LauncherTests(unittest.TestCase):
                     self.assertIn(arg, available)
             available.update(step["capture"].values())
         self.assertEqual(sum(s["name"].endswith(".sample") for s in steps), 7)
-        self.assertEqual(sum(s["name"].endswith("_plot") for s in steps), 14)
+        self.assertEqual(sum(s["name"].endswith("_plot") for s in steps), 15)
+
+    def test_shared_cache_and_independent_evaluation_dependencies(self):
+        args = launcher.parser().parse_args(["--campaign", "test"])
+        steps = launcher.plan(args)
+        train_cache = [s for s in steps if s["name"] == "x50.train_cache"]
+        eval_cache = [s for s in steps if s["name"] == "x50.evaluation_cache"]
+        self.assertEqual(len(train_cache), 1)
+        self.assertEqual(len(eval_cache), 1)
+        new_training = [
+            s for s in steps if s["name"].endswith("_trajectory_ot_soft.train")
+        ]
+        self.assertEqual(len(new_training), 3)
+        for s in new_training:
+            self.assertEqual(
+                s["argv"][s["argv"].index("--source-cache") + 1], "@x50.train"
+            )
+            self.assertNotIn("--resume-checkpoint", s["argv"])
+        evaluation = [s for s in steps if s["name"].endswith(".occupation")]
+        self.assertEqual(len(evaluation), 6)
+        for s in evaluation:
+            self.assertEqual(
+                s["argv"][s["argv"].index("--source-cache") + 1], "@x50.evaluation"
+            )
+        self.assertEqual(steps[-1]["name"], "occupation.comparison_plot")
+        self.assertEqual(sum(arg.startswith("@") for arg in steps[-1]["argv"]), 6)
+        self.assertFalse(any("hill_after_linear_ot_soft" in s["name"] for s in steps))
 
     def test_dry_run_does_not_spawn_or_create_directories(self):
         with (
@@ -52,7 +78,7 @@ class LauncherTests(unittest.TestCase):
                 self.assertEqual(
                     launcher.main(["--dry-run", "--data", "/missing/data.h5ad"]), 0
                 )
-            self.assertEqual(len(out.getvalue().splitlines()), 42)
+            self.assertEqual(len(out.getvalue().splitlines()), 51)
             spawn.assert_not_called()
             mkdir.assert_not_called()
 

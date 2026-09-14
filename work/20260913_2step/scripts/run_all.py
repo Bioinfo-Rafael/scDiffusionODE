@@ -17,7 +17,7 @@ SUITE = Path(__file__).resolve().parents[1]
 ROOT = SUITE.parents[1]
 CONDITIONS = ["stage1_cellunet"] + [
     f"{family}_{objective}_soft"
-    for objective in ("recon", "ot")
+    for objective in ("recon", "trajectory_ot")
     for family in ("hill_after_linear", "centered_signed_hill", "shifted_hill_rho")
 ]
 
@@ -43,7 +43,31 @@ def plan(args):
 
     analysis_only = bool(getattr(args, "analyze_campaign", None))
     conditions = CONDITIONS[:4] if analysis_only else CONDITIONS
+
+    def add_cache(role):
+        add(
+            "x50." + role + "_cache",
+            "cache_x50.py",
+            [
+                "--campaign",
+                args.campaign,
+                "--role",
+                role,
+                "--device",
+                args.device,
+                "--cache-size",
+                str(
+                    args.source_cache_size if role == "train" else args.eval_cache_size
+                ),
+                "--batch-size",
+                str(args.batch_size),
+            ],
+            {"X50_CACHE": "@x50." + role},
+        )
+
     for condition in [] if analysis_only else conditions:
+        if condition == CONDITIONS[4]:
+            add_cache("train")
         argv = [
             "--campaign",
             args.campaign,
@@ -52,8 +76,13 @@ def plan(args):
             "--device",
             args.device,
         ]
-        if condition.endswith("_ot_soft"):
-            argv += ["--ot-max-iterations", str(args.ot_max_iterations)]
+        if condition.endswith("_trajectory_ot_soft"):
+            argv += [
+                "--ot-max-iterations",
+                str(args.ot_max_iterations),
+                "--source-cache",
+                "@x50.train",
+            ]
         if condition == "stage1_cellunet":
             argv += ["--data", args.data, "--edge-tsv", args.edge_tsv]
         add(
@@ -62,6 +91,9 @@ def plan(args):
             argv,
             {"EMA_CHECKPOINT": f"@{condition}.checkpoint"},
         )
+    if not analysis_only:
+        add_cache("evaluation")
+    occupation_outputs = []
     for condition in conditions:
         checkpoint = f"@{condition}.checkpoint"
         trajectory = f"@{condition}.trajectory"
@@ -105,6 +137,30 @@ def plan(args):
         )
         add(condition + ".metrics_plot", "plot.py", ["--input", analysis])
         add(condition + ".umap_plot", "plot.py", ["--input", embedding])
+        if not analysis_only and condition != "stage1_cellunet":
+            occupation = f"@{condition}.occupation"
+            add(
+                condition + ".occupation",
+                "occupation.py",
+                [
+                    "--checkpoint",
+                    checkpoint,
+                    "--source-cache",
+                    "@x50.evaluation",
+                    "--device",
+                    args.device,
+                    "--ot-max-iterations",
+                    str(args.ot_max_iterations),
+                ],
+                {"OCCUPATION_DIR": occupation},
+            )
+            occupation_outputs.append(occupation)
+    if occupation_outputs:
+        add(
+            "occupation.comparison_plot",
+            "plot_occupation.py",
+            ["--input"] + occupation_outputs,
+        )
     return steps
 
 
@@ -264,7 +320,7 @@ def parser():
     )
     mode.add_argument(
         "--resume-campaign",
-        help="reuse completed training and continue partial Stage-2 bundles; new logs/results",
+        help="reuse Stage1/recon; start new trajectory OT or resume compatible trajectory bundles; never resume legacy OT",
     )
     p.add_argument(
         "--ot-max-iterations",
@@ -275,6 +331,8 @@ def parser():
     p.add_argument("--data", default=defaults["data_dir"])
     p.add_argument("--edge-tsv", default=defaults["edge_tsv_path"])
     p.add_argument("--device", default="cuda")
+    p.add_argument("--source-cache-size", type=int, default=8192)
+    p.add_argument("--eval-cache-size", type=int, default=2048)
     p.add_argument("--num-samples", type=int, default=defaults["num_samples"])
     p.add_argument("--batch-size", type=int, default=defaults["sample_batch_size"])
     p.add_argument("--post-ode-dt", type=float, default=0.001)
@@ -302,7 +360,9 @@ def main(argv=None):
     if Path(args.campaign).name != args.campaign or args.campaign in ("", ".", ".."):
         raise ValueError("campaign must be one safe path component")
     if (
-        args.ot_max_iterations < 2000
+        args.source_cache_size < 128
+        or args.eval_cache_size < 2
+        or args.ot_max_iterations < 2000
         or args.num_samples < 2
         or args.batch_size < 1
         or not math.isfinite(args.post_ode_dt)

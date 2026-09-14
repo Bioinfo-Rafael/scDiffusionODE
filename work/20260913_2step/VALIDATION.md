@@ -127,3 +127,92 @@ training is never substituted. Logs and all postprocessing outputs are new.
 - No real sampling, analysis, training, UMAP fitting or figure generation ran
   during implementation. Numerical Sinkhorn distance remains an evaluation
   metric for the four completed models, separate from OT-model training.
+
+## Trajectory-occupation OT — 2026-09-14 JST
+
+Implemented on `feat/20260914-trajectory-occupation-ot`, branched from the fetched
+`origin/feat/20260913-2step-ot` (`18590d1`). Changes are confined to this suite.
+The new canonical conditions are `hill_after_linear_trajectory_ot_soft`,
+`centered_signed_hill_trajectory_ot_soft`, and `shifted_hill_rho_trajectory_ot_soft`.
+Old one-step configs and their objective remain available explicitly as legacy.
+
+Implementation scope:
+
+- Immutable canonical Stage-1 EMA Gaussian-start x50 caches, source states after
+  reverse input t=51 and before t=50 (949 source updates), memmap plus SHA/genes/
+  seeds/schedule/state semantics. Train and evaluation have separate seeds/roles.
+- Differentiable ODE-only Euler paths [B,K+1,G] with t_cond=0, dt=.001, K=100,
+  non-reentrant 10-update activation checkpointing. Frozen CellUNet and source
+  model/sampling definitions are preserved.
+- Stratified four-bin occupation sampling, 128 paths -> 512 OT points, versus
+  an independent empirical-X target stream of 512 real cells. No paired MSE,
+  no forward-noised real sources, no density weights, no coefficient retuning.
+- Balanced float64 log-domain debiased Sinkhorn with epsilon warm starts ending
+  exactly at target .1; every scale must meet tolerance 1e-5 within cap 2000.
+  Scaled self terms use a symmetric averaged log fixed-point update. The legacy
+  direct algorithm remains the disabled-scaling path.
+- Separate OT/weighted-soft autograd gradient diagnostics (without mutating
+  accumulated gradients), parameter/update norms, cross-cost statistics and
+  structured per-scale CSVs. Cost/gradient diagnostics run at step 1 and every
+  100 updates by default.
+- Evaluation-only deterministic projection/sort SW2 and SW2 squared; independent
+  generated-x50 occupation versus endpoint CSVs for all Stage-2 families;
+  additional SW snapshots; saved-number-only comparison/gradient plots.
+- Schema-guarded continuation: legacy objective/schema cannot resume into a
+  trajectory condition, even if a checkpoint is renamed. New compatible bundles
+  can resume with their original source cache, raw/EMA/optimizer and step.
+  Canonical recovery reuses completed Stage1/recon, ignores old OT condition
+  directories, and initializes fresh trajectory ODEs when no compatible run exists.
+
+Validation executed (CPU synthetic tensors only, PyTorch 2.5.1):
+
+- `PYTHONDONTWRITEBYTECODE=1 /Users/cls-lab/miniconda3/envs/scdiffusion/bin/python -B -m unittest discover -s work/20260913_2step/tests -p 'test_*.py'`
+  — **61 tests passed**, 4.814 seconds. Log is ignored `.test_tmp/trajectory-final-tests.log`.
+- Retained Stage1, recon, legacy loss, source Hybrid interpolation, frozen weights,
+  EMA/optimizer, checkpoint provenance, unchanged sampling and earlier analysis tests.
+- New tests verify all canonical names/default counts, explicit old-schema rejection,
+  ODE-only calls, [B,K+1,G] shape and an analytic all-step gradient, checkpointed
+  versus ordinary states/loss/gradients in all three original ODE families,
+  zero frozen-neural gradients and unchanged neural/EMA hashes after updates.
+- Stratified tests check all four bins for every one of 128 paths, exactly 512
+  points, fresh choices, and differentiation through selected states. Independent
+  real target tests include sparse X, 512 distinct selections when possible,
+  separate per-step source/target RNGs and documented small-dataset replacement.
+- Cache tests use a tiny fake reverse operator, verifying pure canonical EMA,
+  Gaussian starts, exact input indices 999..51, metadata/SHA, reuse, wrong ancestry/
+  role/model rejection and no overwrite. No actual diffusion sampling was run.
+- Solver tests verify exact epsilon termination, direct/scaled values and gradients,
+  cross/target permutation invariance, finite cost statistics and explicit failed
+  convergence. Symmetric scaling was added after synthetic self terms exposed slow
+  alternating convergence; safeguards were not weakened.
+- SW tests verify zero for identical sets, positive shifts, repeatability and
+  permutation invariance even under subsampling. A tiny no-grad occupation fixture
+  verifies separate endpoint/occupation counts and numeric CSV schemas.
+- A synthetic four-gene **two-update** runner fixture (no h5ad, CPU only) checks
+  actual log/checkpoint writes, cache reuse and compatible one-update continuation;
+  all original files remain hash-identical. These are unit-test fixtures, not an
+  experiment training run. Temporary files stay under ignored `.test_tmp/`.
+- Launcher tests verify one shared train cache, a separate evaluation cache,
+  all three new OT conditions, six occupation evaluations and the final comparison
+  plot dependency. Full plan: 51 commands; completed Stage1+recon recovery: 47.
+  Analysis-only remains 20 commands. Dry-run never spawns workers or writes outputs.
+- All nine CLI `--help` calls returned 0 (`train`, `sample`, `analyze`, `embed`,
+  `plot`, `cache_x50`, `occupation`, `plot_occupation`, `run_all`). All new workflow
+  imports and AST parsing for 38 Python files passed.
+- Conda shell wrapper `run_all.sh --dry-run` succeeded and printed 51 commands;
+  shell syntax, Ruff lint/format and `git diff --check` passed.
+
+No full training, actual Stage1 reverse sampling, GPU sampling, real-data analysis,
+UMAP fitting, figure rendering or remote/background experiment was executed.
+No real h5ad was opened and no PNG/PDF/SVG was generated. Literature URLs were
+checked for documentation; no new runtime dependency was added.
+
+Unresolved empirical concerns: production GPU peak memory and runtime are unmeasured;
+100-step ODE unrolling plus three 512x512 float64 solves over multiple epsilon
+levels can be expensive despite checkpointing. The finite per-scale cap may still
+fail on real batches. Euler stability and x50 manifold proximity/coverage remain
+hypotheses, and neither epsilon nor dt nor inherited soft-gradient balance was
+validated on Embryonic data. SW/occupation samples contain correlated path points.
+Training targets the full empirical distribution while evaluation retains the
+existing Erythropoietic reference policy. Full Torch/CUDA RNG state is not saved,
+so resumed training does not claim bitwise identity to uninterrupted execution.

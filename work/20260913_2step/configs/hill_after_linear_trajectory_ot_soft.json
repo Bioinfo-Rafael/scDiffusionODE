@@ -1,0 +1,7 @@
+{
+  "condition": "hill_after_linear_trajectory_ot_soft",
+  "objective": "trajectory_ot",
+  "source_suite": "20260803_ODE_hill_exp",
+  "source_experiment": "standard_hybrid_single__hill_after_linear",
+  "objective_schema_version": "trajectory_occupation_v1"
+}

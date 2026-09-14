@@ -15,7 +15,9 @@ def _pyplot():
 
 
 def annotate_diffusion(ax, low):
-    ax.axvspan(0, 49, color="#56b4e9", alpha=0.12, label="OT training: t=0..49")
+    ax.axvspan(
+        0, 49, color="#56b4e9", alpha=0.12, label="Legacy one-step OT region: t=0..49"
+    )
     ax.axvspan(
         0,
         10,
@@ -98,6 +100,22 @@ def plot_numeric(source, output):
         annotate_trajectory(ax, int(frame.reverse_step.max()))
         ax.set(ylabel=ylabel, title=filename + " (state after update)")
         _save(fig, ax, output, filename + ".png")
+    sw_path = source / "sliced_wasserstein_snapshots.csv"
+    if sw_path.exists():
+        frame = pd.read_csv(sw_path)
+        fig, ax = plt.subplots(figsize=(10, 5))
+        ax.plot(
+            frame.reverse_step,
+            frame.sliced_wasserstein2,
+            marker="o",
+            label="Snapshot SW2",
+        )
+        annotate_trajectory(ax, int(frame.reverse_step.max()))
+        ax.set(
+            ylabel="Sliced Wasserstein-2",
+            title="Endpoint/snapshot distribution (state after update)",
+        )
+        _save(fig, ax, output, "sliced_wasserstein_snapshots.png")
     convergence = source / "post_ode_convergence.csv"
     if convergence.exists():
         frame = pd.read_csv(convergence)

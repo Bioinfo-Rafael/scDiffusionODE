@@ -30,6 +30,10 @@ from ..models import (
 from .checkpoints import canonical_stage1, save_checkpoint
 from .objectives import timestep_sampler, training_loss
 from .recovery import load_bundle, resume_config, restore_training_state
+from .trajectory import trajectory_loss, independent_batch, validate_trajectory
+from .source_cache import load_cache, cache_pointer
+from ..common import read_json
+import math
 
 
 def train(args):
@@ -84,13 +88,64 @@ def train(args):
     for key in ("epsilon", "max_iterations", "tolerance"):
         value = getattr(args, "ot_" + key)
         if value is not None:
-            if config["objective"] != "ot":
+            if config["objective"] not in ("ot", "trajectory_ot"):
                 raise ValueError("OT training overrides apply only to OT conditions")
             if bundle and (key != "max_iterations" or value < config["ot"][key]):
                 raise ValueError(
                     "continuation may only increase the Sinkhorn iteration cap"
                 )
             config["ot"][key] = value
+    is_trajectory = config["objective"] == "trajectory_ot"
+    source_states, source_metadata = None, None
+    overrides = {
+        "trajectory_batch_size": "trajectory_batch_size",
+        "trajectory_ode_steps": "ode_steps",
+        "trajectory_dt": "ode_dt",
+        "trajectory_samples_per_path": "samples_per_trajectory",
+        "real_ot_points": "real_target_points",
+        "trajectory_checkpoint_block": "checkpoint_block",
+        "gradient_diagnostic_interval": "gradient_diagnostic_interval",
+    }
+    for arg, key in overrides.items():
+        value = getattr(args, arg, None)
+        if value is not None:
+            if not is_trajectory or bundle:
+                raise ValueError(
+                    "trajectory overrides require fresh trajectory OT training"
+                )
+            config["trajectory_ot"][key] = value
+            if key == "samples_per_trajectory":
+                config["trajectory_ot"]["temporal_bins"] = value
+    if is_trajectory:
+        c = config["trajectory_ot"]
+        validate_trajectory(c)
+        cache_path = (
+            getattr(args, "source_cache", None)
+            or read_json(cache_pointer(campaign, "train"))["path"]
+        )
+        source_states, source_metadata = load_cache(cache_path, origin, role="train")
+        canonical_cache = read_json(cache_pointer(campaign, "train"))["path"]
+        if Path(cache_path).resolve() != Path(canonical_cache).resolve():
+            raise ValueError(
+                "all trajectory families must use the same canonical training cache"
+            )
+        if source_metadata["start_diffusion_t"] != c["start_diffusion_t"]:
+            raise ValueError(
+                "source cache diffusion state does not match training configuration"
+            )
+        if (
+            bundle
+            and bundle["raw"]["metadata"].get("trajectory_source_cache")
+            != source_metadata
+        ):
+            raise ValueError("resume source cache provenance mismatch")
+        c["source_cache_size"] = len(source_states)
+        c["source_seed"] = source_metadata["seed"]
+        config["ot"]["batch_size"] = (
+            c["trajectory_batch_size"] * c["samples_per_trajectory"]
+        )
+    elif getattr(args, "source_cache", None):
+        raise ValueError("source-cache applies only to trajectory OT")
     run = new_dir(campaign / args.condition / run_id())
     seed_all(config["seed"])
     device = torch.device(
@@ -107,16 +162,20 @@ def train(args):
             "condition": args.condition,
         },
     )
+    scale_file = None
     try:
         data, genes, _ = load_real(config)
-        if data.n_obs < config["batch_size"]:
+        if not is_trajectory and data.n_obs < config["batch_size"]:
             raise ValueError("drop_last source loader requires at least one full batch")
+        if is_trajectory and source_metadata["gene_names"] != genes:
+            raise ValueError("source cache gene order differs from training data")
         gene_hash = umap_core().gene_order_hash(genes)
         if origin is not None:
             if gene_hash != origin["gene_order_hash"]:
                 raise ValueError("Stage-2 genes differ from Stage 1")
             if file_hash(config["edge_tsv_path"]) != origin["edge_tsv_sha256"]:
                 raise ValueError("campaign TF-target edge file changed")
+        real_matrix = data.X if is_trajectory else None
         del data
         diffusion = build_diffusion(config)
         if bundle and genes != bundle["raw"]["metadata"]["gene_names"]:
@@ -145,19 +204,37 @@ def train(args):
                 flush=True,
             )
         del bundle
-        from guided_diffusion.cell_datasets_loader import load_data
+        if not is_trajectory:
+            from guided_diffusion.cell_datasets_loader import load_data
 
-        batches = load_data(
-            data_dir=config["data_dir"],
-            batch_size=config["batch_size"],
-            train_vae=True,
-            preprocess=False,
-            layer=config["ts_layer"],
-        )
-        sampler = timestep_sampler(config, diffusion)
+            batches = load_data(
+                data_dir=config["data_dir"],
+                batch_size=config["batch_size"],
+                train_vae=True,
+                preprocess=False,
+                layer=config["ts_layer"],
+            )
+            sampler = timestep_sampler(config, diffusion)
         checkpoints = new_dir(run / "checkpoints")
         metadata = {
             "continuation": continuation,
+            **(
+                {
+                    "objective": "trajectory_ot",
+                    "objective_schema_version": config["objective_schema_version"],
+                    "trajectory_source_cache": source_metadata,
+                    "target_sampling": dict(
+                        source="full empirical X, unchanged float32 source representation",
+                        seed=config["trajectory_ot"]["target_sampler_seed"],
+                        replacement=real_matrix.shape[0]
+                        < config["trajectory_ot"]["real_target_points"],
+                        real_count=real_matrix.shape[0],
+                        independent_from="Gaussian-generated cache; separate per-step RNG",
+                    ),
+                }
+                if is_trajectory
+                else {}
+            ),
             "effective_config": config,
             "gene_names": genes,
             "gene_order_hash": gene_hash,
@@ -167,36 +244,144 @@ def train(args):
             "originating_stage1": origin,
             "frozen_cellunet_hash_before": frozen_hash,
             "edge_tsv_sha256": file_hash(config["edge_tsv_path"]),
-            "preprocessing": "load_data(train_vae=True, preprocess=False, layer=None); unchanged X and gene ordering",
+            "preprocessing": (
+                "independent X -> float32 sampler; same representation as load_data(train_vae=True, preprocess=False, layer=None); unchanged gene ordering"
+                if is_trajectory
+                else "load_data(train_vae=True, preprocess=False, layer=None); unchanged X and gene ordering"
+            ),
         }
+        scale_file = (
+            (run / "sinkhorn_scales.csv").open("x", newline="")
+            if is_trajectory
+            else None
+        )
+        scale_writer = (
+            csv.DictWriter(
+                scale_file,
+                fieldnames=[
+                    "step",
+                    "term",
+                    "epsilon",
+                    "iterations",
+                    "marginal_residual",
+                ],
+            )
+            if scale_file
+            else None
+        )
+        if scale_writer:
+            scale_writer.writeheader()
         with (run / "losses.csv").open("x", newline="") as f:
             writer = csv.DictWriter(
-                f, fieldnames=["step", "primary", "soft", "total", "sinkhorn"]
+                f,
+                fieldnames=(
+                    [
+                        "step",
+                        "primary",
+                        "trajectory_ot",
+                        "soft",
+                        "total",
+                        "grad_ot",
+                        "grad_soft",
+                        "grad_ratio_ot_to_soft",
+                        "parameter_norm",
+                        "update_norm",
+                        "epsilon_scaling",
+                    ]
+                    + [
+                        f"sinkhorn_{term}_{metric}"
+                        for term in ("cross", "pred_self", "real_self")
+                        for metric in ("iterations", "residual")
+                    ]
+                    + [
+                        "cost_mean",
+                        "cost_std",
+                        "cost_median",
+                        "cost_q90",
+                        "cost_q99",
+                        "cost_max",
+                        "cost_cv",
+                        "cost_median_over_epsilon",
+                        "cost_max_over_epsilon",
+                        "trajectory_state_norm_mean",
+                        "trajectory_state_norm_max",
+                        "trajectory_displacement_mean",
+                    ]
+                    if is_trajectory
+                    else ["step", "primary", "soft", "total", "sinkhorn"]
+                ),
             )
             writer.writeheader()
             for index in range(start_step, config["total_steps"]):
-                batch, _ = next(batches)  # unconditional; source CellUNet ignores y
-                batch = finite("training batch", batch.to(device))
-                t, weights = sampler.sample(len(batch), device)
+                if not is_trajectory:
+                    batch, _ = next(batches)
+                    batch = finite("training batch", batch.to(device))
+                    t, weights = sampler.sample(len(batch), device)
                 if frozen_hash is not None:
                     assert_frozen(
                         model, opt
                     )  # inexpensive mode/optimizer checks every update
                 opt.zero_grad(set_to_none=True)
-                loss, values = training_loss(
-                    model, diffusion, batch, t, weights, config
-                )
+                diagnostic, before = False, None
+                if is_trajectory:
+                    c = config["trajectory_ot"]
+                    source, _ = independent_batch(
+                        source_states,
+                        c["trajectory_batch_size"],
+                        c["source_sampler_seed"],
+                        index + 1,
+                    )
+                    target, _ = independent_batch(
+                        real_matrix,
+                        c["real_target_points"],
+                        c["target_sampler_seed"],
+                        index + 1,
+                    )
+                    loss, values, info, diagnostic = trajectory_loss(
+                        model,
+                        source.to(device),
+                        target.to(device),
+                        config,
+                        step=index + 1,
+                    )
+                    if diagnostic:
+                        before = [
+                            p.detach().clone()
+                            for p in model.ode_model.parameters()
+                            if p.requires_grad
+                        ]
+                        for term, detail in info.items():
+                            for scale in detail["scales"]:
+                                scale_writer.writerow(
+                                    dict(step=index + 1, term=term, **scale)
+                                )
+                        scale_file.flush()
+                else:
+                    loss, values = training_loss(
+                        model, diffusion, batch, t, weights, config
+                    )
                 loss.backward()
                 for name, parameter in model.named_parameters():
                     if parameter.grad is not None:
                         finite(f"gradient {name}", parameter.grad)
                 opt.step()
+                if diagnostic:
+                    parameters = [
+                        p for p in model.ode_model.parameters() if p.requires_grad
+                    ]
+                    values["update_norm"] = math.sqrt(
+                        sum(
+                            float((p.detach() - old).double().square().sum())
+                            for p, old in zip(parameters, before)
+                        )
+                    )
                 update_ema(ema, model, float(config["ema_rate"]))
                 # Source TrainLoop anneals AFTER optimize, using zero-based index.
                 for group in opt.param_groups:
                     group["lr"] = config["lr"] * (1 - index / config["lr_anneal_steps"])
                 step = index + 1
-                values["sinkhorn"] = json.dumps(values["sinkhorn"])
+                if not is_trajectory:
+                    values["sinkhorn"] = json.dumps(values["sinkhorn"])
                 writer.writerow({"step": step, **values})
                 if step % config["log_interval"] == 0:
                     f.flush()
@@ -237,6 +422,8 @@ def train(args):
                     )
                     with (checkpoints / f"opt{step:06d}.pt").open("xb") as handle:
                         torch.save(opt.state_dict(), handle)
+        if scale_file:
+            scale_file.close()
         complete = {
             "status": "completed",
             "checkpoint": str(final_ema),
@@ -261,4 +448,7 @@ def train(args):
             {"status": "failed", "error": f"{type(exc).__name__}: {exc}"},
         )
         raise
+    finally:
+        if scale_file is not None:
+            scale_file.close()
     return run

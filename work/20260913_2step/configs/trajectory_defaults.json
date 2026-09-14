@@ -1,0 +1,48 @@
+{
+  "trajectory_ot": {
+    "start_diffusion_t": 50,
+    "source_cache_size": 8192,
+    "source_seed": 1235,
+    "trajectory_batch_size": 128,
+    "ode_steps": 100,
+    "ode_dt": 0.001,
+    "samples_per_trajectory": 4,
+    "temporal_bins": 4,
+    "temporal_sampling": "stratified",
+    "binning_rule": "floor_boundaries_last_inclusive",
+    "checkpoint_block": 10,
+    "real_target_points": 512,
+    "source_sampler_seed": 1236,
+    "target_sampler_seed": 1237,
+    "temporal_sampler_seed": 1238,
+    "gradient_diagnostic_interval": 100
+  },
+  "ot": {
+    "epsilon": 0.1,
+    "max_iterations": 2000,
+    "tolerance": 1e-05,
+    "cost": "mean_squared_gene_distance",
+    "debias": true,
+    "compute_dtype": "float64",
+    "batch_size": 512,
+    "epsilon_scaling": true,
+    "epsilon_scaling_start": 1.6,
+    "epsilon_scaling_factor": 0.5
+  },
+  "evaluation": {
+    "sliced_wasserstein_projections": 256,
+    "sliced_wasserstein_points": 2048,
+    "seed": 4321,
+    "source_cache_size": 2048,
+    "source_seed": 4322,
+    "num_trajectories": 512,
+    "ode_steps": 100,
+    "ode_dt": 0.001,
+    "samples_per_trajectory": 4,
+    "temporal_bins": 4,
+    "temporal_sampling": "stratified",
+    "binning_rule": "floor_boundaries_last_inclusive",
+    "checkpoint_block": 0,
+    "sinkhorn_points": 512
+  }
+}

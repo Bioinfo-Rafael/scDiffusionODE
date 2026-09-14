@@ -207,9 +207,12 @@ class RecoveryTests(unittest.TestCase):
             patch.object(recovery, "select_training", side_effect=selection),
         ):
             steps, artifacts, _ = launcher.recovery_steps(manifest)
-        self.assertEqual(len(steps), 38)
-        self.assertEqual(steps[0]["name"], self.condition + ".train")
-        self.assertEqual(steps[0]["argv"][-2:], ["--resume-checkpoint", str(self.raw)])
+        self.assertEqual(len(steps), 47)
+        self.assertEqual(steps[0]["name"], "x50.train_cache")
+        training = [s for s in steps if s["name"].endswith(".train")]
+        self.assertEqual(len(training), 3)
+        self.assertTrue(all("_trajectory_ot_soft.train" in s["name"] for s in training))
+        self.assertTrue(all("--resume-checkpoint" not in s["argv"] for s in training))
         self.assertEqual(len(artifacts), 4)
         for step in steps:
             if step["name"].endswith(".analyze"):

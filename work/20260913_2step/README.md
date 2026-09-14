@@ -1,4 +1,4 @@
-# 20260913: common CellUNet, frozen-backbone reconstruction vs OT
+# 20260913 suite / 20260914 trajectory-occupation OT
 
 This suite implements a new two-stage experiment. **No scientific training,
 sampling, dataset analysis, UMAP fitting, or figure generation was performed as
@@ -25,9 +25,9 @@ source training cells; Erythropoietic selection is an analysis reference only.
 | `hill_after_linear_recon_soft` | single, original 20260803 Hill-after-linear | epsilon-MSE + soft, uniform 0..999 |
 | `centered_signed_hill_recon_soft` | K=8 original 20260816 centered signed Hill | epsilon-MSE + soft, uniform 0..999 |
 | `shifted_hill_rho_recon_soft` | K=8 original 20260816 shifted Hill rho | epsilon-MSE + soft, uniform 0..999 |
-| `hill_after_linear_ot_soft` | single, original 20260803 Hill-after-linear | Sinkhorn + soft, uniform 0..49 |
-| `centered_signed_hill_ot_soft` | K=8 original 20260816 centered signed Hill | Sinkhorn + soft, uniform 0..49 |
-| `shifted_hill_rho_ot_soft` | K=8 original 20260816 shifted Hill rho | Sinkhorn + soft, uniform 0..49 |
+| `hill_after_linear_trajectory_ot_soft` | single, original 20260803 Hill-after-linear | trajectory-occupation Sinkhorn + soft; ODE conditioning t=0 |
+| `centered_signed_hill_trajectory_ot_soft` | K=8 original 20260816 centered signed Hill | trajectory-occupation Sinkhorn + soft; ODE conditioning t=0 |
+| `shifted_hill_rho_trajectory_ot_soft` | K=8 original 20260816 shifted Hill rho | trajectory-occupation Sinkhorn + soft; ODE conditioning t=0 |
 
 There is exactly one common Stage 1 per campaign. A completed campaign writes
 `canonical_stage1.json` once. All six Stage-2 conditions resolve that same file;
@@ -115,7 +115,7 @@ a legacy raw-state consumer would need the `state_dict` member.
 
 ### Unchanged interpolation and soft constraint
 
-All six models call the **original Hybrid forward**:
+For normal inference, all six models call the **original Hybrid forward**:
 
 ```
 w_ode(t) = 1 - t / 999
@@ -123,7 +123,7 @@ eps_hybrid = w_ode * eps_ode + (1 - w_ode) * eps_cellunet
 ```
 
 At t=999 the output is CellUNet; at t=0 it is entirely ODE. No rescaling of the
-50-step OT region and no learned replacement interpolation is introduced.
+legacy 50-step OT region and no learned replacement interpolation is introduced.
 
 Reconstruction Stage 2 uses `L = epsilon_MSE + ode_reg_lambda * off_mask_penalty`.
 It samples the normal full `t=0..999` range, including all high-noise timesteps.
@@ -137,9 +137,203 @@ over **all** matrix entries, including on-mask zeros, exactly as source code.
 Source positivity transforms, regulator clamps, decay and gating remain intact.
 Other auxiliary penalty coefficients stay at their source zero defaults.
 
-### OT Stage 2
+## Canonical trajectory-occupation objective
 
-Only OT uses uniform `t in {0,...,49}`. Its dedicated sampler does not change the
+The old one-step `S(pred_x0, x0)` matches a denoised forward-noised real batch
+against its own clean cells. It remains in `training/objectives.py` and the three
+`*_ot_soft.json` files as a **legacy baseline**, with unchanged numerical defaults.
+The new experiment asks whether frozen diffusion first approaches the manifold,
+then a learned ODE explores it so that the union of its trajectories covers the
+empirical distribution. Closeness to a manifold at x50 is a hypothesis to inspect,
+not an established property of the cache or a nearest-neighbor projection target.
+
+New configs explicitly store `objective="trajectory_ot"` and
+`objective_schema_version="trajectory_occupation_v1"`. Stage 1, reconstruction
+configs/losses, ODE definitions, soft coefficients, optimizer defaults and normal
+Hybrid interpolation retain their source behavior. New trajectory OT conditions
+initialize fresh ODE parameters using seed 1234 and load the same canonical
+frozen Stage-1 EMA; no legacy ODE weights are transplanted.
+
+### Generated x50 source cache
+
+`training/source_cache.py` / `scripts/cache_x50.py` generate Gaussian-start
+ancestral samples with the **pure canonical Stage-1 EMA only**, under `no_grad()`.
+The exact unrespaced source `p_sample` is called at input timesteps **999..51**:
+949 updates, leaving **x50, the input to the next call at t=50**. This explicit
+index convention avoids calling the state after t=50 “x50” (that state is x49).
+There is no forward noising of real cells and no gradient through these updates.
+
+Default cache size is 8192 cells, float32 `.npy` memmap, streamed in batches of 50.
+`cache_metadata.json` records actual schedule/betas, state semantics, Stage-1
+checkpoint path/SHA, neural-state hash, genes/gene-order hash, seed, batch size,
+count, dtype via NPY, device, commit and array SHA. Finite values are checked during
+generation and reload. Canonical pointers `canonical_x50_train.json` and
+`canonical_x50_evaluation.json` reference exclusively created directories under
+`runs/<campaign>/x50/`. A partial cache is never reused or overwritten. A valid
+existing cache is verified and reused; incompatible settings fail explicitly.
+All three training families must use the same canonical training-cache path.
+Evaluation has a separate cache of 2048 generated states and a different seed.
+
+### Differentiable ODE integration and minibatch occupation OT
+
+Defaults live in `configs/trajectory_defaults.json`, merged **only** into the new
+trajectory training conditions. Starting with B=128 independently selected cached
+states, compute K=100 explicit Euler updates:
+
+```
+z[:, 0] = generated_x50
+z[:, k+1] = z[:, k] + trajectory_ot.ode_dt * ode_model(z[:, k], t_cond=0)
+trajectory_ot.ode_dt = 0.001
+states.shape = [128, 101, G]
+```
+
+Only the ODE branch is called. States remain in the differentiable graph; none
+are detached or written per update. Non-reentrant activation checkpointing
+recomputes blocks of 10 ODE updates during backward (`checkpoint_block=0` disables
+it). The complete path influences gradients at selected later times. CellUNet
+receives no gradients and its hash remains unchanged, including in EMA.
+
+The conceptual discrete occupation measure has 128×101=12,928 points. Dense OT
+never receives that flattened pool. Each path contributes one uniformly sampled
+time index from each bin `[0,25)`, `[25,50)`, `[50,75)`, `[75,101)`, giving exactly
+**128×4=512 equally weighted OT points**. Choices are resampled every optimizer
+step. Boundaries are `floor(i*(K+1)/bins)`, with the final boundary K+1.
+`temporal_bins`, `samples_per_trajectory`, `temporal_sampling="stratified"` and
+`binning_rule="floor_boundaries_last_inclusive"` are explicit. This version requires
+one sample per bin. The final bin has 26 states rather than 25: equal bin masses
+therefore approximate uniform discrete time with a small discretization difference.
+This is minibatch occupation matching, not an exact unbiased estimator of the
+full dense Sinkhorn problem. 512 sampled points do not mean only 512 states exist,
+and 12,928 correlated states are not 12,928 independent trajectories/cells.
+
+A separate real-target sampler independently selects 512 cells from full empirical
+`AnnData.X`, retaining the existing gene order and float32 loader representation,
+without normalize/log1p/scale, VAE, filtering or target reweighting. It samples
+without replacement within each minibatch when N>=512, otherwise with replacement
+(recorded in checkpoint metadata). Cells may recur across optimizer steps.
+Sources are generated, so targets are never permutations of the source batch.
+Source, real-target and time streams use separate seeds 1236/1237/1238 and the
+optimizer step via `SeedSequence`; source cache seed is 1235. Seeds are configurable
+in JSON and saved in effective config. No cluster balancing, inverse-density
+weights, coverage reweighting or unbalanced OT is used.
+
+```
+L = S_epsilon(stratified_occupation_512, independent_real_512)
+    + ode_reg_lambda * ode_model.off_mask_penalty('l1')
+```
+
+There is no epsilon-MSE, no one-step pred_x0 objective, and no automatic LR,
+epsilon, soft-coefficient or loss-balance tuning. Fresh-training CLI overrides:
+`--trajectory-batch-size`, `--trajectory-ode-steps`, `--trajectory-dt`,
+`--trajectory-samples-per-path` (also sets the bin count), `--real-ot-points`,
+`--trajectory-checkpoint-block`, `--gradient-diagnostic-interval`.
+Resume retains stored scientific settings and permits only an increased solver cap.
+
+### Balanced Sinkhorn and diagnostics
+
+The solver uses mean squared gene distance, equal balanced marginals, debiasing,
+float64 log-domain iterations and full autodifferentiation. New trajectory OT
+uses geometric epsilon scaling **1.6 → 0.8 → 0.4 → 0.2 → 0.1**. Configurable start,
+factor and target must form a finite schedule ending exactly at target epsilon.
+Log scalings are rescaled by epsilon_old/epsilon_new to preserve physical dual
+potentials for the warm start; they are not detached. Cross terms use alternating
+log updates. With scaling enabled, symmetric self terms use the averaged symmetric
+log fixed-point update (u=v), avoiding an oscillating self update. Legacy direct
+solver behavior is retained when scaling is disabled. Each scale stops early
+with the original marginal tolerance 1e-5; 2000 iterations **per scale** is a hard
+cap. No unconverged scale/plan is accepted and no failing batch is skipped.
+Ten-iteration non-reentrant checkpointing limits solver tape memory.
+
+`losses.csv` stores step, primary/trajectory_ot, weighted soft, total, all three
+Sinkhorn iteration counts/residuals, scaling flag, trajectory-state mean/max norm
+and mean start-to-end displacement. At step 1 and every
+`gradient_diagnostic_interval=100`, it also stores:
+
+- OT and weighted-soft gradient norms and `grad_ratio_ot_to_soft`, measured with
+  `autograd.grad(..., retain_graph=True)` without altering `.grad`;
+- trainable ODE parameter norm and actual optimizer-update norm;
+- cross-cost mean/std/median/q90/q99/max/CV, median/epsilon and max/epsilon.
+
+Non-diagnostic rows leave these expensive fields empty. `sinkhorn_scales.csv`
+records one row per logged step/term/epsilon with iteration count and residual,
+not a large object inside a CSV cell. `soft` already includes the original outer
+coefficient and the original internal off-mask factor. These diagnostics inform
+future choices; this implementation does not retune either coefficient.
+
+### Evaluation: occupation versus endpoint and additional Sliced Wasserstein
+
+`occupation.py` independently evaluates **every Stage-2 ODE family**, including
+reconstruction checkpoints, from the same evaluation x50 cache. It runs under
+`no_grad()` and does not change the normal sampler. Default evaluation uses 512
+trajectories × 101 states conceptually, four stratified points per path = 2048
+occupation candidates, an independent evaluation seed 4321, and source seed 4322.
+For trajectory-OT models it inherits the trained ODE steps/dt and binning; for
+recon it uses the explicit defaults. Integration is streamed in batches of 32;
+only selected occupation points and endpoints are retained in CPU memory.
+
+`occupation_analysis.csv` contains separate `distribution=occupation` and
+`distribution=endpoint` rows. Both reference real Erythropoietic cells, matching
+existing evaluation policy; the training target remains the full empirical data.
+Fields include condition/checkpoint, source cache, path count, ODE steps/dt,
+conceptual total/stratified/used counts, real counts, Sinkhorn divergence,
+SW2 and SW2 squared, mean/median diversity and seed, plus separate train/evaluation
+sample settings. SW/diversity use up to 2048 equally sized samples; dense evaluation
+Sinkhorn uses at most 512, explicitly recorded as `sinkhorn_points_used`.
+Endpoint sample count is at most the number of trajectories. IDs/time selections
+are saved in NPZ; effective evaluation and unchanged training config are stored
+separately in `occupation_metadata.json`. No per-step training trajectories are
+saved. Occupation Sinkhorn per-scale diagnostics have their own CSV.
+
+Sliced Wasserstein is **evaluation-only**: 256 seeded Gaussian gene-space
+projections normalized to unit L2, sorted projected equal-size samples, mean of
+squared 1D W2 distances. `sliced_wasserstein2_squared` stores this mean and
+`sliced_wasserstein2` its square root. No extra division by gene count is applied.
+The NumPy helper is deterministic and permutation invariant, including when
+subsampling (canonical lexicographic order before seeded selection). Smaller sets
+use the largest equal-size subsample; there is no upsampling of evaluation data.
+`--sw-projections`, `--sw-points`, `--eval-seed`, `--eval-trajectories` customize it.
+
+The existing `analyze.py` additionally saves `sliced_wasserstein_snapshots.csv`
+for actual states at each reverse/post-ODE snapshot, including Stage 1. Existing
+Sinkhorn, diversity, correlations/MSE/cosine, norms, UMAP and post-ODE convergence
+remain available. Snapshot SW uses at most the existing selected real reference
+(2000 default), even though the SW point limit is 2048. `plot_occupation.py` renders
+occupation/endpoint Sinkhorn and SW vs condition and recorded OT/soft gradient
+norm/ratio curves. Plotting reads saved numbers only.
+
+The normal inference experiment remains **1000 original Hybrid reverse updates
+then +100 ODE-only updates**, `post_ode_dt=0.001`, with the original interpolation
+`w_ode=1-t/999`. These `post_ode_*` settings and saved inference states are separate
+from `trajectory_ot.ode_steps/ode_dt` and the independent occupation evaluation.
+Neither the ODE training time nor its step index is a diffusion timestep.
+
+Standalone evaluation and later plotting (replace emitted paths):
+
+```bash
+python work/20260913_2step/scripts/cache_x50.py --campaign two_step_001 --role evaluation --device cuda
+python work/20260913_2step/scripts/occupation.py --checkpoint EMA_CHECKPOINT --source-cache EVALUATION_X50_CACHE --device cuda
+python work/20260913_2step/scripts/plot_occupation.py --input OCCUPATION_DIR_1 OCCUPATION_DIR_2
+```
+
+The last command creates figures; it was not executed during implementation.
+
+### References
+
+These references motivate the loss family and evaluation; they do not prove the
+biological hypothesis or independence of time-correlated samples in this experiment.
+
+- [Genevay et al. (2018), Learning Generative Models with Sinkhorn Divergences](https://proceedings.mlr.press/v84/genevay18a.html)
+- [Genevay et al. (2019), Sample Complexity of Sinkhorn Divergences](https://proceedings.mlr.press/v89/genevay19a.html)
+- [Fatras et al., Minibatch optimal transport distances; analysis and applications](https://arxiv.org/abs/2101.01792)
+- [Nadjahi et al. (2019), Asymptotic Guarantees for Learning Generative Models with the Sliced-Wasserstein Distance](https://proceedings.neurips.cc/paper_files/paper/2019/hash/c9e1074f5b3f9fc8ea15d152add07294-Abstract.html)
+- [Lezama et al. (2021), Run-Sort-ReRun](https://proceedings.mlr.press/v139/lezama21a.html)
+- [Tran et al. (2026), Minimax-Optimal Two-Sample Test with Sliced Wasserstein](https://proceedings.mlr.press/v300/tran26c.html)
+- [POT user guide](https://pythonot.github.io/user_guide.html)
+- [GeomLoss epsilon-scaling example](https://www.kernel-operations.io/geomloss/_auto_examples/sinkhorn_multiscale/plot_epsilon_scaling.html)
+
+### Legacy one-step OT Stage 2 (noncanonical)
+
+Only the legacy `*_ot_soft` configs use uniform `t in {0,...,49}`. Its dedicated sampler does not change the
 diffusion schedule or interpolation. With real x0 and known Gaussian noise:
 
 ```
@@ -264,7 +458,7 @@ The evaluated grid is the union of `0,20,...,980,999` and every `0..50`.
 Full-range plots use the former; low-noise plots use every value in the latter.
 `diffusion_schedule.csv` records alpha_bar, sigma=`sqrt(1-alpha_bar)`, SNR and
 range flags. Shading distinguishes t=0..10 (approximately sigma <=0.05 for this
-schedule) and OT's t=0..49 region. **The entire 50-step OT region is not claimed
+schedule) and the legacy OT t=0..49 region. **The entire 50-step OT region is not claimed
 to have sigma <0.05.** No true-noise diagnostic is defined for post-ODE updates.
 
 `norm_metrics.csv` includes true noise, Hybrid, raw CellUNet, raw ODE, weighted
@@ -358,7 +552,7 @@ remoteのリポジトリ直下で次のブロックを実行する。
 `nohup`や末尾の`&`は不要。起動後はSSHを切断しても処理が継続する。
 
 ```bash
-git fetch origin && git switch feat/20260913-2step-ot && git merge --ff-only origin/feat/20260913-2step-ot
+git fetch origin && git switch feat/20260914-trajectory-occupation-ot && git merge --ff-only origin/feat/20260914-trajectory-occupation-ot
 bash work/20260913_2step/scripts/run_all.sh
 ```
 
@@ -375,7 +569,8 @@ bash work/20260913_2step/scripts/run_all.sh --data /path/to/Embryonic.h5ad --edg
 ```
 
 実行順は **Stage 1を1回 → Stage 2を6条件 → 各7条件のsampling、
-数値解析、UMAP座標計算、数値指標の図、UMAPの図**。全42コマンドを逐次実行する。
+数値解析、UMAP座標計算、数値指標の図、UMAPの図**に加え、共有x50キャッシュ2種と
+Stage 2全6条件のoccupation評価・比較図を実行する。全51コマンドを逐次実行する。
 後続処理には各CLIが出力したcheckpoint/outputのパスを渡し、古いrunを自動選択しない。
 Stage 1にはpost-ODE更新は作らない。この全工程コマンドは実際に図を生成する。
 
@@ -414,7 +609,7 @@ conda環境名を変える場合は`TWOSTEP_CONDA_ENV=別の環境名 bash .../r
 提示された停止時点では解析用の軌跡をまだ作っておらず、まずsamplingから始める。
 
 ```bash
-git fetch origin && git switch feat/20260913-2step-ot && git merge --ff-only origin/feat/20260913-2step-ot &&
+git fetch origin && git switch feat/20260914-trajectory-occupation-ot && git merge --ff-only origin/feat/20260914-trajectory-occupation-ot &&
 bash work/20260913_2step/scripts/run_all.sh --analyze-campaign two_step_20260913_070659_2e7ec730
 ```
 
@@ -430,58 +625,58 @@ bash work/20260913_2step/scripts/run_all.sh --analyze-campaign two_step_20260913
 - 起動時にPIDと`tail -f`コマンドを表示する。`nohup`や`&`は不要。
   `--dry-run`を追加するとcheckpointを検証し、実行計画だけを表示する。
 - `--resume-campaign`とは併用不可。後日OT学習を再開したい場合は、下記の
-  recoveryコマンドを別途実行する。
+  recoveryコマンドを別途実行する（新trajectory OTを開始し、旧OTは引き継がない）。
 
-## Sinkhorn収束上限で停止したcampaignを続行する
+## 既存campaignの途中から、新しいtrajectory OTと最後の解析まで実行
 
-2026-09-13のremote実行では、`hill_after_linear_ot_soft`のstep 5000保存後に、
-200反復時点のmarginal residualが`1.02642e-5`となり、許容値`1e-5`を
-満たさず停止した。対処は**epsilon=0.1と許容値=1e-5を維持したまま上限を
-200から2000に増加**すること。10反復ごとに検査し、収束した時点で終了する。
-上限でも未収束ならエラーを出し、未収束lossの採用やバッチの読み飛ばしはしない。
-新しい学習の既定値と全工程launcherの評価用上限も2000に統一した。
-
-今回のcampaignはremoteリポジトリ直下で次のコマンドから続行できる：
+remoteのリポジトリ直下で実行する。実装作業中にはこのジョブを起動していない。
 
 ```bash
-git fetch origin && git switch feat/20260913-2step-ot && git merge --ff-only origin/feat/20260913-2step-ot &&
+git fetch origin &&
+git switch feat/20260914-trajectory-occupation-ot &&
+git merge --ff-only origin/feat/20260914-trajectory-occupation-ot &&
 bash work/20260913_2step/scripts/run_all.sh --resume-campaign two_step_20260913_070659_2e7ec730
 ```
 
-- 完了済みStage 1とrecon 3条件の最終EMAを検証して再利用する。
-- 未完了Stage 2は、同じcampaign/conditionの最新の完全なraw + EMA + optimizer
-  bundleを読み込む。今回のログどおりならhill-after-linear OTはstep 5000から
-  残り25,000更新を実行する（再開先のloss CSVはstep 5001から）。
-- raw重み、EMA履歴、AdamW状態とLR、累積step、共通の凍結CellUNetを維持する。
-  元のepsilon、tolerance、soft constraint、ODE・diffusion設定は変更しない。
-  checkpoint/sidecarのSHA、condition、Stage-1由来、gene order、raw/EMAの
-  組み合わせを検証する。完全なbundleがまだなければ、その未完了条件のみ初期化する。
-- **旧checkpointにはRNG/DataLoader状態がない。再開後は設定seedから新しい
-  noise/timestep/batch streamを開始するため、中断なし実行とのbitwise一致は保証しない。**
-  この制限と読み込んだ3ファイルのパス/hash/stepを`continuation` metadataに保存する。
-- 旧run・checkpoint・失敗ログには書き込まず、新しいrunディレクトリに保存する。
-  recoveryログは`launches/<campaign>/recovery_<UTC-id>/`に作成し、
-  `recovery_selection.json`と`execution_plan.json`に再利用・再開対象を保存する。
-- 残り2つのOT条件の学習後、全7条件のsampling・解析・図生成へ進む。
-  このrecovery機能が再利用するのは**学習結果**。後続のsampling/解析/図は
-  新しい出力先で実行し、既存の後処理出力を上書きしない。
-- 完了・失敗のどちらの状態もない既存run/launcherを検出した場合は重複実行を避けて
-  停止する。複数の完了trialがある場合も曖昧な自動選択は行わない。
+`run_all.sh`がconda環境`scdiffusion`で自動的にバックグラウンド起動する。
+`nohup`や`&`は不要。PIDと、そのまま使える`tail -f`コマンドを表示する。
+完了済みStage 1・recon 3条件を再利用し、以下を順に実行する。
 
-`--resume-campaign NAME --dry-run`はcheckpointを読み取り検証して再開計画だけを
-表示する。学習データは開かず、worker・出力ディレクトリは作らない。
-バックグラウンド動作・ログ確認方法は通常起動と同じ。
+1. canonical Stage-1最終EMAを検証し、学習用x50キャッシュを作成／検証して再利用。
+2. **新しいtrajectory OT 3条件**を、それぞれ新しいODE初期値から学習。
+3. 別seedの評価用x50キャッシュを作成／再利用。
+4. 全7条件の通常sampling → 数値解析（snapshot SW追加）→ UMAP → 図生成。
+5. Stage 2全6条件の独立x50 occupation/endpoint評価と比較図・勾配ノルム曲線。
 
-旧checkpointを個別に数値解析する場合も、元の200反復上限をそのまま使わないよう
-明示する（全工程launcherはこの引数を自動で付ける）：
+提示された状態では51コマンドから完了済み学習4つを省いた47コマンドになる。
+**旧`hill_after_linear_ot_soft`のstep 5000は使用しない。** 目的関数が異なるため、
+それを新OTの途中状態として引き継ぐことはできない。旧run・checkpoint・結果を保存したまま、
+新しいcondition/runディレクトリに書き込む。
 
-```bash
-python work/20260913_2step/scripts/analyze.py --trajectory /path/to/trajectory --device cuda --ot-max-iterations 2000
-```
+同じコマンドを後日再実行すると、新trajectory OTの完了学習も再利用する。
+未完了の**同じobjective/schema・condition・campaign・x50キャッシュ**の
+raw + EMA + optimizer bundleだけは再開できる。旧one-step OTを明示的に渡すと
+incompatibility errorになる。新OTのsource/target/time抽出はそれぞれ独立した
+`(seed, optimizer step)`から決定する。共通checkpoint形式には全Torch/CUDA RNG状態は
+含めず、中断なし実行とのbitwise一致は主張しない。
 
-評価用のcap変更は元checkpointと分けて解析metadataに記録する。
-新しい上限で実データ上の全バッチが収束することを保証するものではない。
-必要時は新しいrecovery起動に`--ot-max-iterations 10000`などの上限を明示できる。
+再開ログは`launches/<campaign>/recovery_<id>/`に保存する。
+`recovery_selection.json`と`execution_plan.json`が、再利用・初期化・再開対象を記録する。
+後処理は新しい出力先で実行し、過去のsampling/解析結果の自動再利用はしない。
+未完了状態の既存run/launcherが残っている場合は重複実行を避けて停止する。
+複数の完了trialから曖昧な自動選択もしない。
+
+`--source-cache-size 16384`などでキャッシュ数を初回作成時に変更できる。
+`--eval-cache-size`は既定2048。再利用時には作成時と同じsize・batch-size・seedが必要で、
+不一致なら上書きせず停止する。既存の解析ジョブが動作中のcheckoutは変更しないこと。
+
+実行内容だけ確認するには、同じコマンドに`--dry-run`を追加する。
+既存checkpointを読み取り検証するが、h5ad・GPU・worker・出力ディレクトリには触れない。
+
+旧one-step OTは個別CLIでのみ引き続き利用できる。例えば旧raw checkpointの再開は
+`train.py --condition hill_after_linear_ot_soft --resume-checkpoint OLD_RAW ...`で行う。
+canonical launcherは旧OTを選ばない。旧解析のSinkhorn上限を変更するときは
+`analyze.py --trajectory PATH --ot-max-iterations 2000`を明示でき、評価metadataに記録する。
 
 ## Commands for later remote execution — not run during implementation
 
@@ -506,12 +701,26 @@ for family in hill_after_linear centered_signed_hill shifted_hill_rho; do
 done
 ```
 
-OT conditions use the same canonical EMA:
+Create the shared generated source cache first (same canonical EMA):
+
+```bash
+python work/20260913_2step/scripts/cache_x50.py --campaign two_step_001 --device cuda
+```
+
+The command prints `X50_CACHE`. Repeating it verifies and reuses the immutable
+canonical cache. Training resolves that same cache automatically. One condition:
+
+```bash
+python work/20260913_2step/scripts/train.py --campaign two_step_001 \
+  --condition hill_after_linear_trajectory_ot_soft --device cuda
+```
+
+All three trajectory OT conditions:
 
 ```bash
 for family in hill_after_linear centered_signed_hill shifted_hill_rho; do
   python work/20260913_2step/scripts/train.py \
-    --campaign two_step_001 --condition "${family}_ot_soft" --device cuda \
+    --campaign two_step_001 --condition "${family}_trajectory_ot_soft" --device cuda \
     --ot-epsilon 0.1 --ot-max-iterations 2000 --ot-tolerance 1e-5
 done
 ```
@@ -560,6 +769,13 @@ python -B work/20260913_2step/scripts/train.py --help
 ## Numerical/design limits to evaluate remotely
 
 Epsilon=0.1 and Euler dt=0.001 are documented starting values, not tuned results.
+No real-data memory, runtime, convergence or manifold-coverage result was measured.
+100 unrolled ODE steps, three 512×512 Sinkhorn terms over five epsilon levels,
+and periodic gradient diagnostics can be substantially more expensive than the
+old one-step loss. Checkpointing trades extra backward compute for lower activation
+memory; it does not guarantee the defaults fit a particular GPU. Two caches each
+require ~949 neural reverse updates per batch. Dense OT remains bounded, but
+existing exact diversity and UMAP evaluations can also be expensive.
 OT magnitude and its gradient can be small near t=0 relative to the inherited
 soft constraint. Monitor primary/soft loss separately. High-dimensional,
 poorly conditioned or low-entropy batches can exceed the 2000-iteration cap;

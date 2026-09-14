@@ -2,7 +2,15 @@
 
 import argparse
 from pathlib import Path
-from .common import CONDITIONS, SUITE, build_diffusion, file_hash, run_id, seed_all
+from .common import (
+    CONDITIONS,
+    LEGACY_CONDITIONS,
+    SUITE,
+    build_diffusion,
+    file_hash,
+    run_id,
+    seed_all,
+)
 
 
 def parser(command):
@@ -10,7 +18,9 @@ def parser(command):
         description=f"Isolated 20260913 two-stage suite: {command}", allow_abbrev=False
     )
     if command == "train":
-        p.add_argument("--condition", choices=CONDITIONS, required=True)
+        p.add_argument(
+            "--condition", choices=CONDITIONS + LEGACY_CONDITIONS, required=True
+        )
         p.add_argument(
             "--campaign",
             required=True,
@@ -28,6 +38,49 @@ def parser(command):
         p.add_argument("--ot-epsilon", type=float)
         p.add_argument("--ot-max-iterations", type=int)
         p.add_argument("--ot-tolerance", type=float)
+        p.add_argument(
+            "--source-cache", help="canonical generated x50 training cache directory"
+        )
+        for name in (
+            "trajectory-batch-size",
+            "trajectory-ode-steps",
+            "trajectory-samples-per-path",
+            "real-ot-points",
+            "trajectory-checkpoint-block",
+            "gradient-diagnostic-interval",
+        ):
+            p.add_argument("--" + name, type=int)
+        p.add_argument("--trajectory-dt", type=float)
+    elif command == "cache_x50":
+        p.add_argument("--campaign", required=True)
+        p.add_argument("--role", choices=["train", "evaluation"], default="train")
+        p.add_argument("--cache-size", type=int)
+        p.add_argument("--seed", type=int)
+        p.add_argument("--start-t", type=int, default=50)
+        p.add_argument("--batch-size", type=int, default=50)
+        p.add_argument("--device", default="cuda")
+    elif command == "occupation":
+        p.add_argument("--checkpoint", required=True)
+        p.add_argument(
+            "--source-cache",
+            required=True,
+            help="independently generated evaluation x50 cache",
+        )
+        p.add_argument("--data")
+        p.add_argument("--device", default="cpu")
+        p.add_argument("--batch-size", type=int, default=32)
+        p.add_argument("--ot-max-iterations", type=int)
+        p.add_argument("--sw-projections", type=int)
+        p.add_argument("--sw-points", type=int)
+        p.add_argument("--eval-seed", type=int)
+        p.add_argument("--eval-trajectories", type=int)
+    elif command == "plot_occupation":
+        p.add_argument(
+            "--input",
+            nargs="+",
+            required=True,
+            help="one or more completed occupation analysis directories",
+        )
     elif command == "sample":
         p.add_argument("--checkpoint", required=True)
         p.add_argument("--num-samples", type=int)
@@ -59,16 +112,29 @@ def parser(command):
 
 def main(command, argv=None):
     args = parser(command).parse_args(argv)
-    if command == "train":
+    if command in ("train", "cache_x50"):
         if Path(args.campaign).name != args.campaign or args.campaign in (
             ".",
             "..",
             "",
         ):
             raise ValueError("campaign must be one safe path component")
-        from .training.runner import train
+        if command == "cache_x50":
+            from .training.source_cache import cache_command
 
-        train(args)
+            cache_command(args)
+        else:
+            from .training.runner import train
+
+            train(args)
+    elif command == "occupation":
+        from .analysis.occupation import occupation_command
+
+        occupation_command(args)
+    elif command == "plot_occupation":
+        from .analysis.occupation_plotting import plot_occupation
+
+        plot_occupation(args)
     elif command == "sample":
         from .training.checkpoints import restore
         from .sampling.trajectory import sample_to_disk
