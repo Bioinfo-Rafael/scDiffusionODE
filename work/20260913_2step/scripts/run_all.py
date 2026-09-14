@@ -41,7 +41,9 @@ def plan(args):
             )
         )
 
-    for condition in CONDITIONS:
+    analysis_only = bool(getattr(args, "analyze_campaign", None))
+    conditions = CONDITIONS[:4] if analysis_only else CONDITIONS
+    for condition in [] if analysis_only else conditions:
         argv = [
             "--campaign",
             args.campaign,
@@ -60,7 +62,7 @@ def plan(args):
             argv,
             {"EMA_CHECKPOINT": f"@{condition}.checkpoint"},
         )
-    for condition in CONDITIONS:
+    for condition in conditions:
         checkpoint = f"@{condition}.checkpoint"
         trajectory = f"@{condition}.trajectory"
         analysis = f"@{condition}.analysis"
@@ -150,6 +152,30 @@ def recovery_steps(manifest):
     artifacts = {"@stage1_cellunet.checkpoint": canonical["checkpoint"]}
     selections = {"stage1_cellunet": {"completed_checkpoint": canonical["checkpoint"]}}
     steps = []
+    if manifest.get("analysis_only"):
+        for condition in CONDITIONS[1:4]:
+            selected = recovery.select_training(
+                campaign, condition, canonical, completed_only=True
+            )
+            if "completed_checkpoint" not in selected:
+                raise RuntimeError(
+                    f"analysis-only requires completed training: {condition}; no training will be started"
+                )
+            artifacts[f"@{condition}.checkpoint"] = selected["completed_checkpoint"]
+            selections[condition] = selected
+        for step in manifest["steps"]:
+            condition, action = step["name"].rsplit(".", 1)
+            if condition not in CONDITIONS[:4] or action not in {
+                "sample",
+                "analyze",
+                "embed",
+                "metrics_plot",
+                "umap_plot",
+            }:
+                raise ValueError(
+                    "analysis-only plan contains a training or OT-model step"
+                )
+        return manifest["steps"], artifacts, selections
     for original in manifest["steps"]:
         step = {**original, "argv": list(original["argv"])}
         if not step["name"].endswith(".train"):
@@ -189,7 +215,7 @@ def worker(manifest_path):
                 torch.cuda.get_device_name(torch.device(manifest["device"])), flush=True
             )
         steps = manifest["steps"]
-        if manifest.get("resume_campaign"):
+        if manifest.get("resume_campaign") or manifest.get("analysis_only"):
             steps, artifacts, selections = recovery_steps(manifest)
             write_json(launch / "recovery_selection.json", selections)
             write_json(
@@ -231,7 +257,12 @@ def parser():
         + "_"
         + uuid.uuid4().hex[:8],
     )
-    p.add_argument(
+    mode = p.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--analyze-campaign",
+        help="sample/analyze/plot completed Stage 1 + three reconstruction conditions only; never train",
+    )
+    mode.add_argument(
         "--resume-campaign",
         help="reuse completed training and continue partial Stage-2 bundles; new logs/results",
     )
@@ -265,8 +296,9 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if args.worker:
         return worker(args.worker)
-    if args.resume_campaign:
-        args.campaign = args.resume_campaign
+    existing_campaign = args.resume_campaign or args.analyze_campaign
+    if existing_campaign:
+        args.campaign = existing_campaign
     if Path(args.campaign).name != args.campaign or args.campaign in ("", ".", ".."):
         raise ValueError("campaign must be one safe path component")
     if (
@@ -283,15 +315,19 @@ def main(argv=None):
     args.edge_tsv = str(Path(args.edge_tsv).expanduser().resolve())
     steps = plan(args)
     if args.dry_run:
-        if args.resume_campaign:
+        if existing_campaign:
             steps, _, selections = recovery_steps(
-                {"campaign": args.campaign, "steps": steps}
+                {
+                    "campaign": args.campaign,
+                    "steps": steps,
+                    "analysis_only": bool(args.analyze_campaign),
+                }
             )
             print("RECOVERY_SELECTION=" + json.dumps(selections))
         for step in steps:
             print(shlex.join(step["argv"]))
         return 0
-    if args.resume_campaign:
+    if existing_campaign:
         campaign = SUITE / "runs" / args.campaign
         canonical = json.loads((campaign / "canonical_stage1.json").read_text())
         stage1 = json.loads(
@@ -299,7 +335,9 @@ def main(argv=None):
         )
         args.data = stage1["effective_config"]["data_dir"]
         args.edge_tsv = stage1["effective_config"]["edge_tsv_path"]
-        for started in campaign.glob("*/*/started.json"):
+        for started in (
+            [] if args.analyze_campaign else campaign.glob("*/*/started.json")
+        ):
             if not any(
                 (started.parent / name).exists()
                 for name in ("completed.json", "failed.json")
@@ -308,7 +346,7 @@ def main(argv=None):
                     f"training run has no terminal status: {started.parent}; verify it is stopped"
                 )
         launch_root = SUITE / "launches" / args.campaign
-        for prior in launch_root.rglob("launch.json"):
+        for prior in [] if args.analyze_campaign else launch_root.rglob("launch.json"):
             if not any(
                 (prior.parent / name).exists()
                 for name in ("completed.json", "failed.json")
@@ -316,15 +354,15 @@ def main(argv=None):
                 raise RuntimeError(
                     f"launcher has no terminal status: {prior.parent}; verify it is stopped"
                 )
-    for path in (args.data, args.edge_tsv):
+    for path in (args.data,) if args.analyze_campaign else (args.data, args.edge_tsv):
         if not Path(path).is_file():
             raise FileNotFoundError(path)
-    if not args.resume_campaign and (SUITE / "runs" / args.campaign).exists():
+    if not existing_campaign and (SUITE / "runs" / args.campaign).exists():
         raise FileExistsError("campaign already exists; choose a new --campaign")
     launch = SUITE / "launches" / args.campaign
-    if args.resume_campaign:
+    if existing_campaign:
         launch = launch / (
-            "recovery_"
+            ("analysis_" if args.analyze_campaign else "recovery_")
             + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             + "_"
             + uuid.uuid4().hex[:8]
@@ -333,6 +371,7 @@ def main(argv=None):
     manifest = {
         "campaign": args.campaign,
         "resume_campaign": bool(args.resume_campaign),
+        "analysis_only": bool(args.analyze_campaign),
         "device": args.device,
         "steps": steps,
         "python": sys.executable,

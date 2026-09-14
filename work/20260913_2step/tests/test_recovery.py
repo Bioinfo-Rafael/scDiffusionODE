@@ -232,6 +232,60 @@ class RecoveryTests(unittest.TestCase):
         self.assertIn("RECOVERY_SELECTION=", output.getvalue())
         self.assertNotIn("train.py", output.getvalue())
 
+    def test_analysis_only_plan_has_twenty_postprocessing_steps(self):
+        args = launcher.parser().parse_args(["--analyze-campaign", "old_campaign"])
+        args.campaign = args.analyze_campaign
+        steps = launcher.plan(args)
+        self.assertEqual(len(steps), 20)
+        self.assertFalse(
+            any("train.py" in arg for step in steps for arg in step["argv"])
+        )
+        self.assertFalse(any("_ot_soft" in step["name"] for step in steps))
+        manifest = {"campaign": "old_campaign", "steps": steps, "analysis_only": True}
+
+        def selection(campaign, condition, canonical, *, completed_only=False):
+            self.assertTrue(completed_only)
+            self.assertTrue(condition.endswith("_recon_soft"))
+            return {"completed_checkpoint": "/fixture/" + condition + ".pt"}
+
+        with (
+            patch.object(launcher, "SUITE", self.root),
+            patch.object(recovery, "select_training", side_effect=selection) as select,
+        ):
+            actual, artifacts, _ = launcher.recovery_steps(manifest)
+        self.assertEqual(actual, steps)
+        self.assertEqual(select.call_count, 3)
+        self.assertEqual(len(artifacts), 4)
+
+    def test_analysis_only_refuses_missing_completed_condition(self):
+        args = launcher.parser().parse_args(["--analyze-campaign", "old_campaign"])
+        manifest = {
+            "campaign": "old_campaign",
+            "steps": launcher.plan(args),
+            "analysis_only": True,
+        }
+        with (
+            patch.object(launcher, "SUITE", self.root),
+            patch.object(
+                recovery,
+                "select_training",
+                return_value={"missing_completed_checkpoint": True},
+            ),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "no training will be started"):
+                launcher.recovery_steps(manifest)
+
+    def test_completed_only_does_not_load_partial_bundle(self):
+        with patch.object(
+            recovery, "load_bundle", side_effect=AssertionError("partial bundle loaded")
+        ):
+            self.assertEqual(
+                recovery.select_training(
+                    self.campaign, self.condition, self.canonical, completed_only=True
+                ),
+                {"missing_completed_checkpoint": True},
+            )
+
     def test_extended_cap_converges_without_relaxing_tolerance(self):
         generator = torch.Generator().manual_seed(2)
         x = torch.randn((8, 3), generator=generator, dtype=torch.float64)

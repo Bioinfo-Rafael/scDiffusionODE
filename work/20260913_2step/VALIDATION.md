@@ -111,3 +111,19 @@ state: recovery explicitly records a restarted data/noise stream and does not
 claim bitwise equivalence to an uninterrupted experiment. The 2000-iteration cap
 is a finite numerical safeguard, not a guarantee of convergence for all real
 batches. Existing runs/checkpoints/results are never modified by recovery.
+
+## Completed reconstruction/baseline analysis-only mode — 2026-09-14 JST
+
+`run_all.sh --analyze-campaign NAME` verifies the canonical Stage-1 EMA and three
+completed reconstruction EMAs, then launches only sampling, numerical analysis,
+UMAP coordinates and both figure stages. OT-model training/sampling is excluded.
+Missing completed training fails explicitly; partial bundles are not loaded and
+training is never substituted. Logs and all postprocessing outputs are new.
+
+- **44 CPU synthetic tests passed**, including a 20-command postprocessing-only
+  plan, exactly three reconstruction checkpoint selections, no OT-model/training
+  commands, missing-completion rejection and exclusion of intermediate bundles.
+- Ruff lint/format checks and shell syntax validation passed.
+- No real sampling, analysis, training, UMAP fitting or figure generation ran
+  during implementation. Numerical Sinkhorn distance remains an evaluation
+  metric for the four completed models, separate from OT-model training.

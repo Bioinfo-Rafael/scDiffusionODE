@@ -114,7 +114,7 @@ def restore_training_state(bundle, model, optimizer, expected_hash):
     return {k: v.detach().to(device).clone() for k, v in ema.items()}
 
 
-def select_training(campaign, condition, canonical):
+def select_training(campaign, condition, canonical, *, completed_only=False):
     """Return one completed final EMA or the latest complete intermediate bundle."""
     parent = Path(campaign) / condition
     completed = []
@@ -142,6 +142,8 @@ def select_training(campaign, condition, canonical):
         )
     if completed:
         return {"completed_checkpoint": completed[0]}
+    if completed_only:
+        return {"missing_completed_checkpoint": True}
     candidates = []
     for path in parent.glob("*/checkpoints/model*.pt"):
         sidecar_path = path.with_suffix(".json")

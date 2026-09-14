@@ -405,6 +405,33 @@ conda環境名を変える場合は`TWOSTEP_CONDA_ENV=別の環境名 bash .../r
 既に適切なPython環境を有効化している場合は`python -B .../scripts/run_all.py`で直接起動できる。
 このlauncher自体の追加時にも、本学習・sampling・解析・図生成は実行していない。
 
+## OT学習を後回しにし、完了済み4条件だけ解析する
+
+今回のcampaignではStage 1とrecon 3条件の学習が完了している。
+以下は**学習を一切起動せず**、その4条件の最終EMAを検証し、
+サンプリング → 数値解析 → UMAP座標 → 指標・UMAPの図生成を
+バックグラウンドで順次実行する。元のlauncherは全学習の後にsamplingを行うため、
+提示された停止時点では解析用の軌跡をまだ作っておらず、まずsamplingから始める。
+
+```bash
+git fetch origin && git switch feat/20260913-2step-ot && git merge --ff-only origin/feat/20260913-2step-ot &&
+bash work/20260913_2step/scripts/run_all.sh --analyze-campaign two_step_20260913_070659_2e7ec730
+```
+
+- 対象は`stage1_cellunet`と`hill_after_linear_recon_soft`、
+  `centered_signed_hill_recon_soft`、`shifted_hill_rho_recon_soft`のみ。
+- 4条件 × 5工程 = 20コマンド。OTモデルの学習・再開・samplingは行わない。
+  必要な完了checkpointがない場合は停止し、学習を自動で補わない。
+- 各reconは1000 diffusion + 100 post-ODE更新、Stage 1は1000 diffusionのみ。
+- 解析項目は従来どおり。実データへのSinkhorn距離は**評価指標**として残す
+  （OTモデルの学習とは別）。評価の反復上限は2000。
+- 保存済みrun/checkpoint/失敗ログは変更しない。新しいsampling/analysis出力と
+  `launches/<campaign>/analysis_<UTC-id>/`のログを作る。
+- 起動時にPIDと`tail -f`コマンドを表示する。`nohup`や`&`は不要。
+  `--dry-run`を追加するとcheckpointを検証し、実行計画だけを表示する。
+- `--resume-campaign`とは併用不可。後日OT学習を再開したい場合は、下記の
+  recoveryコマンドを別途実行する。
+
 ## Sinkhorn収束上限で停止したcampaignを続行する
 
 2026-09-13のremote実行では、`hill_after_linear_ot_soft`のstep 5000保存後に、
