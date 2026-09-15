@@ -5,7 +5,14 @@ from pathlib import Path
 
 import torch
 
-from ..common import effective_config, file_hash, finite, read_json, state_hash
+from ..common import (
+    campaign_config,
+    effective_config,
+    file_hash,
+    finite,
+    read_json,
+    state_hash,
+)
 from ..models import assert_frozen
 from .checkpoints import read_checkpoint
 
@@ -20,6 +27,10 @@ def verified_checkpoint(path):
 
 
 def check_objective(stored, current):
+    if stored.get("experiment_mode") != current.get("experiment_mode") or stored.get(
+        "hybrid_schedule"
+    ) != current.get("hybrid_schedule"):
+        raise ValueError("incompatible Hybrid interpolation schedule")
     if stored["objective"] != current["objective"] or stored.get(
         "objective_schema_version"
     ) != current.get("objective_schema_version"):
@@ -28,8 +39,8 @@ def check_objective(stored, current):
         )
 
 
-def check_origin(meta, condition, canonical):
-    check_objective(meta["effective_config"], effective_config(condition))
+def check_origin(meta, condition, canonical, current=None):
+    check_objective(meta["effective_config"], current or effective_config(condition))
     if meta["effective_config"]["condition"] != condition:
         raise ValueError("checkpoint condition mismatch")
     if meta["gene_order_hash"] != canonical["gene_order_hash"]:
@@ -46,12 +57,13 @@ def check_origin(meta, condition, canonical):
 def load_bundle(raw_path, campaign, condition, canonical):
     raw_path = Path(raw_path).resolve()
     raw = verified_checkpoint(raw_path)
-    check_objective(raw["metadata"]["effective_config"], effective_config(condition))
+    current = campaign_config(campaign, condition)
+    check_objective(raw["metadata"]["effective_config"], current)
     expected_parent = Path(campaign).resolve() / condition
     if raw_path.parent.name != "checkpoints" or raw_path.parents[2] != expected_parent:
         raise ValueError("resume checkpoint must belong to the same campaign/condition")
     meta = raw["metadata"]
-    check_origin(meta, condition, canonical)
+    check_origin(meta, condition, canonical, campaign_config(campaign, condition))
     config = meta["effective_config"]
     step = meta["step"]
     if meta["checkpoint_kind"] != "raw" or not 0 < step < config["total_steps"]:
@@ -139,7 +151,7 @@ def select_training(campaign, condition, canonical, *, completed_only=False):
             raise ValueError("completed checkpoint is outside its run")
         payload = verified_checkpoint(path)
         meta = payload["metadata"]
-        check_origin(meta, condition, canonical)
+        check_origin(meta, condition, canonical, campaign_config(campaign, condition))
         if (
             meta["checkpoint_kind"] != "ema"
             or meta["step"] != meta["effective_config"]["total_steps"]

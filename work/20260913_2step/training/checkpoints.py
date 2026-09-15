@@ -57,3 +57,12 @@ def canonical_stage1(campaign):
     if state_hash(payload["state_dict"]) != record["cellunet_hash"]:
         raise ValueError("canonical CellUNet hash mismatch")
     return payload, record
+
+
+def register_stage1(source_campaign, target_campaign):
+    """Read/verify the source and write only into a new campaign."""
+    payload, record = canonical_stage1(source_campaign)
+    if Path(source_campaign).resolve() == Path(target_campaign).resolve():
+        raise ValueError("Stage1 source must remain read-only")
+    write_json(Path(target_campaign) / "canonical_stage1.json", record)
+    return payload, record

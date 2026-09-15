@@ -928,3 +928,100 @@ UMAPは `embed/`、図はそれぞれの `figures/` 配下に新規保存する�
 既存のrecon解析を再実行しない。評価OTの未収束は再試行後に欠損として記録する。
 生成状態の発散など他の異常は停止する。失敗時は表示されたlaunchを
 `--resume-analysis-launch <LAUNCH_DIR>` で指定すれば完了工程を再利用できる。
+
+
+## Hybrid500：既存Stage1を凍結した6条件の新規実験
+
+参照元は `work/20260913_2step`。新しいStage1は学習しない。
+`--stage1-campaign` の `canonical_stage1.json` が指す最終EMAをSHA256・重みhash・
+完了ステップで検証し、新campaignへ同じ参照情報を保存する。指定元と旧出力は読み取り専用。
+今回の参照元は `two_step_20260913_070659_2e7ec730`。
+実checkpointのパスとSHAは新campaignの `canonical_stage1.json` と各checkpointの
+`originating_stage1` に記録される。リモートの実ファイルはローカル実装時には未検証。
+
+### 条件と補間
+
+`configs/hybrid500_ot.json` は既存条件を参照し、目的関数の設定を継承する。
+通常のOTの3条件を先に、trajectory OTの3条件を後に実行する。
+
+| 条件ファミリ | 元の実装 | 目的関数 |
+|---|---|---|
+| hill_after_linear | 20260803_ODE_hill_exp / standard_hybrid_single__hill_after_linear | ot_soft / trajectory_ot_soft |
+| centered_signed_hill | 20260816 / linear_centered_signed_hill | ot_soft / trajectory_ot_soft |
+| shifted_hill_rho | 20260816 / linear_shifted_hill_rho | ot_soft / trajectory_ot_soft |
+
+`models/hybrid500.py` が3モデル共通の補間を実装する。
+元の拡散時刻（リスケーリングなし）で
+`w_ode=max(0,1-t/500)`、`w_cellunet=1-w_ode`。
+`t=999,750,500` はODE重み0、`t=250` は0.5、`t=0` は1。
+生成forwardは `t>=500` のODE計算を省く。明示的な分岐診断では真のraw ODE出力を
+測定するが、重み0の区間では生成結果に混ぜない。raw ODEを未計算のゼロと扱わない。
+CellUNetは常時eval・requires_grad=False、optimizerはODE側だけ。
+
+通常OTは `training/objectives.py` の既存定義：実細胞にt=0..49のノイズを付加し、
+Hybridから復元したx0の点群と元の実細胞を比較する。batch128、epsilon0.1、
+float64、debiased Sinkhorn、tol1e-5、上限2000、既存どおり初回epsilon scalingなし。
+trajectory OTは `training/trajectory.py` の既存定義：Stage1生成x50の8192点キャッシュから
+128出発点、Euler100段・dt0.001、各軌跡の4区間から1点ずつ選び512点を作り、
+独立に選んだ実細胞512点と比較。epsilon scaling 1.6→0.8→0.4→0.2→0.1を維持する。
+いずれも `losses/sinkhorn.py` の細胞間・遺伝子平均二乗コストと既存soft制約を使う。
+再構成MSEやvelocity/kinetic/manifold等の新しい損失は追加しない。
+trajectory OTはODE単独で学習するため、今回の補間変更はその学習損失には直接作用しない。
+長時間計算や生成発散が解消されることは保証しない。
+
+### 新規起動と保存先
+
+コードがリモートのcheckoutに反映された後、次を実行する。
+この変更自体のpush・mergeや本計算は実装作業中に行わない。
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github &&
+bash work/20260913_2step/scripts/run_all.sh \
+  --run-six-ot \
+  --stage1-campaign two_step_20260913_070659_2e7ec730
+```
+
+自動でバックグラウンド起動する。`nohup`・末尾の`&`は不要。
+`--foreground` なら終了まで待機する。`--dry-run` は参照元を読み取り検証し、
+実行予定を表示するだけでcampaignやworkerを作成しない。
+通常起動は毎回新しい `runs/hybrid500_ot_<UTC TIMESTAMP>_<RUNID>/` を作成し、
+6条件の子ディレクトリを用意する。`experiment.json` に新実験の設定を保存する。
+各学習runの `effective_config.json` とcheckpointには補間式・cutoff・目的関数・
+OT設定・seed・git commit・Stage1由来を記録する。
+
+学習からサンプリング3000細胞、数値解析、UMAP、図生成、occupation/endpoint評価まで
+順次実行する。学習用と評価用のx50キャッシュは別seed・新campaign内で生成し共有する。
+完成したoccupation評価を使った比較図も生成する。再構成条件やStage1学習は含めない。
+出力は次のとおり。
+
+- 学習：`runs/<campaign>/<condition>/<runID>/`
+- 解析・UMAP・図：`results/<campaign>/<condition>/<samplingID>/`
+- occupation：`results/<campaign>/<condition>/occupation/<runID>/`
+- 比較図：`results/<campaign>/occupation_comparison/<runID>/`
+- 起動ログ：`launches/<campaign>/six_ot_<runID>/`
+
+起動時にPIDと `LAUNCH_DIR`、`tail -f .../nohup.log` コマンドを表示する。
+学習進捗は50 stepごとにloss・秒/step・ETAを表示し、1000 stepごとにcheckpointを保存する。
+既存のOT・soft・Sinkhorn診断、trajectory OTの勾配・コスト・軌跡診断を維持する。
+
+### 失敗と再開
+
+条件や工程が失敗した場合はその `.failed.json` とログを保存し、依存する工程をskipする。
+独立した他条件は続行する。評価OTの有限な未収束は既存方針で再試行し、それでも失敗なら
+欠損として記録する。非有限値や生成発散は失敗扱い。
+全体が完成すれば `completed.json`、一部失敗・skipがあれば `failed.json` の
+`status=partial_failure` を保存する。評価OTの欠損は `evaluation_ot_missing` に別記する。
+
+```bash
+bash work/20260913_2step/scripts/run_all.sh \
+  --resume-six-ot-campaign hybrid500_ot_<実際に表示されたID>
+```
+
+明示的な再開だけは同campaignを使用する。新launchと新runに追記し、既存ファイルを上書きしない。
+起動時のdevice・sampling設定を引き継ぎ、完成済み工程は完了マーカーと出力を検証して再利用する。
+未完了学習は同campaignの互換raw/EMA/optimizer一式から再開する。
+保存済みbundleがなければ未完了条件だけ最初から開始する。
+RNGの完全な状態は旧仕様どおり保存しないため、連続実行とのビット単位一致は保証しない。
+新旧の補間や目的関数が異なるStage2 checkpointは再開元にできない。
+同じcampaignのworkerはOSロックで排他し、二重計算を拒否する。
+旧実験用 `--resume-campaign` ではなく、この専用再開オプションを使う。

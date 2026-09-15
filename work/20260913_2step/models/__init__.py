@@ -23,6 +23,12 @@ def build_model(config, genes, *, state=None):
         if state is not None:
             construction["use_mask_reg"] = False
         model = factory.build_model_from_config(construction, genes, 1000, "cpu")
+        if config.get("experiment_mode"):
+            from ..common import validate_config
+            from .hybrid500 import apply
+
+            validate_config(config)
+            model = apply(model)
         model.ml_model = FrozenCellUNet(
             input_dim=len(genes), hidden_num=config["cell_unet_hidden_num"]
         )

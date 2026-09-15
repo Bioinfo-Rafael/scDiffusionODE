@@ -131,7 +131,7 @@ def metric_helpers():
     return importlib.import_module("work.20260816.viz.analysis_helpers")
 
 
-def effective_config(condition):
+def effective_config(condition, experiment_mode=None):
     if condition not in CONDITIONS + LEGACY_CONDITIONS:
         raise ValueError(f"unknown condition: {condition}")
     condition_config = read_json(SUITE / "configs" / f"{condition}.json")
@@ -160,11 +160,27 @@ def effective_config(condition):
             use_mask_reg=False,
             ode_reg_lambda=0.0,
         )
+    if experiment_mode is not None:
+        spec = read_json(SUITE / "configs/hybrid500_ot.json")
+        if (
+            experiment_mode != spec["experiment_mode"]
+            or condition not in spec["conditions"]
+        ):
+            raise ValueError("invalid six-OT experiment mode/condition")
+        config.update({k: v for k, v in spec.items() if k != "conditions"})
     validate_config(config)
     return config
 
 
 def validate_config(config):
+    if config.get("experiment_mode"):
+        spec = read_json(SUITE / "configs/hybrid500_ot.json")
+        if (
+            config["experiment_mode"] != spec["experiment_mode"]
+            or config.get("hybrid_schedule") != spec["hybrid_schedule"]
+            or config["condition"] not in spec["conditions"]
+        ):
+            raise ValueError("invalid Hybrid500 experiment configuration")
     required = {
         "diffusion_steps": 1000,
         "noise_schedule": "linear",
@@ -244,3 +260,19 @@ def load_real(config, genes=None, erythropoietic=False):
             data, superclasses=("Erythropoietic",)
         )
     return data, actual_genes, selection
+
+
+def campaign_config(campaign, condition):
+    marker = Path(campaign) / "experiment.json"
+    mode = read_json(marker)["experiment_mode"] if marker.exists() else None
+    return effective_config(condition, mode)
+
+
+def result_root(config):
+    root = SUITE / "results"
+    if config.get("experiment_mode"):
+        campaign = config["output_campaign"]
+        if Path(campaign).name != campaign or not campaign.startswith("hybrid500_ot_"):
+            raise ValueError("invalid Hybrid500 output campaign")
+        root = root / campaign
+    return confined(root)

@@ -114,6 +114,42 @@ class RecoveryTests(unittest.TestCase):
             self.raw, self.campaign, self.condition, self.canonical
         )
 
+    def test_hybrid500_rejects_legacy_bundle_and_restores_matching_bundle(self):
+        spec = common.read_json(common.SUITE / "configs/hybrid500_ot.json")
+        common.write_json(self.campaign / "experiment.json", spec)
+        with self.assertRaisesRegex(ValueError, "interpolation"):
+            self.bundle()
+        config = copy.deepcopy(self.config)
+        config.update({k: v for k, v in spec.items() if k != "conditions"})
+        target = common.new_dir(
+            self.campaign / self.condition / "new_run" / "checkpoints"
+        )
+        metadata = {**self.metadata, "effective_config": config}
+        raw = target / "model005000.pt"
+        cp.save_checkpoint(raw, self.model.state_dict(), metadata)
+        cp.save_checkpoint(
+            target / "ema_0.9999_005000.pt",
+            self.ema,
+            {**metadata, "checkpoint_kind": "ema"},
+        )
+        with (target / "opt005000.pt").open("xb") as f:
+            torch.save(self.optimizer.state_dict(), f)
+        bundle = recovery.load_bundle(
+            raw, self.campaign, self.condition, self.canonical
+        )
+        restored = models.build_model(
+            config, self.genes, state=bundle["raw"]["state_dict"]
+        )
+        optimizer = models.optimizer_for(restored, config)
+        recovery.restore_training_state(
+            bundle, restored, optimizer, self.canonical["cellunet_hash"]
+        )
+        self.assertEqual(
+            float(restored.ode_branch_weight(torch.ones(1, 4), torch.tensor([[750]]))),
+            0,
+        )
+        self.assertEqual(common.state_hash(restored), common.state_hash(self.model))
+
     def test_resume_preserves_raw_ema_optimizer_and_next_update(self):
         before = {str(p): common.file_hash(p) for p in self.checkpoints.iterdir()}
         bundle = self.bundle()

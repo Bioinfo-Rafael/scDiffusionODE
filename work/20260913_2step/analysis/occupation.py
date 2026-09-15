@@ -206,7 +206,11 @@ def occupation_command(args):
     if args.data:
         config["data_dir"] = args.data
     real, _, selection = load_real(config, meta["gene_names"], erythropoietic=True)
-    output = new_dir(SUITE / "results" / config["condition"] / "occupation" / run_id())
+    from ..common import result_root
+
+    output = new_dir(
+        result_root(config) / config["condition"] / "occupation" / run_id()
+    )
     provenance = dict(
         condition=config["condition"],
         checkpoint=str(Path(args.checkpoint).resolve()),

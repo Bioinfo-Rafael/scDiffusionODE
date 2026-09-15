@@ -1,0 +1,20 @@
+{
+  "experiment_mode": "hybrid500_ot_v1",
+  "conditions": [
+    "hill_after_linear_ot_soft",
+    "centered_signed_hill_ot_soft",
+    "shifted_hill_rho_ot_soft",
+    "hill_after_linear_trajectory_ot_soft",
+    "centered_signed_hill_trajectory_ot_soft",
+    "shifted_hill_rho_trajectory_ot_soft"
+  ],
+  "hybrid_schedule": {
+    "name": "late_linear_v1",
+    "cutoff": 500,
+    "formula": "w_ode=max(0,1-t/500); w_cellunet=1-w_ode",
+    "timestep": "original_unscaled_diffusion_t",
+    "inactive_ode_raw": "evaluated only for explicit branch diagnostics; excluded from Hybrid forward"
+  },
+  "log_interval": 50,
+  "save_interval": 1000
+}

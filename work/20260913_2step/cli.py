@@ -5,10 +5,10 @@ from pathlib import Path
 from .common import (
     CONDITIONS,
     LEGACY_CONDITIONS,
-    SUITE,
     build_diffusion,
     file_hash,
     run_id,
+    result_root,
     seed_all,
 )
 
@@ -150,7 +150,7 @@ def main(command, argv=None):
             if getattr(args, key) is not None:
                 config[key] = getattr(args, key)
         seed_all(config["seed"])
-        output = SUITE / "results" / config["condition"] / run_id()
+        output = result_root(config) / config["condition"] / run_id()
         provenance = {
             **meta,
             "checkpoint": str(Path(args.checkpoint).resolve()),

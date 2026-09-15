@@ -379,6 +379,12 @@ def worker(manifest_path):
     manifest_path = Path(manifest_path).resolve()
     launch = manifest_path.parent
     manifest = json.loads(manifest_path.read_text())
+    if manifest.get("six_ot"):
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        return importlib.import_module("work.20260913_2step.scripts.six_ot").worker(
+            manifest_path
+        )
     artifacts = {}
     os.environ["MPLCONFIGDIR"] = str(launch / "matplotlib")
     (launch / "matplotlib").mkdir(exist_ok=False)
@@ -445,6 +451,18 @@ def parser():
     )
     mode = p.add_mutually_exclusive_group()
     mode.add_argument(
+        "--run-six-ot",
+        action="store_true",
+        help="new Hybrid500 six-OT campaign, including analysis",
+    )
+    mode.add_argument(
+        "--resume-six-ot-campaign",
+        help="resume incomplete Hybrid500 work without overwriting completed outputs",
+    )
+    p.add_argument(
+        "--stage1-campaign", help="read-only canonical Stage1 source for --run-six-ot"
+    )
+    mode.add_argument(
         "--resume-analysis-launch",
         help="continue a failed analysis launch, reusing completed postprocessing; never train",
     )
@@ -496,6 +514,14 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if args.worker:
         return worker(args.worker)
+    if args.run_six_ot or args.resume_six_ot_campaign:
+        if str(ROOT) not in sys.path:
+            sys.path.insert(0, str(ROOT))
+        return importlib.import_module("work.20260913_2step.scripts.six_ot").launch(
+            args
+        )
+    if args.stage1_campaign:
+        raise ValueError("--stage1-campaign requires --run-six-ot")
     restart_steps = None
     if args.resume_analysis_launch:
         restart_steps, _, previous = analysis_restart(args.resume_analysis_launch)

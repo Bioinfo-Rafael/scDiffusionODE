@@ -1,7 +1,7 @@
 """Render completed occupation CSVs and recorded gradients, without model calls."""
 
 from pathlib import Path
-from ..common import SUITE, confined, new_dir, read_json, run_id, write_json
+from ..common import confined, new_dir, read_json, run_id, write_json
 from .plotting import _pyplot, _save
 
 
@@ -23,7 +23,12 @@ def plot_occupation(args):
         raise ValueError(
             "ambiguous multiple evaluations per condition; select one explicitly"
         )
-    output = new_dir(SUITE / "results" / "occupation_comparison" / run_id())
+    from ..common import result_root
+
+    roots = {result_root(meta["training_config"]) for meta in metadata}
+    if len(roots) != 1:
+        raise ValueError("cannot mix occupation campaigns")
+    output = new_dir(roots.pop() / "occupation_comparison" / run_id())
     plt = _pyplot()
     try:
         with (output / "occupation_comparison.csv").open("x") as f:

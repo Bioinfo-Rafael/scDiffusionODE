@@ -8,6 +8,7 @@ from ..common import (
     SUITE,
     build_diffusion,
     confined,
+    campaign_config,
     effective_config,
     file_hash,
     finite,
@@ -38,8 +39,14 @@ import time
 
 
 def train(args):
-    config = effective_config(args.condition)
     campaign = confined(SUITE / "runs" / args.campaign)
+    config = (
+        campaign_config(campaign, args.condition)
+        if (campaign / "experiment.json").exists()
+        else effective_config(args.condition)
+    )
+    if config.get("experiment_mode"):
+        config["output_campaign"] = args.campaign
     origin, stage1_state = None, None
     bundle = None
     resume_path = getattr(args, "resume_checkpoint", None)
@@ -411,7 +418,7 @@ def train(args):
                         f"{args.condition} step={step} loss={values['total']:.6g}"
                         + (
                             f" seconds_per_step={seconds_per_step:.3f} eta_hours={eta_hours:.2f}"
-                            if is_trajectory
+                            if is_trajectory or config.get("experiment_mode")
                             else ""
                         ),
                         flush=True,
