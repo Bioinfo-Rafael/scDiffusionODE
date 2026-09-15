@@ -11,6 +11,10 @@ from torch.utils.checkpoint import checkpoint
 from ..common import finite
 
 
+class SinkhornConvergenceError(FloatingPointError):
+    """Finite iteration limit reached without satisfying marginal tolerance."""
+
+
 def cost_matrix(x, y):
     if (
         x.ndim != 2
@@ -137,8 +141,10 @@ def entropic_ot(
                 )
             if residual <= tolerance:
                 break
-        if not math.isfinite(residual) or residual > tolerance:
-            raise FloatingPointError(
+        if not math.isfinite(residual):
+            raise FloatingPointError("nonfinite Sinkhorn marginal residual")
+        if residual > tolerance:
+            raise SinkhornConvergenceError(
                 f"Sinkhorn did not converge: epsilon={scale:g}, marginal residual={residual:g}, tolerance={tolerance:g}, iterations={iteration}"
             )
         details.append(

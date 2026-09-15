@@ -96,7 +96,20 @@ def plot_numeric(source, output):
         frame = pd.read_csv(source / f"{filename}.csv")
         fig, ax = plt.subplots(figsize=(10, 5))
         for column in columns:
-            ax.plot(frame.reverse_step, frame[column], marker="o", label=column)
+            ax.plot(
+                frame.reverse_step,
+                pd.to_numeric(frame[column], errors="coerce"),
+                marker="o",
+                label=column,
+            )
+        if "ot_status" in frame and (frame.ot_status == "not_converged").any():
+            ax.text(
+                0.02,
+                0.95,
+                f"Uncomputed Sinkhorn snapshots: {(frame.ot_status == 'not_converged').sum()}",
+                transform=ax.transAxes,
+                va="top",
+            )
         annotate_trajectory(ax, int(frame.reverse_step.max()))
         ax.set(ylabel=ylabel, title=filename + " (state after update)")
         _save(fig, ax, output, filename + ".png")

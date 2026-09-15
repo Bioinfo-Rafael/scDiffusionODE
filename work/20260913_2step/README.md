@@ -866,3 +866,41 @@ occupation/endpoint指標と比較図を作る。現在の選択では合計31�
 元runや結果には上書きせず、新しいanalysisログと結果ディレクトリを作成する。
 解析にもGPU samplingやUMAPなどの時間はかかるが、残り30,000更新の学習は行わない。
 `--dry-run`を追加すれば選択結果と計画だけを確認できる。
+
+## 解析中のSinkhorn未収束と、失敗工程からの再開
+
+解析用の距離計算は`analysis/evaluation_ot.py`を通す。最初は指定したsolver設定で
+計算し、有限のmarginal residualが未収束なら、epsilon scalingが無効だった場合だけ
+有効にして1回再試行する。目標epsilon、許容誤差、各scaleの反復上限、セル選択、
+コスト定義は変えない。すでにscaling有効の場合は同じ計算を繰り返さない。
+
+それでも未収束なら**距離は未算出**とし、CSVの数値欄を空欄、
+`ot_status=not_converged`、`ot_error`に理由を保存する。未収束の輸送計画から得た
+数値を採用したり、ゼロで置き換えたりしない。`ot_attempts`と
+`ot_epsilon_scaling`も保存し、`evaluation_ot_status.json`に未算出対象と件数を記録する。
+ログと図にも未算出を明示し、他のSW・多様性・UMAP・図生成を続ける。
+NaN/Inf、形状不正、OOMなどは引き続きエラー停止する。
+**学習用solverの未収束停止は変更しない。** これは評価指標の部分欠損を明示する方針であり、
+全てのSinkhorn距離が得られたという意味での完了ではない。
+
+`--resume-analysis-launch PATH`は失敗したanalysis-only launcherの
+`execution_plan.json`と工程別completed markerを検証し、完了済み工程を再利用する。
+既存のsampling/UMAPを作り直さず、最初の未完了工程から新しいlaunchディレクトリで進む。
+checkpoint SHAと出力の存在・完了状態を確認する。失敗した解析工程自体は新しい
+解析ディレクトリでやり直し、その工程内の部分CSVは引き継がない。
+学習の開始・再開は行わず、動作中や成功済みのlaunchは再開対象にしない。
+
+今回の失敗はhill-after-linear reconの数値解析なので、以下でそこから再開する。
+Stage1のsampling・解析・UMAP・図と、reconのsamplingは再利用される。
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github &&
+git fetch origin &&
+git switch feat/20260914-trajectory-occupation-ot &&
+git merge --ff-only origin/feat/20260914-trajectory-occupation-ot &&
+bash work/20260913_2step/scripts/run_all.sh --resume-analysis-launch work/20260913_2step/launches/two_step_20260913_070659_2e7ec730/analysis_20260915_055048_eb01ec7e
+```
+
+自動バックグラウンド起動。PID・新ログの`tail -f`コマンドを表示する。
+`--dry-run`追加時は再利用対象を検証して残りのコマンドだけを表示し、ジョブを起動しない。
+再開時のdeviceと残りのsampling/解析引数は元の実行計画を引き継ぐ。

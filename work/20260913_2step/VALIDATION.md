@@ -260,3 +260,31 @@ and one filtered comparison plot. Existing four-condition analysis mode remains.
   GPU sampling, UMAP or figure rendering ran. README provides the remote SIGINT,
   fetch and detached analysis command. Unsaved training progress is not persisted
   by the existing SIGINT handler; saved files remain untouched.
+
+## Evaluation nonconvergence and failed-analysis continuation — 2026-09-15 JST
+
+The remote evaluation failed at residual 1.00665e-5 against tolerance 1e-5 at
+2000 iterations. Added a specific SinkhornConvergenceError subclass (still a
+FloatingPointError) and an evaluation-only wrapper. It retries a direct solve
+using epsilon scaling with unchanged target/tolerance/cap. Exhausted finite
+nonconvergence yields no numerical estimate: CSV value empty, explicit status,
+reason, attempts, scaling flag and a missing-metrics JSON summary. Other metrics
+continue. Plots label missing distances. Nonfinite input/residual, programming
+errors and OOM remain fatal. Training convergence requirements are unchanged.
+
+Added `--resume-analysis-launch` for failed analysis-only jobs. It verifies the
+saved execution plan, completed-prefix artifacts and checkpoint SHA, then starts
+at the first incomplete stage in new directories. Sampling, UMAP and other
+completed stages are reused; partial contents of the failed stage are not reused.
+A resumed job can itself be resumed using its own new launch path.
+
+- **70 CPU synthetic tests passed** in 4.811 s.
+- Tests cover same-target retry, no gradients in evaluation, explicit missing
+  estimates after exhausted retries, preservation of SW/diversity CSVs, continued
+  fatal behavior for nonfinite/OOM/config errors and strict training failure.
+- Restart tests verify reuse of completed sampling, unresolved output propagation,
+  read-only/no-spawn dry-run, unchanged original files, and rejection of missing
+  outputs, live launches and training commands.
+- Ruff lint/format, launcher help and diff checks passed.
+- No actual remote batch was available to reproduce its exact residual. No
+  real-data/GPU sampling, training, UMAP or figure generation was executed.

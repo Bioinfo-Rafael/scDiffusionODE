@@ -16,7 +16,8 @@ from ..common import (
 from ..training.checkpoints import canonical_stage1, restore
 from ..training.source_cache import load_cache
 from ..training.trajectory import integrate, occupation_sample, validate_trajectory
-from ..losses.sinkhorn import sinkhorn_divergence
+from .evaluation_ot import evaluate_sinkhorn
+from ..losses.sinkhorn import cost_matrix, cost_statistics
 from .distributions import diversity
 from .sliced_wasserstein import sliced_wasserstein
 
@@ -79,11 +80,10 @@ def evaluate_occupation(
         not_ = min(c["sinkhorn_points"], n)
         # The SW/diversity sample is larger than the explicitly bounded dense OT sample.
         ot_ids = np.random.default_rng(seed + 4).choice(n, not_, replace=False)
-        distance, info = sinkhorn_divergence(
+        distance, info, status = evaluate_sinkhorn(
             torch.as_tensor(generated[ot_ids], device=device),
             torch.as_tensor(reference[ot_ids], device=device),
             config["ot"],
-            return_info=True,
             cost_diagnostics=True,
         )
         for term, detail in info.items():
@@ -108,7 +108,8 @@ def evaluate_occupation(
                 generated_points_used=n,
                 real_points_used=n,
                 sinkhorn_points_used=not_,
-                sinkhorn_divergence=float(distance),
+                sinkhorn_divergence=distance,
+                **status,
                 sliced_wasserstein2=sw["sliced_wasserstein2"],
                 sliced_wasserstein2_squared=sw["sliced_wasserstein2_squared"],
                 mean_pairwise_diversity=d["mean"],
@@ -122,14 +123,33 @@ def evaluate_occupation(
                 .get("samples_per_trajectory"),
                 eval_samples_per_trajectory=c["samples_per_trajectory"],
                 eval_sw_projections=c["sliced_wasserstein_projections"],
-                **info["cross"]["cost_statistics"],
+                **cost_statistics(
+                    cost_matrix(
+                        torch.as_tensor(generated[ot_ids], dtype=torch.float64),
+                        torch.as_tensor(reference[ot_ids], dtype=torch.float64),
+                    ),
+                    config["ot"]["epsilon"],
+                ),
             )
         )
         selected[distribution + "_generated_ids"] = gids
         selected[distribution + "_real_ids"] = real_ids[tids]
         selected[distribution + "_sinkhorn_ids"] = ot_ids
     write_csv(output / "occupation_analysis.csv", rows)
-    write_csv(output / "occupation_sinkhorn_scales.csv", scales)
+    write_csv(
+        output / "occupation_sinkhorn_scales.csv",
+        scales,
+        fields=["distribution", "term", "epsilon", "iterations", "marginal_residual"],
+    )
+    write_json(
+        output / "evaluation_ot_status.json",
+        dict(
+            missing_count=sum(r["ot_status"] == "not_converged" for r in rows),
+            missing_distributions=[
+                r["distribution"] for r in rows if r["ot_status"] == "not_converged"
+            ],
+        ),
+    )
     with (output / "occupation_subsample_ids.npz").open("xb") as f:
         np.savez(
             f, source_ids=source_ids, temporal_indices=np.concatenate(times), **selected

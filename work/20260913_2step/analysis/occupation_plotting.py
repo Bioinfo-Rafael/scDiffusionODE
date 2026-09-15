@@ -33,7 +33,16 @@ def plot_occupation(args):
             table = frame.pivot(
                 index="condition", columns="distribution", values=metric
             )
+            table = table.apply(pd.to_numeric, errors="coerce")
             table.plot.bar(ax=ax)
+            if table.isna().any().any():
+                ax.text(
+                    0.02,
+                    0.95,
+                    "Missing distances are uncomputed, not zero",
+                    transform=ax.transAxes,
+                    va="top",
+                )
             ax.set(
                 ylabel=metric,
                 title="Independent x50 ODE trajectories: occupation vs endpoint",

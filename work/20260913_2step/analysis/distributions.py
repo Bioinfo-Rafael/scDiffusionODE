@@ -4,7 +4,7 @@ import numpy as np
 import torch
 from ..common import SUITE, finite, read_json, write_csv
 from .sliced_wasserstein import sliced_wasserstein
-from ..losses.sinkhorn import sinkhorn_divergence
+from .evaluation_ot import evaluate_sinkhorn
 
 
 def diversity(x, *, pairs=100000, seed=1234, block_size=128):
@@ -107,15 +107,14 @@ def trajectory_metrics(states, real, table, output, config, *, seed):
         pred = torch.as_tensor(
             np.array(states[generated_ids, k], copy=True), dtype=torch.float64
         )
-        divergence, info = sinkhorn_divergence(
-            pred, target, config["ot"], return_info=True
-        )
-        residual = max(v["marginal_residual"] for v in info.values())
+        divergence, info, status = evaluate_sinkhorn(pred, target, config["ot"])
+        residual = max((v["marginal_residual"] for v in info.values()), default=None)
         distance_rows.append(
             {
                 **row,
                 "representation": "state_after_update",
-                "sinkhorn_divergence": float(divergence),
+                "sinkhorn_divergence": divergence,
+                **status,
                 "subsample_size": n,
                 "seed": seed,
                 "epsilon": config["ot"]["epsilon"],
@@ -129,5 +128,16 @@ def trajectory_metrics(states, real, table, output, config, *, seed):
     write_csv(output / "sliced_wasserstein_snapshots.csv", sw_rows)
     write_csv(output / "trajectory_diversity.csv", diversity_rows)
     write_csv(output / "sinkhorn_to_real.csv", distance_rows)
+    missing = [r for r in distance_rows if r["ot_status"] == "not_converged"]
+    from ..common import write_json
+
+    write_json(
+        output / "evaluation_ot_status.json",
+        dict(
+            missing_count=len(missing),
+            missing_snapshots=[r["snapshot_index"] for r in missing],
+            policy="retry with epsilon scaling; missing values are never replaced by unconverged estimates",
+        ),
+    )
     with (output / "distribution_subsample_ids.npz").open("xb") as f:
         np.savez(f, generated_ids=generated_ids, real_ids=real_ids)

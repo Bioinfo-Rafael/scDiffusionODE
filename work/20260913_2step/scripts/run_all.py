@@ -298,6 +298,68 @@ def recovery_steps(manifest):
     return steps, artifacts, selections
 
 
+def analysis_restart(path):
+    """Read a failed analysis launch and reuse only its completed prefix."""
+    path = Path(path).expanduser().resolve()
+    if not path.is_relative_to((SUITE / "launches").resolve()):
+        raise ValueError("resume analysis must be below suite/launches")
+    original = json.loads((path / "launch.json").read_text())
+    if not original.get("analysis_only") or not (path / "failed.json").is_file():
+        raise ValueError(
+            "requires a failed analysis-only launch; never resumes training"
+        )
+    execution = json.loads((path / "execution_plan.json").read_text())
+    artifacts = dict(execution["artifacts"])
+    steps = execution["steps"]
+    allowed = {
+        "sample.py",
+        "analyze.py",
+        "embed.py",
+        "plot.py",
+        "occupation.py",
+        "plot_occupation.py",
+        "cache_x50.py",
+    }
+    for step in steps:
+        if len(step["argv"]) < 4 or Path(step["argv"][3]).name not in allowed:
+            raise ValueError("resume-analysis plan contains a forbidden command")
+    consumed = 0
+    for step in steps:
+        marker = path / (step["name"] + ".completed.json")
+        if not marker.exists():
+            break
+        recorded = json.loads(marker.read_text())["artifacts"]
+        for key in step["capture"].values():
+            value = Path(recorded[key])
+            if (
+                not value.is_dir()
+                or not (value / "completed.json").is_file()
+                or (value / "failed.json").exists()
+            ):
+                raise ValueError(
+                    f"completed analysis artifact missing or failed: {value}"
+                )
+            if (
+                json.loads((value / "completed.json").read_text())["status"]
+                != "completed"
+            ):
+                raise ValueError(f"incomplete analysis artifact: {value}")
+            artifacts[key] = str(value)
+        consumed += 1
+    for key, value in artifacts.items():
+        if not Path(value).exists():
+            raise FileNotFoundError(value)
+        if key.endswith(".checkpoint"):
+            if str(ROOT) not in sys.path:
+                sys.path.insert(0, str(ROOT))
+            importlib.import_module(
+                "work.20260913_2step.training.recovery"
+            ).verified_checkpoint(value)
+    if consumed == len(steps):
+        raise ValueError("all analysis steps already completed")
+    return steps[consumed:], artifacts, original
+
+
 def worker(manifest_path):
     manifest_path = Path(manifest_path).resolve()
     launch = manifest_path.parent
@@ -318,7 +380,13 @@ def worker(manifest_path):
                 torch.cuda.get_device_name(torch.device(manifest["device"])), flush=True
             )
         steps = manifest["steps"]
-        if manifest.get("resume_campaign") or manifest.get("analysis_only"):
+        if manifest.get("resume_analysis_launch"):
+            steps, artifacts, _ = analysis_restart(manifest["resume_analysis_launch"])
+            write_json(
+                launch / "execution_plan.json", {"steps": steps, "artifacts": artifacts}
+            )
+            print("RESUMING_ANALYSIS_FROM=" + steps[0]["name"], flush=True)
+        elif manifest.get("resume_campaign") or manifest.get("analysis_only"):
             steps, artifacts, selections = recovery_steps(manifest)
             write_json(launch / "recovery_selection.json", selections)
             write_json(
@@ -361,6 +429,10 @@ def parser():
         + uuid.uuid4().hex[:8],
     )
     mode = p.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--resume-analysis-launch",
+        help="continue a failed analysis launch, reusing completed postprocessing; never train",
+    )
     mode.add_argument(
         "--analyze-completed-campaign",
         help="analyze all completed canonical models, including trajectory OT; skip incomplete models and never train",
@@ -405,6 +477,11 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if args.worker:
         return worker(args.worker)
+    restart_steps = None
+    if args.resume_analysis_launch:
+        restart_steps, _, previous = analysis_restart(args.resume_analysis_launch)
+        args.analyze_campaign = previous["campaign"]
+        args.device = previous["device"]
     analysis_only = bool(args.analyze_campaign or args.analyze_completed_campaign)
     existing_campaign = (
         args.resume_campaign or args.analyze_campaign or args.analyze_completed_campaign
@@ -427,9 +504,9 @@ def main(argv=None):
         )
     args.data = str(Path(args.data).expanduser().resolve())
     args.edge_tsv = str(Path(args.edge_tsv).expanduser().resolve())
-    steps = plan(args)
+    steps = restart_steps if restart_steps is not None else plan(args)
     if args.dry_run:
-        if existing_campaign:
+        if existing_campaign and not args.resume_analysis_launch:
             steps, _, selections = recovery_steps(
                 {
                     "campaign": args.campaign,
@@ -483,6 +560,9 @@ def main(argv=None):
     launch.mkdir(parents=True, exist_ok=False)
     manifest = {
         "campaign": args.campaign,
+        "resume_analysis_launch": str(Path(args.resume_analysis_launch).resolve())
+        if args.resume_analysis_launch
+        else None,
         "resume_campaign": bool(args.resume_campaign),
         "analysis_only": analysis_only,
         "completed_analysis": bool(args.analyze_completed_campaign),
