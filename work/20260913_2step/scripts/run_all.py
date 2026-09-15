@@ -41,8 +41,10 @@ def plan(args):
             )
         )
 
-    analysis_only = bool(getattr(args, "analyze_campaign", None))
-    conditions = CONDITIONS[:4] if analysis_only else CONDITIONS
+    completed_only = bool(getattr(args, "analyze_completed_campaign", None))
+    analysis_only = bool(getattr(args, "analyze_campaign", None)) or completed_only
+    conditions = CONDITIONS if completed_only or not analysis_only else CONDITIONS[:4]
+    occupation_enabled = completed_only or not analysis_only
 
     def add_cache(role):
         add(
@@ -91,7 +93,7 @@ def plan(args):
             argv,
             {"EMA_CHECKPOINT": f"@{condition}.checkpoint"},
         )
-    if not analysis_only:
+    if occupation_enabled:
         add_cache("evaluation")
     occupation_outputs = []
     for condition in conditions:
@@ -137,7 +139,7 @@ def plan(args):
         )
         add(condition + ".metrics_plot", "plot.py", ["--input", analysis])
         add(condition + ".umap_plot", "plot.py", ["--input", embedding])
-        if not analysis_only and condition != "stage1_cellunet":
+        if occupation_enabled and condition != "stage1_cellunet":
             occupation = f"@{condition}.occupation"
             add(
                 condition + ".occupation",
@@ -208,6 +210,51 @@ def recovery_steps(manifest):
     artifacts = {"@stage1_cellunet.checkpoint": canonical["checkpoint"]}
     selections = {"stage1_cellunet": {"completed_checkpoint": canonical["checkpoint"]}}
     steps = []
+    if manifest.get("completed_analysis"):
+        available = {"stage1_cellunet"}
+        for condition in CONDITIONS[1:]:
+            selected = recovery.select_training(
+                campaign, condition, canonical, completed_only=True
+            )
+            selections[condition] = selected
+            if "completed_checkpoint" in selected:
+                available.add(condition)
+                artifacts[f"@{condition}.checkpoint"] = selected["completed_checkpoint"]
+        for original in manifest["steps"]:
+            name = original["name"]
+            if name == "x50.evaluation_cache":
+                if len(available) > 1:
+                    steps.append(original)
+                continue
+            if name == "occupation.comparison_plot":
+                if len(available) > 1:
+                    step = {
+                        **original,
+                        "argv": [
+                            arg
+                            for arg in original["argv"]
+                            if not arg.startswith("@")
+                            or arg.removeprefix("@").removesuffix(".occupation")
+                            in available
+                        ],
+                    }
+                    steps.append(step)
+                continue
+            condition, action = name.rsplit(".", 1)
+            if condition not in CONDITIONS or action not in {
+                "sample",
+                "analyze",
+                "embed",
+                "metrics_plot",
+                "umap_plot",
+                "occupation",
+            }:
+                raise ValueError(
+                    "completed-analysis plan contains a forbidden training/cache step"
+                )
+            if condition in available:
+                steps.append(original)
+        return steps, artifacts, selections
     if manifest.get("analysis_only"):
         for condition in CONDITIONS[1:4]:
             selected = recovery.select_training(
@@ -315,6 +362,10 @@ def parser():
     )
     mode = p.add_mutually_exclusive_group()
     mode.add_argument(
+        "--analyze-completed-campaign",
+        help="analyze all completed canonical models, including trajectory OT; skip incomplete models and never train",
+    )
+    mode.add_argument(
         "--analyze-campaign",
         help="sample/analyze/plot completed Stage 1 + three reconstruction conditions only; never train",
     )
@@ -354,7 +405,10 @@ def main(argv=None):
     args = parser().parse_args(argv)
     if args.worker:
         return worker(args.worker)
-    existing_campaign = args.resume_campaign or args.analyze_campaign
+    analysis_only = bool(args.analyze_campaign or args.analyze_completed_campaign)
+    existing_campaign = (
+        args.resume_campaign or args.analyze_campaign or args.analyze_completed_campaign
+    )
     if existing_campaign:
         args.campaign = existing_campaign
     if Path(args.campaign).name != args.campaign or args.campaign in ("", ".", ".."):
@@ -380,7 +434,8 @@ def main(argv=None):
                 {
                     "campaign": args.campaign,
                     "steps": steps,
-                    "analysis_only": bool(args.analyze_campaign),
+                    "analysis_only": analysis_only,
+                    "completed_analysis": bool(args.analyze_completed_campaign),
                 }
             )
             print("RECOVERY_SELECTION=" + json.dumps(selections))
@@ -395,9 +450,7 @@ def main(argv=None):
         )
         args.data = stage1["effective_config"]["data_dir"]
         args.edge_tsv = stage1["effective_config"]["edge_tsv_path"]
-        for started in (
-            [] if args.analyze_campaign else campaign.glob("*/*/started.json")
-        ):
+        for started in [] if analysis_only else campaign.glob("*/*/started.json"):
             if not any(
                 (started.parent / name).exists()
                 for name in ("completed.json", "failed.json")
@@ -406,7 +459,7 @@ def main(argv=None):
                     f"training run has no terminal status: {started.parent}; verify it is stopped"
                 )
         launch_root = SUITE / "launches" / args.campaign
-        for prior in [] if args.analyze_campaign else launch_root.rglob("launch.json"):
+        for prior in [] if analysis_only else launch_root.rglob("launch.json"):
             if not any(
                 (prior.parent / name).exists()
                 for name in ("completed.json", "failed.json")
@@ -414,7 +467,7 @@ def main(argv=None):
                 raise RuntimeError(
                     f"launcher has no terminal status: {prior.parent}; verify it is stopped"
                 )
-    for path in (args.data,) if args.analyze_campaign else (args.data, args.edge_tsv):
+    for path in (args.data,) if analysis_only else (args.data, args.edge_tsv):
         if not Path(path).is_file():
             raise FileNotFoundError(path)
     if not existing_campaign and (SUITE / "runs" / args.campaign).exists():
@@ -422,7 +475,7 @@ def main(argv=None):
     launch = SUITE / "launches" / args.campaign
     if existing_campaign:
         launch = launch / (
-            ("analysis_" if args.analyze_campaign else "recovery_")
+            ("analysis_" if analysis_only else "recovery_")
             + datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
             + "_"
             + uuid.uuid4().hex[:8]
@@ -431,7 +484,8 @@ def main(argv=None):
     manifest = {
         "campaign": args.campaign,
         "resume_campaign": bool(args.resume_campaign),
-        "analysis_only": bool(args.analyze_campaign),
+        "analysis_only": analysis_only,
+        "completed_analysis": bool(args.analyze_completed_campaign),
         "device": args.device,
         "steps": steps,
         "python": sys.executable,

@@ -242,3 +242,21 @@ No actual data, GPU benchmark, full training, sampling, UMAP or rendering was
 executed. This establishes numerical equivalence on small fixtures, not a measured
 production acceleration. Existing running remote code cannot be updated in-place;
 SIGINT on the old runner records failure but cannot preserve unsaved weights.
+
+## Completed-model analysis including finished trajectory OT — 2026-09-15 JST
+
+Added mutually exclusive `--analyze-completed-campaign`. It selects verified final
+canonical EMAs only and skips incomplete conditions without loading intermediate
+bundles or scheduling training. The reported campaign selects Stage1, recon3 and
+finished hill-after-linear trajectory OT. Its plan has 31 steps: evaluation x50
+cache, five sets of sampling/numerics/UMAP/two plots, four occupation evaluations
+and one filtered comparison plot. Existing four-condition analysis mode remains.
+
+- **64 CPU synthetic tests passed** in 6.935 s. The new regression verifies five
+  selected checkpoints, 31 steps, four occupation inputs, all output dependencies,
+  exclusion of the two unfinished models and no training or partial-bundle loads.
+- Ruff lint/format, CLI help and diff checks passed.
+- No remote process was stopped or launched by the agent; no real-data workflow,
+  GPU sampling, UMAP or figure rendering ran. README provides the remote SIGINT,
+  fetch and detached analysis command. Unsaved training progress is not persisted
+  by the existing SIGINT handler; saved files remain untouched.

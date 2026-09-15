@@ -235,6 +235,53 @@ class RecoveryTests(unittest.TestCase):
         self.assertIn("RECOVERY_SELECTION=", output.getvalue())
         self.assertNotIn("train.py", output.getvalue())
 
+    def test_completed_analysis_includes_finished_ot_and_never_partial_training(self):
+        args = launcher.parser().parse_args(
+            ["--analyze-completed-campaign", "old_campaign"]
+        )
+        args.campaign = args.analyze_completed_campaign
+        manifest = dict(
+            campaign=args.campaign,
+            steps=launcher.plan(args),
+            analysis_only=True,
+            completed_analysis=True,
+        )
+        finished = set(launcher.CONDITIONS[1:5])
+
+        def select(campaign, condition, canonical, *, completed_only=False):
+            self.assertTrue(completed_only)
+            return (
+                {"completed_checkpoint": "/fixture/" + condition + ".pt"}
+                if condition in finished
+                else {"missing_completed_checkpoint": True}
+            )
+
+        with (
+            patch.object(launcher, "SUITE", self.root),
+            patch.object(recovery, "select_training", side_effect=select),
+            patch.object(
+                recovery, "load_bundle", side_effect=AssertionError("partial bundle")
+            ),
+        ):
+            steps, artifacts, selections = launcher.recovery_steps(manifest)
+        self.assertEqual(len(steps), 31)
+        self.assertEqual(len(artifacts), 5)
+        self.assertEqual(sum(s["name"].endswith(".sample") for s in steps), 5)
+        self.assertEqual(sum(s["name"].endswith(".occupation") for s in steps), 4)
+        self.assertFalse(any(s["name"].endswith(".train") for s in steps))
+        self.assertFalse(
+            any(s["name"].startswith(tuple(launcher.CONDITIONS[5:])) for s in steps)
+        )
+        available = set(artifacts)
+        for step in steps:
+            self.assertNotIn("train.py", [Path(arg).name for arg in step["argv"]])
+            for arg in step["argv"]:
+                if arg.startswith("@"):
+                    self.assertIn(arg, available)
+            available.update(step["capture"].values())
+        self.assertEqual(steps[-1]["name"], "occupation.comparison_plot")
+        self.assertEqual(sum(arg.startswith("@") for arg in steps[-1]["argv"]), 4)
+
     def test_analysis_only_plan_has_twenty_postprocessing_steps(self):
         args = launcher.parser().parse_args(["--analyze-campaign", "old_campaign"])
         args.campaign = args.analyze_campaign

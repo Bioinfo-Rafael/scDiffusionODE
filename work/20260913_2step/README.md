@@ -832,3 +832,37 @@ records failure, but **does not save an on-demand checkpoint**. If centered has
 not reached the old 5000-update save boundary, only that incomplete condition
 must restart. Completed hill-after-linear, Stage1/recon and the x50 cache remain
 reusable. Do not use SIGKILL; it leaves no terminal-status marker.
+
+## 重いOT学習を止め、完了済み5条件を先に解析する
+
+`--analyze-completed-campaign NAME`はcanonical条件の完了済み最終EMAだけを
+検証して選択する。今回の状態ならStage1、recon 3条件、hill-after-linear
+trajectory OTの計5条件。未完了centered/shifted trajectory OTはスキップし、
+学習の開始・再開・中間checkpointの読み込みは行わない。
+既存の`--analyze-campaign`（Stage1/reconの4条件限定）とは別のオプション。
+
+remoteの現在のcentered学習をSIGINTで停止し、プロセス終了を待ってから実行する。
+PIDは`ps`で対象を確認すること。学習子プロセスの異常終了を受けて旧launcherも停止し、
+次のshifted学習には進まない。SIGINTは未保存の重みをcheckpointへ保存しない。
+完了済みモデル・保存済みcheckpoint・キャッシュは削除しない。
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github &&
+ps -p 349558 -o args= | grep -q '[t]rain.py.*--condition centered_signed_hill_trajectory_ot_soft' &&
+kill -INT 349558 &&
+while kill -0 349558 2>/dev/null; do sleep 1; done &&
+sleep 3 &&
+git fetch origin &&
+git switch feat/20260914-trajectory-occupation-ot &&
+git merge --ff-only origin/feat/20260914-trajectory-occupation-ot &&
+bash work/20260913_2step/scripts/run_all.sh --analyze-completed-campaign two_step_20260913_070659_2e7ec730
+```
+
+すでに学習が停止済みの場合は、停止確認後に`git fetch`以降を実行する。
+新launcherはバックグラウンドで動作し、PID・ログ確認コマンドを表示する。
+必要なsampling、既存数値指標＋snapshot SW、UMAP、各図を5条件について実行する。
+さらに独立の評価用x50キャッシュを作成／再利用し、完了済みStage2の4条件で
+occupation/endpoint指標と比較図を作る。現在の選択では合計31工程。
+元runや結果には上書きせず、新しいanalysisログと結果ディレクトリを作成する。
+解析にもGPU samplingやUMAPなどの時間はかかるが、残り30,000更新の学習は行わない。
+`--dry-run`を追加すれば選択結果と計画だけを確認できる。
