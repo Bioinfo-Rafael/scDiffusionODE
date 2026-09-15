@@ -34,6 +34,7 @@ from .trajectory import trajectory_loss, independent_batch, validate_trajectory
 from .source_cache import load_cache, cache_pointer
 from ..common import read_json
 import math
+import time
 
 
 def train(args):
@@ -117,6 +118,23 @@ def train(args):
             if key == "samples_per_trajectory":
                 config["trajectory_ot"]["temporal_bins"] = value
     if is_trajectory:
+        runtime = dict(
+            read_json(SUITE / "configs/trajectory_defaults.json")["trajectory_runtime"]
+        )
+        runtime["field_backend"] = (
+            getattr(args, "trajectory_field_backend", None) or runtime["field_backend"]
+        )
+        for key in ("log_interval", "save_interval"):
+            value = getattr(args, "trajectory_" + key, None)
+            if value is not None:
+                if value < 1:
+                    raise ValueError(
+                        "trajectory logging/save intervals must be positive"
+                    )
+                runtime[key] = value
+        config["trajectory_runtime"] = runtime
+        config["log_interval"] = runtime["log_interval"]
+        config["save_interval"] = runtime["save_interval"]
         c = config["trajectory_ot"]
         validate_trajectory(c)
         cache_path = (
@@ -312,6 +330,7 @@ def train(args):
                 ),
             )
             writer.writeheader()
+            last_log_time, last_log_step = time.monotonic(), start_step
             for index in range(start_step, config["total_steps"]):
                 if not is_trajectory:
                     batch, _ = next(batches)
@@ -385,10 +404,19 @@ def train(args):
                 writer.writerow({"step": step, **values})
                 if step % config["log_interval"] == 0:
                     f.flush()
+                    elapsed = time.monotonic() - last_log_time
+                    seconds_per_step = elapsed / (step - last_log_step)
+                    eta_hours = seconds_per_step * (config["total_steps"] - step) / 3600
                     print(
-                        f"{args.condition} step={step} loss={values['total']:.6g}",
+                        f"{args.condition} step={step} loss={values['total']:.6g}"
+                        + (
+                            f" seconds_per_step={seconds_per_step:.3f} eta_hours={eta_hours:.2f}"
+                            if is_trajectory
+                            else ""
+                        ),
                         flush=True,
                     )
+                    last_log_time, last_log_step = time.monotonic(), step
                 if step % config["save_interval"] == 0 or step == config["total_steps"]:
                     for name, value in model.state_dict().items():
                         finite(name, value)

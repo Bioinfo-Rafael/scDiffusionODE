@@ -44,5 +44,10 @@
     "binning_rule": "floor_boundaries_last_inclusive",
     "checkpoint_block": 0,
     "sinkhorn_points": 512
+  },
+  "trajectory_runtime": {
+    "field_backend": "shared_parameters_v1",
+    "log_interval": 50,
+    "save_interval": 1000
   }
 }

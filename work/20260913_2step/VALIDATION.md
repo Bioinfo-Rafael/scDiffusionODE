@@ -216,3 +216,29 @@ validated on Embryonic data. SW/occupation samples contain correlated path point
 Training targets the full empirical distribution while evaluation retains the
 existing Erythropoietic reference policy. Full Torch/CUDA RNG state is not saved,
 so resumed training does not claim bitwise identity to uninterrupted execution.
+
+## Direct-Hill repeated-transform runtime fix — 2026-09-15 JST
+
+Inspected the source direct-Hill component loop: full A/theta transforms are
+inside each target chunk, repeated 64 times per field evaluation at G=1024.
+The trajectory-only adapter shares these differentiable physical parameters
+within one unroll and rebuilds them after every optimizer update. It leaves the
+source files, normal Hybrid sampler, objective and scientific batch/time settings
+unchanged. New runtime defaults: log every 50 updates with measured seconds/update
+and ETA; save every 1000 updates. These operational settings are recorded in
+`trajectory_runtime` and may change during compatible recovery.
+
+- **63 CPU synthetic unit tests passed** (7.151 s).
+- New tests compare all trajectory states and scalar loss exactly, and gradients
+  within rtol=2e-5/atol=1e-8, against the source for centered and shifted fields
+  with multiple target chunks and outer activation checkpointing. They exercise
+  an autograd diagnostic followed by backward on the same graph.
+- A further test takes two synthetic parameter updates and verifies physical
+  transforms are rebuilt, with source-identical states on each new unroll.
+- Existing objective, legacy, frozen CellUNet, EMA, cache, recovery, Sinkhorn,
+  occupation/SW and launcher tests remain green.
+
+No actual data, GPU benchmark, full training, sampling, UMAP or rendering was
+executed. This establishes numerical equivalence on small fixtures, not a measured
+production acceleration. Existing running remote code cannot be updated in-place;
+SIGINT on the old runner records failure but cannot preserve unsaved weights.

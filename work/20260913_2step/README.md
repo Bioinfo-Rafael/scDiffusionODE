@@ -792,3 +792,43 @@ distance, and inspect sensitivity to dt in separately saved sampling runs.
 Independent UMAP positions are not aligned and UMAP proximity alone cannot prove
 absence of collapse. The exact mean pairwise distance and all UMAP fits can be
 expensive; those are explicit future analysis jobs, not implementation checks.
+
+## 2026-09-15: centered/shifted trajectory training runtime fix
+
+The original direct-Hill `component_outputs` computes full `A=softplus(raw_A)`
+and `theta=softplus(raw_theta)` **inside each 16-target chunk**. At G=1024 that
+repeats both full K×G×G transforms 64 times per ODE call, over 100 ODE calls per
+trajectory, with additional backward recomputation. This is unnecessary: the
+parameters are constant until the optimizer update after the whole unroll.
+
+`training/direct_hill.py` shares physical A/theta/decay tensors within a single
+trajectory graph. It still calls the exact source chunk response, regulator
+guards, gates/time embedding/dropout and regularization hooks. It retains
+chunk and trajectory checkpointing. It rebuilds the shared tensors on the next
+unroll; it never detaches or caches across optimizer updates. Hill-after-linear
+uses its unchanged source implementation. Normal Hybrid sampling and independent
+occupation evaluation keep their source implementation.
+
+`trajectory_runtime.field_backend=shared_parameters_v1` is now the training
+runtime default, including compatible checkpoint recovery. The objective,
+128 paths, 100 Euler steps, dt=.001, 512-point OT, soft coefficients, optimizer
+and 30,000 updates are unchanged. CPU synthetic tests verify identical states
+and loss and matching gradients within floating-point tolerance, not bitwise
+identical optimization histories. Real RTX 6000 Ada acceleration/peak memory
+has **not** been measured; no particular speedup or finish time is promised.
+
+Trajectory training now prints `seconds_per_step` and `eta_hours` every 50
+updates and saves raw/EMA/optimizer every 1000 updates. Runtime settings are
+recorded separately and can change on resume. More frequent saves use additional
+disk space. Individual train CLI options are `--trajectory-field-backend source`
+(for comparison), `--trajectory-log-interval N`, `--trajectory-save-interval N`.
+Other conditions retain their original logging/save intervals.
+
+A running Python process does not acquire this fix by fetching code. Stop the
+old training with **SIGINT** (`kill -INT TRAIN_PID`, after checking it is still
+that training process), wait for the launcher to record failure, then fetch and
+use the usual `--resume-campaign` command. The old runner catches SIGINT and
+records failure, but **does not save an on-demand checkpoint**. If centered has
+not reached the old 5000-update save boundary, only that incomplete condition
+must restart. Completed hill-after-linear, Stage1/recon and the x50 cache remain
+reusable. Do not use SIGKILL; it leaves no terminal-status marker.

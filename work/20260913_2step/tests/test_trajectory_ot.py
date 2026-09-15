@@ -101,6 +101,60 @@ class TrajectoryTests(unittest.TestCase):
         models.freeze_from_stage1(model, self.stage1.state_dict())
         return c, model
 
+    def test_shared_parameters_match_source_unroll_and_gradients(self):
+        for name in common.CONDITIONS[5:]:
+            c, model = self.hybrid(name)
+            model.ode_model.target_chunk_size = 2
+            start = torch.randn(3, 4)
+            results = []
+            for backend in ("source", "shared_parameters_v1"):
+                model.zero_grad(set_to_none=True)
+                common.seed_all(42)
+                states = traj.integrate(
+                    model.ode_model,
+                    start,
+                    steps=5,
+                    dt=0.001,
+                    checkpoint_block=2,
+                    field_backend=backend,
+                )
+                loss = states.square().mean()
+                # Diagnostics followed by normal backward must also work with
+                # a shared physical-parameter graph and nested checkpointing.
+                params = list(model.ode_model.parameters())
+                grads = torch.autograd.grad(
+                    loss, params, retain_graph=True, allow_unused=True
+                )
+                loss.backward()
+                results.append((states.detach(), loss.detach(), grads))
+            torch.testing.assert_close(results[0][0], results[1][0], rtol=0, atol=0)
+            torch.testing.assert_close(results[0][1], results[1][1], rtol=0, atol=0)
+            for a, b in zip(results[0][2], results[1][2]):
+                if a is not None:
+                    torch.testing.assert_close(a, b, rtol=2e-5, atol=1e-8)
+            self.assertTrue(all(p.grad is None for p in model.ml_model.parameters()))
+
+    def test_shared_parameters_rebuilt_after_optimizer_update(self):
+        _, model = self.hybrid(common.CONDITIONS[5])
+        model.ode_model.target_chunk_size = 2
+        start = torch.randn(3, 4)
+        for _ in range(2):
+            model.zero_grad(set_to_none=True)
+            fast = traj.integrate(
+                model.ode_model,
+                start,
+                steps=4,
+                dt=0.001,
+                field_backend="shared_parameters_v1",
+            )
+            plain = traj.integrate(model.ode_model, start, steps=4, dt=0.001)
+            torch.testing.assert_close(fast, plain, rtol=0, atol=0)
+            fast.square().mean().backward()
+            with torch.no_grad():
+                for p in model.ode_model.parameters():
+                    if p.grad is not None:
+                        p.add_(p.grad, alpha=-0.01)
+
     def test_canonical_conditions_and_legacy_separation(self):
         self.assertEqual(
             common.CONDITIONS[4:], [f"{f}_trajectory_ot_soft" for f in common.FAMILIES]
@@ -498,6 +552,8 @@ class TrajectoryTests(unittest.TestCase):
                 return_value=SimpleNamespace(gene_order_hash=lambda _: "genes"),
             ),
         ):
+            args.trajectory_save_interval = 1
+            args.trajectory_log_interval = 1
             run = runner.train(args)
             with (run / "losses.csv").open() as f:
                 rows = list(csv.DictReader(f))

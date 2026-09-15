@@ -51,6 +51,11 @@ def parser(command):
         ):
             p.add_argument("--" + name, type=int)
         p.add_argument("--trajectory-dt", type=float)
+        p.add_argument("--trajectory-log-interval", type=int)
+        p.add_argument("--trajectory-save-interval", type=int)
+        p.add_argument(
+            "--trajectory-field-backend", choices=["source", "shared_parameters_v1"]
+        )
     elif command == "cache_x50":
         p.add_argument("--campaign", required=True)
         p.add_argument("--role", choices=["train", "evaluation"], default="train")

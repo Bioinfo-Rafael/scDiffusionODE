@@ -7,6 +7,7 @@ from torch.utils.checkpoint import checkpoint
 from ..common import finite
 from ..losses.sinkhorn import sinkhorn_divergence
 from .objectives import soft_constraint
+from .direct_hill import prepare_field
 
 SCHEMA = "trajectory_occupation_v1"
 
@@ -35,7 +36,7 @@ def validate_trajectory(c):
         raise ValueError("requires exactly one sample per nonempty temporal bin")
 
 
-def integrate(ode, start, *, steps, dt, checkpoint_block=10):
+def integrate(ode, start, *, steps, dt, checkpoint_block=10, field_backend="source"):
     """Return [B,K+1,G]; no diffusion call, no detaching, fixed conditioning t=0."""
     if steps < 1 or checkpoint_block < 0 or not math.isfinite(dt) or dt <= 0:
         raise ValueError("invalid trajectory integration settings")
@@ -44,10 +45,12 @@ def integrate(ode, start, *, steps, dt, checkpoint_block=10):
     finite("trajectory start", start)
     terminal = torch.zeros((len(start), 1), device=start.device, dtype=torch.long)
 
+    evaluate_field = prepare_field(ode, field_backend)
+
     def block(x, count):
         states = []
         for _ in range(count):
-            field = ode(x, terminal)
+            field = evaluate_field(x, terminal)
             if field.shape != x.shape:
                 raise ValueError("ODE field shape differs from state")
             x = x + dt * field
@@ -130,6 +133,9 @@ def trajectory_loss(model, source, real_target, config, *, step):
         steps=c["ode_steps"],
         dt=c["ode_dt"],
         checkpoint_block=c["checkpoint_block"],
+        field_backend=config.get("trajectory_runtime", {}).get(
+            "field_backend", "shared_parameters_v1"
+        ),
     )
     rng = np.random.default_rng(
         np.random.SeedSequence([c["temporal_sampler_seed"], step])
