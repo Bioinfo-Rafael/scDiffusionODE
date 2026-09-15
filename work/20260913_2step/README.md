@@ -904,3 +904,27 @@ bash work/20260913_2step/scripts/run_all.sh --resume-analysis-launch work/202609
 自動バックグラウンド起動。PID・新ログの`tail -f`コマンドを表示する。
 `--dry-run`追加時は再利用対象を検証して残りのコマンドだけを表示し、ジョブを起動しない。
 再開時のdeviceと残りのsampling/解析引数は元の実行計画を引き継ぐ。
+
+
+## 完了済みの旧OT 3条件を解析する
+
+`--analyze-legacy-ot-campaign`は `hill_after_linear_ot_soft`、
+`centered_signed_hill_ot_soft`、`shifted_hill_rho_ot_soft` の3条件限定。
+各条件の完了マーカーと最終EMAのSHA・目的関数・Stage1由来を検証する。
+完了済み試行がない、または複数ある場合は停止する。学習やtrajectory OTは起動しない。
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github &&
+git fetch origin &&
+git switch feat/20260914-trajectory-occupation-ot &&
+git merge --ff-only origin/feat/20260914-trajectory-occupation-ot &&
+bash work/20260913_2step/scripts/run_all.sh --analyze-legacy-ot-campaign two_step_20260913_070659_2e7ec730
+```
+
+自動でバックグラウンド起動し、表示された `LAUNCH_DIR/nohup.log` に進捗を保存する。
+3条件それぞれ sampling → analyze → embed → metrics_plot → umap_plot の計15工程。
+結果は `results/<旧OT条件>/<実行ID>/`、数値解析はその `analyze/`、
+UMAPは `embed/`、図はそれぞれの `figures/` 配下に新規保存する。
+既存のrecon解析を再実行しない。評価OTの未収束は再試行後に欠損として記録する。
+生成状態の発散など他の異常は停止する。失敗時は表示されたlaunchを
+`--resume-analysis-launch <LAUNCH_DIR>` で指定すれば完了工程を再利用できる。

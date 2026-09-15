@@ -21,6 +21,11 @@ CONDITIONS = ["stage1_cellunet"] + [
     for family in ("hill_after_linear", "centered_signed_hill", "shifted_hill_rho")
 ]
 
+LEGACY_OT_CONDITIONS = [
+    f"{family}_ot_soft"
+    for family in ("hill_after_linear", "centered_signed_hill", "shifted_hill_rho")
+]
+
 
 def write_json(path, value):
     with path.open("x") as handle:
@@ -42,8 +47,13 @@ def plan(args):
         )
 
     completed_only = bool(getattr(args, "analyze_completed_campaign", None))
-    analysis_only = bool(getattr(args, "analyze_campaign", None)) or completed_only
+    legacy_only = bool(getattr(args, "analyze_legacy_ot_campaign", None))
+    analysis_only = (
+        bool(getattr(args, "analyze_campaign", None)) or completed_only or legacy_only
+    )
     conditions = CONDITIONS if completed_only or not analysis_only else CONDITIONS[:4]
+    if legacy_only:
+        conditions = LEGACY_OT_CONDITIONS
     occupation_enabled = completed_only or not analysis_only
 
     def add_cache(role):
@@ -256,7 +266,14 @@ def recovery_steps(manifest):
                 steps.append(original)
         return steps, artifacts, selections
     if manifest.get("analysis_only"):
-        for condition in CONDITIONS[1:4]:
+        analysis_conditions = (
+            LEGACY_OT_CONDITIONS
+            if manifest.get("legacy_ot_analysis")
+            else CONDITIONS[:4]
+        )
+        for condition in analysis_conditions:
+            if condition == "stage1_cellunet":
+                continue
             selected = recovery.select_training(
                 campaign, condition, canonical, completed_only=True
             )
@@ -268,16 +285,14 @@ def recovery_steps(manifest):
             selections[condition] = selected
         for step in manifest["steps"]:
             condition, action = step["name"].rsplit(".", 1)
-            if condition not in CONDITIONS[:4] or action not in {
+            if condition not in analysis_conditions or action not in {
                 "sample",
                 "analyze",
                 "embed",
                 "metrics_plot",
                 "umap_plot",
             }:
-                raise ValueError(
-                    "analysis-only plan contains a training or OT-model step"
-                )
+                raise ValueError("analysis-only plan contains a forbidden step")
         return manifest["steps"], artifacts, selections
     for original in manifest["steps"]:
         step = {**original, "argv": list(original["argv"])}
@@ -438,6 +453,10 @@ def parser():
         help="analyze all completed canonical models, including trajectory OT; skip incomplete models and never train",
     )
     mode.add_argument(
+        "--analyze-legacy-ot-campaign",
+        help="analyze completed legacy OT models only; never train or run trajectory OT",
+    )
+    mode.add_argument(
         "--analyze-campaign",
         help="sample/analyze/plot completed Stage 1 + three reconstruction conditions only; never train",
     )
@@ -482,9 +501,16 @@ def main(argv=None):
         restart_steps, _, previous = analysis_restart(args.resume_analysis_launch)
         args.analyze_campaign = previous["campaign"]
         args.device = previous["device"]
-    analysis_only = bool(args.analyze_campaign or args.analyze_completed_campaign)
+    analysis_only = bool(
+        args.analyze_campaign
+        or args.analyze_completed_campaign
+        or args.analyze_legacy_ot_campaign
+    )
     existing_campaign = (
-        args.resume_campaign or args.analyze_campaign or args.analyze_completed_campaign
+        args.resume_campaign
+        or args.analyze_campaign
+        or args.analyze_completed_campaign
+        or args.analyze_legacy_ot_campaign
     )
     if existing_campaign:
         args.campaign = existing_campaign
@@ -513,6 +539,7 @@ def main(argv=None):
                     "steps": steps,
                     "analysis_only": analysis_only,
                     "completed_analysis": bool(args.analyze_completed_campaign),
+                    "legacy_ot_analysis": bool(args.analyze_legacy_ot_campaign),
                 }
             )
             print("RECOVERY_SELECTION=" + json.dumps(selections))
@@ -566,6 +593,7 @@ def main(argv=None):
         "resume_campaign": bool(args.resume_campaign),
         "analysis_only": analysis_only,
         "completed_analysis": bool(args.analyze_completed_campaign),
+        "legacy_ot_analysis": bool(args.analyze_legacy_ot_campaign),
         "device": args.device,
         "steps": steps,
         "python": sys.executable,

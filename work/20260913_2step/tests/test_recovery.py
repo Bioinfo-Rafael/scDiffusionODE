@@ -307,6 +307,43 @@ class RecoveryTests(unittest.TestCase):
         self.assertEqual(select.call_count, 3)
         self.assertEqual(len(artifacts), 4)
 
+    def test_legacy_ot_analysis_selects_only_completed_legacy_models(self):
+        args = launcher.parser().parse_args(
+            ["--analyze-legacy-ot-campaign", "old_campaign"]
+        )
+        args.campaign = args.analyze_legacy_ot_campaign
+        steps = launcher.plan(args)
+        self.assertEqual(len(steps), 15)
+        self.assertFalse(
+            any("train.py" in arg for step in steps for arg in step["argv"])
+        )
+        self.assertTrue(
+            all(
+                step["name"].split(".")[0] in launcher.LEGACY_OT_CONDITIONS
+                for step in steps
+            )
+        )
+        manifest = {
+            "campaign": "old_campaign",
+            "steps": steps,
+            "analysis_only": True,
+            "legacy_ot_analysis": True,
+        }
+
+        def selection(campaign, condition, canonical, *, completed_only=False):
+            self.assertTrue(completed_only)
+            self.assertTrue(condition in launcher.LEGACY_OT_CONDITIONS)
+            return {"completed_checkpoint": "/fixture/" + condition + ".pt"}
+
+        with (
+            patch.object(launcher, "SUITE", self.root),
+            patch.object(recovery, "select_training", side_effect=selection) as select,
+        ):
+            actual, artifacts, _ = launcher.recovery_steps(manifest)
+        self.assertEqual(actual, steps)
+        self.assertEqual(select.call_count, 3)
+        self.assertEqual(len(artifacts), 4)
+
     def test_analysis_only_refuses_missing_completed_condition(self):
         args = launcher.parser().parse_args(["--analyze-campaign", "old_campaign"])
         manifest = {
