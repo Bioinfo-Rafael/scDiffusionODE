@@ -1,0 +1,8 @@
+runs/
+results/
+__pycache__/
+*.pyc
+.pytest_cache/
+.test_tmp/
+.mplconfig/
+.ruff_cache/

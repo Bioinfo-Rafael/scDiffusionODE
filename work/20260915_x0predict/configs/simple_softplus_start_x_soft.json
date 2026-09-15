@@ -1,0 +1,4 @@
+{
+  "condition": "simple_softplus_start_x_soft",
+  "objective": "start_x"
+}

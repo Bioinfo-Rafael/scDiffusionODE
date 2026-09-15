@@ -1,0 +1,86 @@
+test_all_eight_backward_freeze_optimizer_ema_roundtrip (test_suite.SuiteTests) ... ok
+test_all_four_deterministic_forward_formulas (test_suite.SuiteTests) ... ok
+test_controlled_stage1_target_is_x0 (test_suite.SuiteTests) ... ok
+test_diagnostics_target_and_norms (test_suite.SuiteTests) ... ok
+test_distribution_analysis_and_plot_files (test_suite.SuiteTests) ... ok
+test_dry_run_creates_nothing (test_suite.SuiteTests) ... ok
+test_epsilon_rejected_and_old_defaults_unchanged (test_suite.SuiteTests) ... ok
+test_exact_historical_classes_and_masks (test_suite.SuiteTests) ... ok
+test_exclusive_outputs_and_path_confinement (test_suite.SuiteTests) ... ok
+test_high_t_data_gradient_inactive_but_soft_penalty_backward (test_suite.SuiteTests) ... ok
+test_launcher_failure_continues_and_stage1_shared (test_suite.SuiteTests) ... ok
+test_mode_and_matrix_and_canonical_defaults (test_suite.SuiteTests) ... ok
+test_native_sampling_and_saved_semantics (test_suite.SuiteTests) ... [build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+CAMPAIGN=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/runs/x0predict_20260915T130652Z_e6043dcb
+Stage1: train/reuse START_X final EMA
+Stage2: simple_softplus_start_x_soft, simple_softplus_ot_soft, hill_after_linear_start_x_soft, hill_after_linear_ot_soft, centered_signed_hill_start_x_soft, centered_signed_hill_ot_soft, shifted_hill_rho_start_x_soft, shifted_hill_rho_ot_soft
+Analysis: Stage1 and selected completed Stage2; native START_X DDPM, diagnostics, UMAP, plots
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+saved 2/2 trajectories
+ok
+test_ot_consumes_raw_output_identity (test_suite.SuiteTests) ... ok
+test_protected_repository_unchanged (test_suite.SuiteTests) ... ok
+test_reject_old_k8_and_injected_gating (test_suite.SuiteTests) ... ok
+test_schedule_all_four_and_no_adapter (test_suite.SuiteTests) ... ok
+test_simple_equation_initialization (test_suite.SuiteTests) ... ok
+test_strict_single_ode_provenance_shapes_and_no_nn (test_suite.SuiteTests) ... ok
+test_timestep_support (test_suite.SuiteTests) ... ok
+test_training_loop_resume_and_canonical_sharing (test_suite.SuiteTests)
+2 Stage1 + 1 update per family/objective, synthetic four-gene CPU only. ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 10.258s
+
+OK
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/stage1_cellunet/20260915T130653Z_7c4e15e7/checkpoints/ema_0.9999_000002.pt
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/stage1_cellunet/20260915T130653Z_7c4e15e7/checkpoints/ema_0.9999_000002.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/simple_softplus_start_x_soft/20260915T130653Z_935ed5ea/checkpoints/ema_0.9999_000001.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/simple_softplus_ot_soft/20260915T130654Z_a5b3cce9/checkpoints/ema_0.9999_000001.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/hill_after_linear_start_x_soft/20260915T130654Z_d2e6a87b/checkpoints/ema_0.9999_000001.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/hill_after_linear_ot_soft/20260915T130654Z_0c4409c3/checkpoints/ema_0.9999_000001.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/centered_signed_hill_start_x_soft/20260915T130654Z_7a09ef1f/checkpoints/ema_0.9999_000001.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/centered_signed_hill_ot_soft/20260915T130655Z_a9ad7207/checkpoints/ema_0.9999_000001.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/shifted_hill_rho_start_x_soft/20260915T130655Z_cfffbd63/checkpoints/ema_0.9999_000001.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/.test_tmp/tmppn7g2v65/x0predict_toy/shifted_hill_rho_ot_soft/20260915T130655Z_fd2b748f/checkpoints/ema_0.9999_000001.pt

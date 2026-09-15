@@ -1,0 +1,185 @@
+{
+  "scope": [
+    "ODE",
+    "work",
+    "LegacyFiles"
+  ],
+  "unique_python_blobs": 549,
+  "softmax_blobs": [
+    {
+      "blob": "8284477256c04dfce2e7432c0b70b0a724cd7297",
+      "path": "LegacyFiles/classifier_sample.py",
+      "matches": [
+        "255: prob1 = F.softmax(logits1, dim=-1)",
+        "256: prob2 = F.softmax(logits2, dim=-1)",
+        "264: prob = F.softmax(logits, dim=-1)",
+        "272: prob = F.softmax(logits, dim=-1)"
+      ]
+    },
+    {
+      "blob": "3629a33d9fd0ab421b33d18be6194477ecedfe02",
+      "path": "LegacyFiles/debug_classifier_prediction.py",
+      "matches": [
+        "49: probs = F.softmax(logits, dim=-1)"
+      ]
+    },
+    {
+      "blob": "86124011273e5959783dc3ce0e7c9de3ea951824",
+      "path": "LegacyFiles/pbmc68k_classifier_sample_limited_attempts.py",
+      "matches": [
+        "190: prob = F.softmax(logits, dim=-1)"
+      ]
+    },
+    {
+      "blob": "cf03d03cf5a33c392d8733f4d167d20f149f94b1",
+      "path": "ODE/ode_20260707_lincomb.py",
+      "matches": [
+        "71: probabilities = torch.softmax(logits / self.gate_temperature, dim=-1)"
+      ]
+    },
+    {
+      "blob": "951c6ecb2f8b43c17442ef88fac06e776104f9db",
+      "path": "ODE/ode_analysis20260420.py",
+      "matches": [
+        "43: mode='mlp'    : alpha = softmax(MLP([x, t_emb]))",
+        "44: mode='linear' : alpha = softmax(Linear([x, t_emb]))",
+        "135: alpha = F.softmax(logits, dim=-1)"
+      ]
+    },
+    {
+      "blob": "2885bb8fda8d6f39f2a2acce45e48e12d683dba0",
+      "path": "work/20260803_ODE_hill_exp/models/ode_fields.py",
+      "matches": [
+        "229: probabilities = torch.softmax(logits / self.gate_temperature, dim=-1)"
+      ]
+    },
+    {
+      "blob": "48ce21426e0d8c7773ffa3af3ce611c4301ac8de",
+      "path": "work/20260816/models/ode_fields.py",
+      "matches": [
+        "201: probabilities = torch.softmax(logits / self.gate_temperature, dim=-1)"
+      ]
+    }
+  ],
+  "simple_models": [
+    {
+      "blob": "a22d604be41e0961c1116391062ca50f049d7808",
+      "path": "ODE/ode_20260421_regODEMLratio.py",
+      "production_decay": [
+        "101: Wx = x @ (self.W if self.soft else (self.W * self.mask)) + self.b",
+        "103: alpha =  torch.nn.functional.softplus(Wx * self.scale) #Wx",
+        "104: gamma = torch.nn.functional.softplus(self.gamma)",
+        "105: dxdt_sub = alpha - gamma * x",
+        "108: out = dxdt_sub"
+      ]
+    },
+    {
+      "blob": "ff6289bd3d007b40c4b10a3925f3d195cafdf1ba",
+      "path": "ODE/ode_analysis.py",
+      "production_decay": [
+        "97: Wx = x_sub @ (self.W if self.soft else (self.W * self.mask)) + self.b          # (cells, m)",
+        "99: alpha = torch.nn.functional.softplus(Wx)",
+        "100: dxdt_sub = alpha - self.gamma * x_sub                  # (cells, m)",
+        "103: out[:, self.full_mask] = dxdt_sub"
+      ]
+    },
+    {
+      "blob": "0997aa5360c89435bdc33c89ab7fac103d26b39d",
+      "path": "ODE/ode_analysis1106.py",
+      "production_decay": [
+        "111: # Wx = x_sub @ (self.W if self.soft else (self.W * self.mask)) + self.b          # (cells, m)",
+        "112: Wx = x @ (self.W if self.soft else (self.W * self.mask)) + self.b",
+        "124: alpha =  torch.sigmoid(Wx * self.scale) #torch.nn.functional.softplus(Wx)",
+        "131: # dxdt_sub = alpha - self.gamma * x_sub                  # (cells, m)",
+        "132: dxdt_sub = alpha - self.gamma * x",
+        "135: # out[:, self.full_mask] = dxdt_sub",
+        "136: out = dxdt_sub"
+      ]
+    },
+    {
+      "blob": "9c239b9ca7a45a2ace0efe0430818988d0194e81",
+      "path": "ODE/ode_analysis20260413.py",
+      "production_decay": [
+        "93: Wx = x @ (self.W if self.soft else (self.W * self.mask)) + self.b",
+        "96: # alpha =  torch.exp(Wx * self.scale) #torch.nn.functional.softplus(Wx)",
+        "98: # #\u2b50\ufe0f\u65b0\u898f\u5909\u66f4\u70b920260413(2) exp\u3060\u3068inf\u306b\u306a\u308a\u767a\u6563\u3059\u308b\u306e\u3067\u3001softplus\u306b\u5909\u66f4",
+        "99: alpha = torch.nn.functional.softplus(Wx) #Wx",
+        "101: gamma = torch.nn.functional.softplus(self.gamma) #\u03b3\u306f\u6b63\u306e\u5024\u306b\u5236\u7d04",
+        "102: dxdt_sub = alpha - gamma * x",
+        "105: out = dxdt_sub",
+        "121: #     gamma = F.softplus(self.gamma)"
+      ]
+    },
+    {
+      "blob": "fd4efe4103fabf7f3daefb70d71a5a3c4ec84125",
+      "path": "ODE/ode_analysis20260416.py",
+      "production_decay": [
+        "83: dx/dt = softplus(Wx + b) - softplus(gamma) * x",
+        "186: Wx = torch.einsum(\"br,bnr->bn\", u, B) * self.latent_scale",
+        "214: Wx = self._compute_Wx_lowrank(x, A, B)",
+        "227: alpha = F.softplus(Wx + self.b) #Wx + self.b #F.softplus(Wx + self.b) #F.sigmoid(Wx + self.b)",
+        "228: gamma = F.softplus(self.gamma)",
+        "467: Wx = torch.einsum(\"br,bnr->bn\", u, B) * self.latent_scale",
+        "526: Wx = self._compute_Wx_lowrank(x_in, A, B)",
+        "535: alpha = F.softplus(Wx + self.b)",
+        "536: gamma = F.softplus(self.gamma)"
+      ]
+    },
+    {
+      "blob": "0eea009ef4e2c39314db2475339d217ea291291a",
+      "path": "work/20260609_HybridNormModes/smoke_test_20260609.py",
+      "production_decay": [
+        "51: return F.softplus(x @ self.W + self.b) - F.softplus(self.gamma) * x"
+      ]
+    },
+    {
+      "blob": "4f6e6652b0719b334723322016ba6198246189b6",
+      "path": "work/20260830/models/ode_fields_20260830.py",
+      "production_decay": [
+        "5: 20260803, and simple-softplus from ``ODE/ode_20260421_regODEMLratio.py``.",
+        "24: \"simple_softplus\",",
+        "73: return F.softplus(self.raw_delta) + self.positive_epsilon",
+        "139: return F.softplus(self.raw_A) + self.positive_epsilon",
+        "143: return F.softplus(self.raw_theta) + self.positive_epsilon",
+        "271: return F.softplus(self.raw_K) + self.positive_epsilon",
+        "275: return F.softplus(self.raw_V) + self.positive_epsilon",
+        "287: z = F.softplus(F.linear(x, self.W, self.b))",
+        "293: ode_type = \"simple_softplus\"",
+        "304: self.register_buffer(\"input_scale\", torch.tensor(1.0 / math.sqrt(self.d)))",
+        "317: production = F.softplus(self.input_scale * F.linear(x, self.W, self.b))",
+        "318: return production - F.softplus(self.gamma)[None, :] * x",
+        "325: \"simple_softplus\": SimpleSoftplus20260830,"
+      ]
+    },
+    {
+      "blob": "35da7292a161b80e4b255314df0b8819ed15bdd1",
+      "path": "work/20260830/models/ode_fields_20260830.py",
+      "production_decay": [
+        "5: 20260803, and simple-softplus from ``ODE/ode_20260421_regODEMLratio.py``.",
+        "24: \"simple_softplus\",",
+        "73: return F.softplus(self.raw_delta) + self.positive_epsilon",
+        "133: return F.softplus(self.raw_A) + self.positive_epsilon",
+        "137: return F.softplus(self.raw_theta) + self.positive_epsilon",
+        "265: return F.softplus(self.raw_K) + self.positive_epsilon",
+        "269: return F.softplus(self.raw_V) + self.positive_epsilon",
+        "281: z = F.softplus(F.linear(x, self.W, self.b))",
+        "287: ode_type = \"simple_softplus\"",
+        "298: self.register_buffer(\"input_scale\", torch.tensor(1.0 / math.sqrt(self.d)))",
+        "311: production = F.softplus(self.input_scale * F.linear(x, self.W, self.b))",
+        "312: return production - F.softplus(self.gamma)[None, :] * x",
+        "319: \"simple_softplus\": SimpleSoftplus20260830,"
+      ]
+    },
+    {
+      "blob": "1259d3c0b8955169e89c7f87018571c066806076",
+      "path": "ODE/ode_20260421_regODEMLratio.py",
+      "production_decay": [
+        "96: Wx = x @ (self.W if self.soft else (self.W * self.mask)) + self.b",
+        "98: alpha =  torch.nn.functional.softplus(Wx * self.scale) #Wx",
+        "99: gamma = torch.nn.functional.softplus(self.gamma)",
+        "100: dxdt_sub = alpha - gamma * x",
+        "103: out = dxdt_sub"
+      ]
+    }
+  ]
+}

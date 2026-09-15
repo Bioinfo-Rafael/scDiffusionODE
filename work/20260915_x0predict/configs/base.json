@@ -1,0 +1,39 @@
+{
+  "suite_version": "20260915_x0predict_v1",
+  "ot": {
+    "epsilon": 0.1,
+    "max_iterations": 2000,
+    "tolerance": 1e-05,
+    "cost": "mean_squared_gene_distance",
+    "debias": true,
+    "compute_dtype": "float64",
+    "batch_size": 128
+  },
+  "post_ode_steps": 100,
+  "post_ode_dt": 0.001,
+  "post_ode_integrator": "euler",
+  "max_state_norm": 1000000.0,
+  "analysis_cells": 2000,
+  "analysis_pairs": 100000,
+  "analysis_ot_cells": 128,
+  "division_epsilon": 1e-12,
+  "predict_xstart": true,
+  "log_interval": 50,
+  "save_interval": 1000,
+  "hybrid_schedule": {
+    "name": "late_linear_v1",
+    "cutoff": 500,
+    "formula": "w_ode=max(0,1-t/500); w_cellunet=1-w_ode",
+    "timestep": "original_unscaled_diffusion_t",
+    "inactive_ode_raw": "evaluated only for explicit branch diagnostics; excluded from Hybrid forward"
+  },
+  "evaluation": {
+    "sliced_wasserstein_projections": 256,
+    "sliced_wasserstein_points": 2048,
+    "seed": 4321
+  },
+  "prediction_semantics": "raw model output is x0; no epsilon conversion or Euler adapter",
+  "post_ode_semantics": "post-hoc dynamics analysis only; not a training objective",
+  "start_x_timesteps": "uniform 0..999; ODE data gradient is inactive at t>=500",
+  "ot_timesteps": "uniform 0..49"
+}

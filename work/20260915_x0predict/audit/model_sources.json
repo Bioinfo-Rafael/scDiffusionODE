@@ -1,0 +1,132 @@
+[
+  {
+    "ode_family": "simple_softplus",
+    "ode_source_suite": "work/20260830",
+    "ode_source_file": "work/20260830/models/ode_fields_20260830.py",
+    "ode_class": "SimpleSoftplus20260830",
+    "ode_components": 1,
+    "expert_gating": false,
+    "ode_source_sha256": "77efb7bd1cdd5abf61d718d8488ea166e44a062e3a63b1ab5d683da86a273e08",
+    "is_lincomb": false,
+    "num_components": 1,
+    "num_experts": 1,
+    "named_modules": [
+      ""
+    ],
+    "parameter_shapes": {
+      "W": [
+        4,
+        4
+      ],
+      "b": [
+        4
+      ],
+      "gamma": [
+        4
+      ]
+    }
+  },
+  {
+    "ode_family": "hill_after_linear",
+    "ode_source_suite": "work/20260830",
+    "ode_source_file": "work/20260830/models/ode_fields_20260830.py",
+    "ode_class": "HillAfterLinear20260830",
+    "ode_components": 1,
+    "expert_gating": false,
+    "ode_source_sha256": "77efb7bd1cdd5abf61d718d8488ea166e44a062e3a63b1ab5d683da86a273e08",
+    "is_lincomb": false,
+    "num_components": 1,
+    "num_experts": 1,
+    "named_modules": [
+      ""
+    ],
+    "parameter_shapes": {
+      "raw_delta": [
+        4
+      ],
+      "W": [
+        4,
+        4
+      ],
+      "b": [
+        4
+      ],
+      "raw_K": [
+        4
+      ],
+      "raw_V": [
+        4
+      ]
+    }
+  },
+  {
+    "ode_family": "centered_signed_hill",
+    "ode_source_suite": "work/20260830",
+    "ode_source_file": "work/20260830/models/ode_fields_20260830.py",
+    "ode_class": "CenteredSignedHill20260830",
+    "ode_components": 1,
+    "expert_gating": false,
+    "ode_source_sha256": "77efb7bd1cdd5abf61d718d8488ea166e44a062e3a63b1ab5d683da86a273e08",
+    "is_lincomb": false,
+    "num_components": 1,
+    "num_experts": 1,
+    "named_modules": [
+      ""
+    ],
+    "parameter_shapes": {
+      "raw_delta": [
+        4
+      ],
+      "raw_A": [
+        4,
+        4
+      ],
+      "raw_theta": [
+        4,
+        4
+      ],
+      "b": [
+        4
+      ],
+      "alpha": [
+        4,
+        4
+      ]
+    }
+  },
+  {
+    "ode_family": "shifted_hill_rho",
+    "ode_source_suite": "work/20260830",
+    "ode_source_file": "work/20260830/models/ode_fields_20260830.py",
+    "ode_class": "ShiftedHillRho20260830",
+    "ode_components": 1,
+    "expert_gating": false,
+    "ode_source_sha256": "77efb7bd1cdd5abf61d718d8488ea166e44a062e3a63b1ab5d683da86a273e08",
+    "is_lincomb": false,
+    "num_components": 1,
+    "num_experts": 1,
+    "named_modules": [
+      ""
+    ],
+    "parameter_shapes": {
+      "raw_delta": [
+        4
+      ],
+      "raw_A": [
+        4,
+        4
+      ],
+      "raw_theta": [
+        4,
+        4
+      ],
+      "b": [
+        4
+      ],
+      "rho": [
+        4,
+        4
+      ]
+    }
+  }
+]

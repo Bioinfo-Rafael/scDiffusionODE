@@ -1,0 +1,4 @@
+{
+  "condition": "simple_softplus_ot_soft",
+  "objective": "ot"
+}

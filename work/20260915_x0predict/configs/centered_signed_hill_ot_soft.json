@@ -1,0 +1,4 @@
+{
+  "condition": "centered_signed_hill_ot_soft",
+  "objective": "ot"
+}

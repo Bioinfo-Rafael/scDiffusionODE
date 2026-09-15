@@ -1,0 +1,4 @@
+{
+  "condition": "shifted_hill_rho_start_x_soft",
+  "objective": "start_x"
+}

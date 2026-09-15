@@ -1,0 +1,4 @@
+{
+  "condition": "shifted_hill_rho_ot_soft",
+  "objective": "ot"
+}

@@ -1,0 +1,4 @@
+{
+  "condition": "hill_after_linear_start_x_soft",
+  "objective": "start_x"
+}

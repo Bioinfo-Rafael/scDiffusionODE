@@ -1,0 +1,4 @@
+{
+  "condition": "hill_after_linear_ot_soft",
+  "objective": "ot"
+}
