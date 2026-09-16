@@ -293,6 +293,11 @@ source SHA、および各lossのsolver情報で追跡できます。
 で同じcampaignを再開できます。完了済みstepは再利用し、失敗したOT学習は
 最新の完全なraw/EMA/optimizer checkpoint bundleから再開します。
 bundleがなければその条件をstep 0から開始します。元の失敗ログは保持します。
+再開時のsource照合は`audit/resume_compatibility.json`で既知の修正前後SHA256を
+照合し、今回のSinkhorn retry修正とそのテスト・設定・再開処理だけを許可します。
+それ以外のsource変更は引き続き拒否します。campaign作成時のsource snapshotと
+immutable configは書き換えず、新しいrun/checkpointの`source_migration`に
+変更前後のSHA256と適用policyを保存します。
 実際のリモートPCAデータで16000以内に収束するかは未検証です。
 
 ### 1. Pull・環境activate

@@ -28,6 +28,25 @@ os.environ.setdefault("MPLCONFIGDIR", str(TEMP / "matplotlib"))
 
 
 class Tests(unittest.TestCase):
+    def test_resume_source_accepts_only_pinned_retry_changes(self):
+        current = c.source_provenance()
+        policy = c.read_json(c.SUITE / "audit/resume_compatibility.json")
+        original = dict(current)
+        for path, rule in policy["files"].items():
+            self.assertEqual(current[path], rule["current_sha256"])
+            original[path] = rule["previous_sha256"][0]
+        self.assertIsNone(runner.validate_resume_source(current, current))
+        migration = runner.validate_resume_source(original, current)
+        self.assertEqual(set(migration["changed"]), set(policy["files"]))
+        for path in [next(iter(policy["files"])), "work/20260916_x0predict_hybrid_additive/models.py"]:
+            altered = dict(current, **{path: "unreviewed"})
+            with self.assertRaises(ValueError):
+                runner.validate_resume_source(original, altered)
+        with self.assertRaises(ValueError):
+            runner.validate_resume_source(dict(original, unknown="added"), current)
+        with self.assertRaises(ValueError):
+            runner.validate_resume_source(original, {k: v for k, v in current.items() if k not in policy["files"]})
+
     def test_sinkhorn_retry_preserves_settings_and_gradient(self):
         config = c.effective_config("softplus_ot")["pca_ot"]
         pred = torch.randn(4, 3, dtype=torch.float64, requires_grad=True)
@@ -297,6 +316,13 @@ class Tests(unittest.TestCase):
         with patch.object(launcher, "effective_config", side_effect=small_config), \
              patch.object(launcher, "campaign_path", return_value=fake_campaign):
             campaign = launcher.prepare(args)
+        # Simulate an existing campaign's source snapshot, before retry fixes.
+        snapshot = campaign / "source_sha256.json"
+        saved_source = c.read_json(snapshot)
+        for filename, rule in c.read_json(c.SUITE / "audit/resume_compatibility.json")["files"].items():
+            saved_source[filename] = rule["previous_sha256"][0]
+        snapshot.write_text(json.dumps(saved_source))
+        snapshot_hash = c.file_hash(snapshot)
         original_bytes = c.file_hash(path)
         with patch.object(runner, "campaign_path", return_value=campaign):
             train_args = SimpleNamespace(campaign=campaign.name, condition="softplus_ot", device="cpu")
@@ -312,6 +338,8 @@ class Tests(unittest.TestCase):
             final = runner.train(train_args)
             meta = cp.read_checkpoint(final)["metadata"]
             self.assertEqual(meta["step"], 2)
+            self.assertIsNotNone(meta["source_migration"])
+            self.assertEqual(c.file_hash(snapshot), snapshot_hash)
             self.assertEqual(meta["frozen_cellunet_hash_before"], meta["frozen_cellunet_hash_after"])
             self.assertIsNotNone(meta["pca_provenance"])
             cache_hash = c.file_hash(Path(meta["pca_provenance"]["path"]) / "real_pca.npy")

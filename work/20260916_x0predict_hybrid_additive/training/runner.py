@@ -4,7 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 import torch
-from ..common import (STAGE1, build_diffusion, campaign_path, file_hash, finite, git_commit,
+from ..common import (STAGE1, SUITE, build_diffusion, campaign_path, file_hash, finite, git_commit,
                       load_real, new_dir, read_json, run_id, seed_all, source_provenance,
                       state_hash, umap_core, write_json)
 from ..models import build_model, freeze_from_stage1, assert_frozen, optimizer_for, update_ema
@@ -16,6 +16,24 @@ from .objectives import timestep_sampler, training_loss
 
 # Reuse recovery/completion verification without the old source loader/train loop.
 recovery = load("training._recovery", "training/runner.py")
+
+
+def validate_resume_source(original, current):
+    """Permit only hash-pinned versions of the reviewed Sinkhorn retry patch."""
+    changed = {path: dict(before=original.get(path), after=current.get(path))
+               for path in original.keys() | current.keys()
+               if original.get(path) != current.get(path)}
+    if not changed:
+        return None
+    policy = read_json(SUITE / "audit/resume_compatibility.json")
+    for path, hashes in changed.items():
+        allowed = policy["files"].get(path)
+        if (allowed is None or hashes["before"] not in allowed["previous_sha256"]
+                or hashes["after"] != allowed["current_sha256"]):
+            raise ValueError(f"campaign source changed outside compatible Sinkhorn retry patch: {path}; create a new campaign")
+    print(f"[resume] applying {policy['id']}; verified {len(changed)} source changes", flush=True)
+    return dict(id=policy["id"], changed=changed,
+                policy_sha256=file_hash(SUITE / "audit/resume_compatibility.json"))
 
 
 def pca_for_campaign(campaign, matrix, config, origin):
@@ -39,8 +57,7 @@ def train(args):
     if config["objective"] == "stage1":
         raise ValueError("this campaign never trains Stage1")
     source = source_provenance()
-    if source != read_json(campaign / "source_sha256.json"):
-        raise ValueError("campaign source changed; create a new campaign")
+    source_migration = validate_resume_source(read_json(campaign / "source_sha256.json"), source)
     done = recovery.completed_training(campaign, args.condition)
     if done:
         print(f"EMA_CHECKPOINT={done['checkpoint']}")
@@ -85,7 +102,7 @@ def train(args):
                     data_sha256=origin["data_sha256"], edge_tsv_sha256=origin["edge_tsv_sha256"],
                     originating_stage1=origin, frozen_cellunet_hash_before=frozen_hash,
                     model_mean_type="START_X", predict_xstart=True, git_commit=git_commit(), source_sha256=source,
-                    pca_provenance=pca_meta, continuation=bundle,
+                    pca_provenance=pca_meta, continuation=bundle, source_migration=source_migration,
                     resume_rng_policy="restart seeded indexed source/target/diffusion streams; restore optimizer/EMA/count")
     write_json(run / "metadata.json", metadata)
     write_json(run / "effective_config.json", config)
