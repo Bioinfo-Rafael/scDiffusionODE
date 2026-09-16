@@ -1,0 +1,6 @@
+runs/
+results/
+.test_tmp/
+.mplconfig/
+__pycache__/
+*.pyc

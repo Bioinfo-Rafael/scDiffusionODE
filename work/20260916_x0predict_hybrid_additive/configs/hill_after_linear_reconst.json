@@ -1,0 +1,5 @@
+{
+  "condition": "hill_after_linear_reconst",
+  "ode_type": "hill_after_linear",
+  "objective": "start_x"
+}

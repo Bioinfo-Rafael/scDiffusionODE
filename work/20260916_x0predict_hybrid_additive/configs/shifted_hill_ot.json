@@ -1,0 +1,5 @@
+{
+  "condition": "shifted_hill_ot",
+  "ode_type": "shifted_hill_rho",
+  "objective": "ot"
+}

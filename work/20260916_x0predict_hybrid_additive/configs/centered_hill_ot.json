@@ -1,0 +1,5 @@
+{
+  "condition": "centered_hill_ot",
+  "ode_type": "centered_signed_hill",
+  "objective": "ot"
+}

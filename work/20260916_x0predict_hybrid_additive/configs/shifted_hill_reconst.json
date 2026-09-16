@@ -1,0 +1,5 @@
+{
+  "condition": "shifted_hill_reconst",
+  "ode_type": "shifted_hill_rho",
+  "objective": "start_x"
+}

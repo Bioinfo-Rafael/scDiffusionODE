@@ -1,0 +1,5 @@
+{
+  "condition": "softplus_ot",
+  "ode_type": "simple_softplus",
+  "objective": "ot"
+}

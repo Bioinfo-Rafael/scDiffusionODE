@@ -1,0 +1,70 @@
+test_actual_format_stage1_load_and_epsilon_rejection (test_suite.Tests) ... ok
+test_additive_boundary_and_frozen_cell (test_suite.Tests) ... ok
+test_all_eight_build_and_diffusion_and_defaults (test_suite.Tests) ... ok
+test_checkpoint_prepare_and_two_step_resume (test_suite.Tests) ... [build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+STAGE1_SHA256=42a1d30b0d8be1b323820d7c065c41175415e7bf8156f3012ccba5691963f643
+DATA=/Users/cls-lab/Git/scDiffusionODE/work/20260916_x0predict_hybrid_additive/.test_tmp/tmpxmzxnfj4/training.h5ad
+EDGE_TSV=/Users/cls-lab/Git/scDiffusionODE/work/20260916_x0predict_hybrid_additive/.test_tmp/tmpxmzxnfj4/edges.tsv
+[build_edge_mask] genes=4, edges(in-list)=2
+softplus_ot step=1 loss=3.72518
+softplus_ot step=2 loss=3.72428
+EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260916_x0predict_hybrid_additive/.test_tmp/tmpxmzxnfj4/additive_toy/softplus_ot/20260916T033202Z_2675c55d/checkpoints/ema_0.9999_000002.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+centered_hill_ot step=1 loss=6.04103
+centered_hill_ot step=2 loss=6.29988
+ok
+test_disjoint_32768_refresh_repair_and_reproducibility (test_suite.Tests) ... ok
+test_evaluation_numeric_plot_and_small_umap (test_suite.Tests) ... EMA_CHECKPOINT=/Users/cls-lab/Git/scDiffusionODE/work/20260916_x0predict_hybrid_additive/.test_tmp/tmpxmzxnfj4/additive_toy/centered_hill_ot/20260916T033202Z_18d63484/checkpoints/ema_0.9999_000002.pt
+[build_edge_mask] genes=4, edges(in-list)=2
+[evaluation OT] attempt 1 failed: Sinkhorn did not converge: epsilon=0.1, marginal residual=4.05157e-05, tolerance=1e-05, iterations=2000
+[evaluation OT] attempt 2 failed: Sinkhorn did not converge: epsilon=0.2, marginal residual=1.4377e-05, tolerance=1e-05, iterations=2000
+[evaluation OT] NOT COMPUTED: continuing other metrics; no unconverged value accepted
+/Users/cls-lab/miniconda3/envs/scdiffusion/lib/python3.9/site-packages/anndata/_core/anndata.py:121: ImplicitModificationWarning: Transforming to str index.
+  warnings.warn("Transforming to str index.", ImplicitModificationWarning)
+OMP: Info #276: omp_set_nested routine deprecated, please use omp_set_max_active_levels instead.
+ok
+test_fixed_pca_cache_and_autograd (test_suite.Tests) ... ok
+test_full_1000_timestep_sampling_smoke (test_suite.Tests) ... [build_edge_mask] genes=4, edges(in-list)=2
+saved 2/2 trajectories
+ok
+test_gradient_equivalence_to_full_sinkhorn (test_suite.Tests) ... ok
+test_indexed_source_stream (test_suite.Tests) ... ok
+test_launcher_reuses_one_baseline_and_continues_failures (test_suite.Tests) ... ok
+test_legacy_blend_unchanged (test_suite.Tests) ... ok
+test_pca_ot_gradient_all_four_odes_and_frozen_ema (test_suite.Tests) ... ok
+test_protected_files_unchanged (test_suite.Tests) ... ok
+test_real_32768_target_solve_has_no_target_square (test_suite.Tests) ... ok
+test_recorder_boundary_and_sampling_duplicate_guard (test_suite.Tests) ... ok
+test_reused_modules_are_isolated_and_native_sampling (test_suite.Tests) ... ok
+
+----------------------------------------------------------------------
+Ran 17 tests in 9.549s
+
+OK
+TRAJECTORY_DIR=/Users/cls-lab/Git/scDiffusionODE/work/20260916_x0predict_hybrid_additive/.test_tmp/tmp9xhu_tx9/samples/softplus_reconst/20260916T033208Z_c6074352
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2
+[build_edge_mask] genes=4, edges(in-list)=2

@@ -1,0 +1,5 @@
+{
+  "condition": "hill_after_linear_ot",
+  "ode_type": "hill_after_linear",
+  "objective": "ot"
+}

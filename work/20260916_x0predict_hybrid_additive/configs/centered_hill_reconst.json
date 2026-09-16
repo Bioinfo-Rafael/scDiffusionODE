@@ -1,0 +1,5 @@
+{
+  "condition": "centered_hill_reconst",
+  "ode_type": "centered_signed_hill",
+  "objective": "start_x"
+}

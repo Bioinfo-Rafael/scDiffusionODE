@@ -1,0 +1,29 @@
+{
+  "suite_version": "20260916_x0predict_hybrid_additive_v1",
+  "hybrid_mode": "additive",
+  "stage1_checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260915_x0predict/runs/x0predict_20260915T131558Z_6802c20b/stage1_cellunet/20260915T131601Z_1085706d/checkpoints/ema_0.9999_030000.pt",
+  "pca": {
+    "dimension": 50,
+    "batch_size": 4096,
+    "whiten": false
+  },
+  "target_size": 32768,
+  "target_refresh_interval": 10,
+  "source_seed": 1234,
+  "target_seed": 1235,
+  "pca_ot": {
+    "epsilon": 0.1,
+    "max_iterations": 2000,
+    "tolerance": 1e-05,
+    "compute_dtype": "float64",
+    "cost": "mean_squared_pca_distance",
+    "objective": "sinkhorn_divergence_up_to_target_constant",
+    "target_self_term": "omitted_constant_zero_model_gradient"
+  },
+  "hybrid_schedule": {
+    "name": "additive_hybrid500",
+    "cutoff": 500,
+    "formula": "w_ode=max(0,1-t/500); w_cellunet=1",
+    "timestep": "original_unscaled_diffusion_t"
+  }
+}

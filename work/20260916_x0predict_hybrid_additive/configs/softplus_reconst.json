@@ -1,0 +1,5 @@
+{
+  "condition": "softplus_reconst",
+  "ode_type": "simple_softplus",
+  "objective": "start_x"
+}
