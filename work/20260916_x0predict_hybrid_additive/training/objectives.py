@@ -10,7 +10,8 @@ timestep_sampler, soft_constraint = old.timestep_sampler, old.soft_constraint
 
 def converged_entropic_ot(prediction, target, config):
     """Retry only nonconvergence; keep the objective and marginal tolerance fixed."""
-    limit = int(config["max_iterations"])
+    # Apply the 200-iteration start to immutable campaigns created with 2000 too.
+    limit = min(200, int(config["max_iterations"]))
     ceiling = max(limit, int(config.get("retry_max_iterations", 16000)))
     failures = []
     while True:

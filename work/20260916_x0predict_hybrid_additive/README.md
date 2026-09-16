@@ -193,7 +193,8 @@ transport planをdetachする近似は追加しません。KeOps等の新しい�
 
 PCA costは `mean((p-q)^2)`、すなわち50次元ならsquared distance / 50です。
 epsilon 0.1、uniform marginals、float64、absolute marginal tolerance `1e-5`、
-最大2000 iterationsを継承します。非収束を有限lossとして採用せず、その条件を失敗として
+初回上限200 iterations、未収束時は200ずつ最大16000まで増やします。
+最終上限でも非収束を有限lossとして採用せず、その条件を失敗として
 記録し、独立条件を続行します。full-size GPUの速度/peak memoryは未測定です。
 
 評価時は従来のgene-space・bounded subsample（最大128）による**完全な**Sinkhorn
@@ -276,15 +277,15 @@ seedから再開します。旧suiteと同じく、途中再開と無中断run�
 
 ## Run commands（リモート）
 
-### OTの2000反復での未収束と再開
+### OTの反復上限と再開
 
-PCA OTが2000反復で未収束の場合、同じprediction・targetで上限を
-2200 → 2400 → ... → 16000へ200ずつ増やして既存solverを初期状態から再試行します。
+PCA OTは200反復を初回上限とし、未収束の場合、同じprediction・targetで上限を
+400 → 600 → ... → 16000へ200ずつ増やして既存solverを初期状態から再試行します。
 epsilon=0.1、marginal tolerance=1e-5、cost、目的関数、微分方法は維持します。
 各試行は収束すれば早期終了し、16000でも未収束ならエラーとして停止します。
 非有限値などの別の例外は再試行しません。再試行は計算時間・メモリを増やし得ます。
 上限と失敗履歴はstdoutおよびlosses.csvのsinkhorn欄へ記録します。
-旧campaignのimmutable configでは2000が初回上限のままです。
+旧campaignのimmutable configに2000が保存されていても、実行時の初回上限は200です。
 再試行上限の既定値16000は修正版コードで適用され、run metadataのgit commitと
 source SHA、および各lossのsolver情報で追跡できます。
 
