@@ -8,17 +8,39 @@ solver = importlib.import_module("work.20260913_2step.losses.sinkhorn")
 timestep_sampler, soft_constraint = old.timestep_sampler, old.soft_constraint
 
 
+def converged_entropic_ot(prediction, target, config):
+    """Retry only nonconvergence; keep the objective and marginal tolerance fixed."""
+    limit = int(config["max_iterations"])
+    ceiling = max(limit, int(config.get("retry_max_iterations", 16000)))
+    failures = []
+    while True:
+        try:
+            loss, info = solver.entropic_ot(
+                prediction, target, epsilon=config["epsilon"],
+                max_iterations=limit, tolerance=config["tolerance"])
+        except solver.SinkhornConvergenceError as exc:
+            if limit >= ceiling:
+                raise
+            failures.append(dict(max_iterations=limit, error=str(exc)))
+            next_limit = min(2 * limit, ceiling)
+            print(f"[PCA OT] {exc}; retry from initialization with max_iterations={next_limit}", flush=True)
+        else:
+            info.update(max_iterations=limit, retry_max_iterations=ceiling, retries=failures)
+            return loss, info
+        # Leave the exception scope before rebuilding the differentiable solver graph.
+        limit = next_limit
+
+
 def rectangular_sinkhorn(prediction, target, config):
     if target.requires_grad:
         raise ValueError("cached empirical targets must be fixed")
     if config["objective"] != "sinkhorn_divergence_up_to_target_constant" or config["cost"] != "mean_squared_pca_distance" or config["compute_dtype"] != "float64":
         raise ValueError("unsupported PCA OT definition")
-    args = {k: config[k] for k in ("epsilon", "max_iterations", "tolerance")}
     pred, real = prediction.double(), target.double()
     # The old solver accepts rectangular clouds and divides squared distances by D.
     # No target-target call: OT(real, real)/2 is constant in every model parameter.
-    cross, cross_info = solver.entropic_ot(pred, real, **args)
-    self_cost, self_info = solver.entropic_ot(pred, pred, **args)
+    cross, cross_info = converged_entropic_ot(pred, real, config)
+    self_cost, self_info = converged_entropic_ot(pred, pred, config)
     loss = finite("Sinkhorn model-dependent part", cross - .5 * self_cost)
     return loss, dict(cross=cross_info, pred_self=self_info,
                      omitted="-0.5*OT(target,target): target-only constant; scalar is NOT full divergence")

@@ -276,6 +276,24 @@ seedから再開します。旧suiteと同じく、途中再開と無中断run�
 
 ## Run commands（リモート）
 
+### OTの2000反復での未収束と再開
+
+PCA OTが2000反復で未収束の場合、同じprediction・targetで上限を
+4000 → 8000 → 16000へ増やして既存solverを初期状態から再試行します。
+epsilon=0.1、marginal tolerance=1e-5、cost、目的関数、微分方法は維持します。
+各試行は収束すれば早期終了し、16000でも未収束ならエラーとして停止します。
+非有限値などの別の例外は再試行しません。再試行は計算時間・メモリを増やし得ます。
+上限と失敗履歴はstdoutおよびlosses.csvのsinkhorn欄へ記録します。
+旧campaignのimmutable configでは2000が初回上限のままです。
+再試行上限の既定値16000は修正版コードで適用され、run metadataのgit commitと
+source SHA、および各lossのsolver情報で追跡できます。
+
+修正版をpull後、`--resume-campaign additive_20260916T034022Z_fcc39362`
+で同じcampaignを再開できます。完了済みstepは再利用し、失敗したOT学習は
+最新の完全なraw/EMA/optimizer checkpoint bundleから再開します。
+bundleがなければその条件をstep 0から開始します。元の失敗ログは保持します。
+実際のリモートPCAデータで16000以内に収束するかは未検証です。
+
 ### 1. Pull・環境activate
 
 ```bash
