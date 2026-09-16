@@ -22,7 +22,7 @@ def converged_entropic_ot(prediction, target, config):
             if limit >= ceiling:
                 raise
             failures.append(dict(max_iterations=limit, error=str(exc)))
-            next_limit = min(2 * limit, ceiling)
+            next_limit = min(limit + 200, ceiling)
             print(f"[PCA OT] {exc}; retry from initialization with max_iterations={next_limit}", flush=True)
         else:
             info.update(max_iterations=limit, retry_max_iterations=ceiling, retries=failures)
