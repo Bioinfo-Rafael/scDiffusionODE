@@ -11,6 +11,7 @@ def main(argv=None):
     train.add_argument("--campaign", required=True)
     train.add_argument("--condition", choices=CONDITIONS, required=True)
     train.add_argument("--device", default="cuda")
+    train.add_argument("--training-steps", type=int)
     sample = commands.add_parser("sample")
     sample.add_argument("--checkpoint", required=True)
     sample.add_argument("--device", default="cuda")

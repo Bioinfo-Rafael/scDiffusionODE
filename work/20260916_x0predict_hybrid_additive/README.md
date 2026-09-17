@@ -74,7 +74,7 @@ evalを保ち、optimizerに入らないこと、raw/EMAのstate hashが不変�
 
 | 設定 | 既定値 |
 |---|---|
-| Stage2 updates / condition | 30,000 |
+| Stage2 updates / condition | 10,000（2026-09-17変更。Stage1は既存30,000step EMA） |
 | Source batch | 128、shuffle、drop_last |
 | Optimizer | AdamW、lr `1e-4`、weight decay `1e-4` |
 | EMA / seed | `0.9999` / 1234 |
@@ -84,6 +84,10 @@ evalを保ち、optimizerに入らないこと、raw/EMAのstate hashが不変�
 | Source index RNG | 1234。モデル初期化の乱数消費から分離 |
 | Target index RNG | 1235。sourceと別のRNG |
 | Sampling | seed 1234、3000 cells、batch 50、native ancestral DDPM、clipなし |
+
+`lr_anneal_steps`は元の30,000を維持します。10kへの変更は終了stepの短縮であり、
+途中までのlearning-rate scheduleを変えません。完了済み30k runの10k checkpointと
+新たに10kで止めたrunを同じscheduleのprefixとして比較できます。
 
 データとedgeの既定パスはStage1 metadataから継承します。元実験の既定値は
 `/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad` と
@@ -243,7 +247,8 @@ runs/additive_<UTC>_<RUNID>/
   pca.json, pca/<attempt>/         # transform.npz, real_pca.npy, completed.json
   <condition>/<attempt>/
     metadata.json, effective_config.json
-    losses.csv                    # OT primaryはtarget-only定数を除いた値
+    losses.csv                    # UTC timestamp付き。OT primaryはtarget-only定数を除いた値
+    timing.jsonl                  # 各起動の最初の3更新をdata/forward/backward/updateに分けて計測
     index_audit.jsonl             # zero-based step、source IDs、target SHA、refresh/repair数、overlap=0
     training_branch_metrics.csv/png, training_gene_variance.npz
     checkpoints/                  # raw/EMA/optimizer/complete bundle
@@ -289,21 +294,52 @@ epsilon=0.1、marginal tolerance=1e-5、cost、目的関数、微分方法は維
 10回ごとに収束を判定し、収束すれば早期終了します。16000でも未収束なら停止します。
 非有限値などの例外でも停止します。全反復を微分するため多数の反復には計算時間・メモリが必要です。
 累積反復数・上限延長履歴・`restarts=0`をlosses.csvのsinkhorn欄へ記録します。
-stdoutには200回ごとの継続通知と、延長後の収束通知を出します。
+stdoutは既定で50stepごとの進捗・秒/step・残り時間・cross/selfの反復数を出します。
+毎200反復の通知は`pca_ot.verbose=true`の場合のみです。反復履歴は常にCSVへ保存します。
+各起動の最初の3更新ではCUDAを区間境界で同期し、`[timing]`と`timing.jsonl`に
+data・forward（ODE/CellUNet/PCA/OTを含む）・backward・updateを記録します。
+通常更新には追加の区間同期を入れません。forwardだけでOTとODEの寄与を区別はできません。
 旧campaignのimmutable configに2000が保存されていても、実行時の初回上限は200です。
 再試行上限の既定値16000は修正版コードで適用され、run metadataのgit commitと
 source SHA、および各lossのsolver情報で追跡できます。
 
 修正版をpull後、`--resume-campaign additive_20260916T034022Z_fcc39362`
-で同じcampaignを再開できます。完了済みstepは再利用し、失敗したOT学習は
-最新の完全なraw/EMA/optimizer checkpoint bundleから再開します。
+で同じcampaignを再開できます。Stage2の実行上限は既定10,000、
+`--training-steps 10000`でも明示できます。元の設定が30kでも書き換えず、
+10k以下で最新の完全なraw/EMA/optimizer checkpoint bundleから再開します。
+30kまで完了済みのreconstructionは10kのbundleを使い、更新せずに
+実行上限10kのmetadataを付けた新checkpointとして保存します。
+10kのbundleがなければ、それ以前の最新bundleから10kまで学習します。
+変更された上限のstep markerは`<condition>_s10000_train/sample/analyze/...`となり、
+30kの解析を10kの結果として再利用しません。共通CellUNet baselineは再利用します。
+10kの比較表・UMAPなどは新attemptに保存し、30k結果を保持します。
 bundleがなければその条件をstep 0から開始します。元の失敗ログは保持します。
 再開時のsource照合は`audit/resume_compatibility.json`で既知の修正前後SHA256を
-照合し、今回のSinkhorn retry修正とそのテスト・設定・再開処理だけを許可します。
+照合し、確認済みのSinkhorn継続・10k上限・計測・launcher修正だけを許可します。
 それ以外のsource変更は引き続き拒否します。campaign作成時のsource snapshotと
 immutable configは書き換えず、新しいrun/checkpointの`source_migration`に
 変更前後のSHA256と適用policyを保存します。
 実際のリモートPCAデータで16000以内に収束するかは未検証です。
+
+高速化調査、CPU比較結果、未採用のアルゴリズム候補は
+[`audit/PERFORMANCE_REVIEW.md`](audit/PERFORMANCE_REVIEW.md)を参照してください。
+
+既存campaignを10kに短縮してbackgroundで再開する例（旧processの停止後）：
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github
+git pull --ff-only origin feat/20260916-x0predict-hybrid-additive
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate scdiffusion
+LOG_DIR=$(mktemp -d work/20260916_x0predict_hybrid_additive/runs/launch_XXXXXXXX)
+nohup env PYTHONUNBUFFERED=1 PYTHON="$(command -v python)" \
+  bash work/20260916_x0predict_hybrid_additive/scripts/run_all.sh \
+  --resume-campaign additive_20260916T034022Z_fcc39362 \
+  --all-eight --training-steps 10000 --gpu 0 --device cuda --analysis-device cpu \
+  > "$LOG_DIR/output.log" 2>&1 < /dev/null &
+echo "$!" > "$LOG_DIR/pid"
+tail -n 100 -F "$LOG_DIR/output.log"
+```
 
 ### 1. Pull・環境activate
 
@@ -372,7 +408,8 @@ PCA次元/target件数/refresh間隔はconfig化され、新campaignでは
 
 ### 5. Resume
 
-ログに表示されたcampaign名を使います。checkpoint/data/configの変更は許可しません。
+ログに表示されたcampaign名を使います。保存済みcheckpoint/data/configは変更せず、
+実行上限だけを短縮できます。10kと30kの評価markerは分かれます。
 
 ```bash
 bash work/20260916_x0predict_hybrid_additive/scripts/run_all.sh \
@@ -391,7 +428,9 @@ Tests cover全8config、Stage1形式load/freeze、additive境界、従来blend�
 source exclusion/repair/refresh、固定PCA、全4ODEへのdata-gradient、完全Sinkhornとの
 gradient一致、実32768 targetのrectangular solve/backward、sampling全1000 timestep、
 PCA共有、2-step interruption/resume、数値評価・小規模UMAP・PNG、条件失敗時の続行、
-旧tracked fileのbyte-level不変です。ログは `audit/tests.txt` にあります。
+旧tracked fileのbyte-level不変です。初回17件のログは `audit/tests.txt` にあります。
+2026-09-17は20件が成功し、上限短縮時のEMA再利用・元config/checkpointの不変・
+10k/30k markerの分離・時刻/区間計測も確認しました。
 
 **指定された実Stage1 checkpointはこのMacに存在しないため、その実ファイルのload検証は
 未実施です。** 同形式の合成checkpointでは成功しており、リモートでは上記preflightが

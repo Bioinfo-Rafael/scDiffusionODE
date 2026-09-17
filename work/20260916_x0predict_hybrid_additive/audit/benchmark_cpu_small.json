@@ -1,0 +1,226 @@
+{
+  "torch_version": "2.5.1",
+  "python": "3.9.23",
+  "device": "cpu",
+  "device_name": "arm64",
+  "shape": [
+    4,
+    7,
+    3
+  ],
+  "scale": 5,
+  "threads": 1,
+  "scope": "one rectangular OT forward/backward; excludes ODE, sampling and evaluation",
+  "results": [
+    {
+      "method": "continuation",
+      "trial": 0,
+      "status": "ok",
+      "forward_seconds": 0.3950609169999999,
+      "backward_seconds": 0.056620915999999966,
+      "total_seconds": 0.45168183299999987,
+      "loss": 10.90741863625458,
+      "solver": {
+        "iterations": 550,
+        "marginal_residual": 5.0949012508350044e-06,
+        "epsilon_scaling": false,
+        "scales": [
+          {
+            "epsilon": 0.1,
+            "iterations": 550,
+            "marginal_residual": 5.0949012508350044e-06
+          }
+        ],
+        "max_iterations": 600,
+        "retry_max_iterations": 16000,
+        "restarts": 0,
+        "budget_extensions": [
+          {
+            "iterations": 200,
+            "marginal_residual": 0.10706273625543683,
+            "next_limit": 400
+          },
+          {
+            "iterations": 400,
+            "marginal_residual": 0.03571428541752131,
+            "next_limit": 600
+          }
+        ]
+      },
+      "loss_difference": 0.0,
+      "gradient_relative_error": 0.0
+    },
+    {
+      "method": "continuation",
+      "trial": 1,
+      "status": "ok",
+      "forward_seconds": 0.024995875000000112,
+      "backward_seconds": 0.04744387499999991,
+      "total_seconds": 0.07243975000000002,
+      "loss": 10.90741863625458,
+      "solver": {
+        "iterations": 550,
+        "marginal_residual": 5.0949012508350044e-06,
+        "epsilon_scaling": false,
+        "scales": [
+          {
+            "epsilon": 0.1,
+            "iterations": 550,
+            "marginal_residual": 5.0949012508350044e-06
+          }
+        ],
+        "max_iterations": 600,
+        "retry_max_iterations": 16000,
+        "restarts": 0,
+        "budget_extensions": [
+          {
+            "iterations": 200,
+            "marginal_residual": 0.10706273625543683,
+            "next_limit": 400
+          },
+          {
+            "iterations": 400,
+            "marginal_residual": 0.03571428541752131,
+            "next_limit": 600
+          }
+        ]
+      },
+      "loss_difference": 0.0,
+      "gradient_relative_error": 0.0
+    },
+    {
+      "method": "legacy_retry",
+      "trial": 0,
+      "status": "ok",
+      "forward_seconds": 0.04927829200000011,
+      "backward_seconds": 0.03794420799999987,
+      "total_seconds": 0.08722249999999998,
+      "loss": 10.90741863625458,
+      "solver": {
+        "iterations": 550,
+        "marginal_residual": 5.0949012508350044e-06,
+        "epsilon_scaling": false,
+        "scales": [
+          {
+            "epsilon": 0.1,
+            "iterations": 550,
+            "marginal_residual": 5.0949012508350044e-06
+          }
+        ],
+        "executed_iterations_including_retries": 1150
+      },
+      "loss_difference": 0.0,
+      "gradient_relative_error": 0.0
+    },
+    {
+      "method": "legacy_retry",
+      "trial": 1,
+      "status": "ok",
+      "forward_seconds": 0.08538995900000002,
+      "backward_seconds": 0.040084540999999696,
+      "total_seconds": 0.1254744999999997,
+      "loss": 10.90741863625458,
+      "solver": {
+        "iterations": 550,
+        "marginal_residual": 5.0949012508350044e-06,
+        "epsilon_scaling": false,
+        "scales": [
+          {
+            "epsilon": 0.1,
+            "iterations": 550,
+            "marginal_residual": 5.0949012508350044e-06
+          }
+        ],
+        "executed_iterations_including_retries": 1150
+      },
+      "loss_difference": 0.0,
+      "gradient_relative_error": 0.0
+    },
+    {
+      "method": "epsilon_scaling_candidate",
+      "trial": 0,
+      "status": "ok",
+      "forward_seconds": 0.013429541999999905,
+      "backward_seconds": 0.022379291000000023,
+      "total_seconds": 0.03580883299999993,
+      "loss": 10.907387947680325,
+      "solver": {
+        "iterations": 310,
+        "marginal_residual": 4.1717267582896955e-06,
+        "epsilon_scaling": true,
+        "scales": [
+          {
+            "epsilon": 1.6,
+            "iterations": 80,
+            "marginal_residual": 3.820544215160648e-06
+          },
+          {
+            "epsilon": 0.8,
+            "iterations": 70,
+            "marginal_residual": 4.121269043033671e-06
+          },
+          {
+            "epsilon": 0.4,
+            "iterations": 70,
+            "marginal_residual": 6.484384473204319e-06
+          },
+          {
+            "epsilon": 0.2,
+            "iterations": 60,
+            "marginal_residual": 7.1613319021779365e-06
+          },
+          {
+            "epsilon": 0.1,
+            "iterations": 30,
+            "marginal_residual": 4.1717267582896955e-06
+          }
+        ]
+      },
+      "loss_difference": -3.0688574254256196e-05,
+      "gradient_relative_error": 0.0031316260722570595
+    },
+    {
+      "method": "epsilon_scaling_candidate",
+      "trial": 1,
+      "status": "ok",
+      "forward_seconds": 0.012933874999999873,
+      "backward_seconds": 0.022515750000000168,
+      "total_seconds": 0.03544962500000004,
+      "loss": 10.907387947680325,
+      "solver": {
+        "iterations": 310,
+        "marginal_residual": 4.1717267582896955e-06,
+        "epsilon_scaling": true,
+        "scales": [
+          {
+            "epsilon": 1.6,
+            "iterations": 80,
+            "marginal_residual": 3.820544215160648e-06
+          },
+          {
+            "epsilon": 0.8,
+            "iterations": 70,
+            "marginal_residual": 4.121269043033671e-06
+          },
+          {
+            "epsilon": 0.4,
+            "iterations": 70,
+            "marginal_residual": 6.484384473204319e-06
+          },
+          {
+            "epsilon": 0.2,
+            "iterations": 60,
+            "marginal_residual": 7.1613319021779365e-06
+          },
+          {
+            "epsilon": 0.1,
+            "iterations": 30,
+            "marginal_residual": 4.1717267582896955e-06
+          }
+        ]
+      },
+      "loss_difference": -3.0688574254256196e-05,
+      "gradient_relative_error": 0.0031316260722570595
+    }
+  ]
+}

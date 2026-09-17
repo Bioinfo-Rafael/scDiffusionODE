@@ -64,9 +64,25 @@ def effective_config(condition):
     config["base_condition"] = config["condition"]
     config.update(read_json(SUITE / "configs/base.json"))
     config.update(item)
+    if condition != STAGE1:
+        config["total_steps"] = config["stage2_training_steps"]
     config["experiment"] = condition
     config["ts_cache_path"] = str(SUITE / "runs/unused_ts_cache.json")
     return config
+
+
+def training_config(config, requested=None):
+    """Shorten the run horizon without rewriting the campaign or LR schedule."""
+    target = min(config["total_steps"], 10000) if requested is None else requested
+    if not isinstance(target, int) or not 1 <= target <= config["total_steps"]:
+        raise ValueError("training steps must be positive and cannot exceed the saved campaign horizon")
+    return dict(config, total_steps=target)
+
+
+def condition_step_prefix(campaign, condition, requested=None):
+    config = read_json(campaign / "configs" / f"{condition}.json")
+    target = training_config(config, requested)["total_steps"]
+    return condition if target == config["total_steps"] else f"{condition}_s{target}"
 
 
 def legacy_config(config):

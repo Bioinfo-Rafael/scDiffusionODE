@@ -120,7 +120,7 @@ class Tests(unittest.TestCase):
             self.assertIsInstance(model, m.AdditiveHybrid500)
             m.assert_single_ode(model.ode_model, cfg["ode_type"])
             self.assertEqual(c.build_diffusion(cfg).model_mean_type.name, "START_X")
-            self.assertEqual((cfg["batch_size"], cfg["total_steps"], cfg["seed"]), (128, 30000, 1234))
+            self.assertEqual((cfg["batch_size"], cfg["total_steps"], cfg["seed"]), (128, 10000, 1234))
             self.assertEqual((cfg["target_size"], cfg["target_refresh_interval"], cfg["pca"]["dimension"]), (32768, 10, 50))
 
     def test_additive_boundary_and_frozen_cell(self):
@@ -338,6 +338,26 @@ class Tests(unittest.TestCase):
             train_args.condition = "centered_hill_ot"
             another = cp.read_checkpoint(runner.train(train_args))["metadata"]
             self.assertEqual(another["pca_provenance"]["real_pca_sha256"], cache_hash)
+            # Completed reconstruction must use its intermediate EMA for a shorter horizon.
+            train_args.condition = "softplus_reconst"
+            complete_reconst = runner.train(train_args)
+            old_hash = c.file_hash(complete_reconst)
+            earlier = runner.latest_bundle_at_or_before(campaign, train_args.condition, 1)
+            earlier_ema_hash = c.state_hash(cp.read_checkpoint(earlier["ema"])["state_dict"])
+            config_hash = c.file_hash(campaign / "configs/softplus_reconst.json")
+            train_args.training_steps = 1
+            with patch.object(runner, "training_loss", side_effect=AssertionError("must not train past existing target")):
+                shortened = runner.train(train_args)
+                self.assertEqual(runner.train(train_args), shortened)
+            shortened_payload = cp.read_checkpoint(shortened)
+            self.assertEqual(shortened_payload["metadata"]["step"], 1)
+            self.assertEqual(shortened_payload["metadata"]["effective_config"]["total_steps"], 1)
+            self.assertEqual(c.state_hash(shortened_payload["state_dict"]), earlier_ema_hash)
+            self.assertEqual(c.file_hash(complete_reconst), old_hash)
+            self.assertEqual(c.file_hash(campaign / "configs/softplus_reconst.json"), config_hash)
+            timing_rows = [json.loads(line) for line in sorted((campaign / "centered_hill_ot").glob("*/timing.jsonl"))[-1].read_text().splitlines()]
+            self.assertEqual(len(timing_rows), 2)
+            self.assertGreaterEqual(timing_rows[-1]["backward_seconds"], 0)
         self.assertEqual(c.file_hash(path), original_bytes)
         restored, _ = cp.restore(final)
         m.assert_frozen(restored, expected=meta["frozen_cellunet_hash_before"])
@@ -370,6 +390,9 @@ class Tests(unittest.TestCase):
         self.assertEqual(changed, [])
 
     def test_launcher_reuses_one_baseline_and_continues_failures(self):
+        (self.path / "configs").mkdir()
+        for condition in c.CONDITIONS:
+            (self.path / "configs" / f"{condition}.json").write_text(json.dumps(c.effective_config(condition)))
         calls = []
         def fake(campaign, name, argv, key):
             calls.append(name)
@@ -386,6 +409,32 @@ class Tests(unittest.TestCase):
         self.assertNotIn("cellunet_only_train", calls)
         self.assertEqual(len([x for x in calls if x.endswith("_train")]), 8)
         self.assertIn("softplus_ot_embed_plot", calls)
+
+    def test_shortened_horizon_uses_separate_step_markers(self):
+        (self.path / "configs").mkdir()
+        for condition in c.CONDITIONS:
+            cfg = dict(c.effective_config(condition), total_steps=30000)
+            (self.path / "configs" / f"{condition}.json").write_text(json.dumps(cfg))
+        cfg = c.read_json(self.path / "configs/softplus_ot.json")
+        reduced = c.training_config(cfg)
+        self.assertEqual(reduced["total_steps"], 10000)
+        self.assertEqual(reduced["lr_anneal_steps"], cfg["lr_anneal_steps"])
+        self.assertEqual(c.condition_step_prefix(self.path, "softplus_ot"), "softplus_ot_s10000")
+        with self.assertRaises(ValueError):
+            c.training_config(cfg, 0)
+        calls = []
+        args = launcher.parser().parse_args(["--all-eight", "--training-steps", "10000", "--device", "cpu"])
+        comparison = importlib.import_module(PKG + ".analysis.comparison")
+        def fake(campaign, name, argv, key):
+            calls.append(name)
+            return self.path / name
+        with patch.object(launcher, "canonical_stage1", return_value=({}, {"checkpoint": "stage1.pt"})), \
+             patch.object(comparison, "compare") as compare:
+            self.assertEqual(launcher.execute(self.path, args, step_fn=fake), [])
+        self.assertIn("centered_hill_reconst_s10000_sample", calls)
+        self.assertNotIn("centered_hill_reconst_sample", calls)
+        self.assertEqual(calls.count("cellunet_only_sample"), 1)
+        compare.assert_called_once_with(self.path, training_steps=10000)
 
     def test_evaluation_numeric_plot_and_small_umap(self):
         import anndata as ad

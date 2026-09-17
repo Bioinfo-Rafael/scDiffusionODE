@@ -38,7 +38,8 @@ def converged_entropic_ot(prediction, target, config):
     while iteration < ceiling:
         count = min(10, limit - iteration)
         if torch.is_grad_enabled() and kernel.requires_grad:
-            u, v = checkpoint(block, kernel, u, v, count, use_reentrant=False)
+            # The block has no random operations: RNG snapshots only add overhead.
+            u, v = checkpoint(block, kernel, u, v, count, use_reentrant=False, preserve_rng_state=False)
         else:
             u, v = block(kernel, u, v, count)
         iteration += count
@@ -58,8 +59,9 @@ def converged_entropic_ot(prediction, target, config):
                     f"tolerance={tolerance:g}, iterations={iteration}")
             limit = min(limit + 200, ceiling)
             extensions.append(dict(iterations=iteration, marginal_residual=residual, next_limit=limit))
-            print(f"[PCA OT] iterations={iteration}, marginal residual={residual:g}, "
-                  f"tolerance={tolerance:g}; continuing from current state to {limit}", flush=True)
+            if config.get("verbose", False):
+                print(f"[PCA OT] iterations={iteration}, marginal residual={residual:g}, "
+                      f"tolerance={tolerance:g}; continuing from current state to {limit}", flush=True)
     log_plan = kernel + u[:, None] + v[None, :]
     plan = log_plan.exp()
     loss = ((plan * (cost + epsilon * (log_plan - log_a - log_b))).sum()
@@ -69,7 +71,7 @@ def converged_entropic_ot(prediction, target, config):
                 scales=[dict(epsilon=epsilon, iterations=iteration, marginal_residual=residual)],
                 max_iterations=limit, retry_max_iterations=ceiling, restarts=0,
                 budget_extensions=extensions)
-    if extensions:
+    if extensions and config.get("verbose", False):
         print(f"[PCA OT] converged after {iteration} total iterations; marginal residual={residual:g}", flush=True)
     return loss, info
 

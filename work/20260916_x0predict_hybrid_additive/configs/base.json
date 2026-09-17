@@ -1,6 +1,7 @@
 {
   "suite_version": "20260916_x0predict_hybrid_additive_v1",
   "hybrid_mode": "additive",
+  "stage2_training_steps": 10000,
   "stage1_checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260915_x0predict/runs/x0predict_20260915T131558Z_6802c20b/stage1_cellunet/20260915T131601Z_1085706d/checkpoints/ema_0.9999_030000.pt",
   "pca": {
     "dimension": 50,

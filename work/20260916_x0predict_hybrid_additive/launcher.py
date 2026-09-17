@@ -7,7 +7,7 @@ import subprocess
 import sys
 from .common import (SUITE, ROOT, VERSION, STAGE1, CONDITIONS, campaign_path, confined,
                      effective_config, file_hash, git_commit, load_real, new_dir, read_json,
-                     run_id, source_provenance, write_json)
+                     run_id, source_provenance, write_json, training_config, condition_step_prefix)
 from .training.checkpoints import load_stage1, save_checkpoint, canonical_stage1
 
 campaign_lock = importlib.import_module("work.20260915_x0predict.scripts.run_all").campaign_lock
@@ -25,6 +25,7 @@ def parser():
     p.add_argument("--pca-dimension", type=int)
     p.add_argument("--target-size", type=int)
     p.add_argument("--target-refresh-interval", type=int)
+    p.add_argument("--training-steps", type=int, help="Stage2 horizon (default 10000); may shorten an existing campaign")
     p.add_argument("--device", default="cuda")
     p.add_argument("--analysis-device", default="cpu")
     p.add_argument("--dry-run", action="store_true")
@@ -56,6 +57,8 @@ def prepare(args):
             config[key] = first[key]
         config.update(data_dir=data, edge_tsv_path=edge, output_campaign=campaign.name,
                       stage1_checkpoint=origin["checkpoint"])
+        if condition != STAGE1:
+            config = training_config(config, args.training_steps)
         for argument, key in ((args.target_size, "target_size"), (args.target_refresh_interval, "target_refresh_interval")):
             if argument is not None:
                 config[key] = argument
@@ -142,27 +145,30 @@ def execute(campaign, args, step_fn=step):
     errors = []
     _, origin = canonical_stage1(campaign)
     def evaluate(condition, checkpoint):
+        prefix = condition if condition == STAGE1 else condition_step_prefix(campaign, condition, args.training_steps)
         try:
-            sampled = step_fn(campaign, condition + "_sample", ["sample", "--checkpoint", str(checkpoint), "--device", args.device], "TRAJECTORY_DIR")
+            sampled = step_fn(campaign, prefix + "_sample", ["sample", "--checkpoint", str(checkpoint), "--device", args.device], "TRAJECTORY_DIR")
         except Exception as exc:
             errors.append(dict(step=condition + "_sample", error=str(exc)))
             return
         for action in ("analyze", "embed"):
             try:
-                output = step_fn(campaign, condition + "_" + action, [action, "--trajectory", str(sampled), "--device", args.analysis_device], "ANALYSIS_DIR")
-                step_fn(campaign, condition + "_" + action + "_plot", ["plot", "--input", str(output)], "FIGURE_DIR")
+                output = step_fn(campaign, prefix + "_" + action, [action, "--trajectory", str(sampled), "--device", args.analysis_device], "ANALYSIS_DIR")
+                step_fn(campaign, prefix + "_" + action + "_plot", ["plot", "--input", str(output)], "FIGURE_DIR")
             except Exception as exc:
                 errors.append(dict(step=condition + "_" + action, error=str(exc)))
     evaluate(STAGE1, origin["checkpoint"])
     for condition in [args.condition] if args.condition else CONDITIONS:
         try:
-            checkpoint = step_fn(campaign, condition + "_train", ["train", "--campaign", campaign.name,
-                                  "--condition", condition, "--device", args.device], "EMA_CHECKPOINT")
+            prefix = condition_step_prefix(campaign, condition, args.training_steps)
+            options = [] if args.training_steps is None else ["--training-steps", str(args.training_steps)]
+            checkpoint = step_fn(campaign, prefix + "_train", ["train", "--campaign", campaign.name,
+                                  "--condition", condition, "--device", args.device, *options], "EMA_CHECKPOINT")
             evaluate(condition, checkpoint)
         except Exception as exc:
             errors.append(dict(step=condition + "_train", error=str(exc)))
     from .analysis.comparison import compare
-    compare(campaign)
+    compare(campaign, training_steps=args.training_steps)
     return errors
 
 
@@ -171,6 +177,7 @@ def main(argv=None):
     if args.dry_run:
         print("Stage1 (read-only):", args.stage1_checkpoint or effective_config(STAGE1)["stage1_checkpoint"])
         print("Conditions:", [args.condition] if args.condition else CONDITIONS)
+        print("Stage2 training steps:", args.training_steps or 10000)
         print("CellUNet-only baseline + native START_X additive sampling/analysis; no work executed")
         return 0
     if args.preflight_only:
