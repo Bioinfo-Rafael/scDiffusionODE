@@ -10,9 +10,9 @@ SUITE = Path(__file__).resolve().parent
 ROOT = SUITE.parents[1]
 VERSION = "20260916_x0predict_hybrid_additive_v1"
 STAGE1 = "cellunet_only"
-CONDITIONS = [f"{family}_{loss}" for family in
-              ("centered_hill", "shifted_hill", "hill_after_linear", "softplus")
-              for loss in ("reconst", "ot")]
+CONDITIONS = [f"{family}_{loss}" for loss in ("reconst", "ot") for family in
+              ("centered_hill", "shifted_hill", "hill_after_linear", "softplus")]
+GRADIENT_MODES = ("full_autograd", "envelope")
 read_json, file_hash, state_hash = old.read_json, old.file_hash, old.state_hash
 seed_all, finite, run_id, git_commit = old.seed_all, old.finite, old.run_id, old.git_commit
 umap_core, metric_helpers, load_real = old.umap_core, old.metric_helpers, old.load_real
@@ -71,18 +71,46 @@ def effective_config(condition):
     return config
 
 
-def training_config(config, requested=None):
-    """Shorten the run horizon without rewriting the campaign or LR schedule."""
+def training_config(config, requested=None, *, target_size=None, gradient_mode=None):
+    """Explicit runtime overrides; leave the original campaign config intact."""
     target = min(config["total_steps"], 10000) if requested is None else requested
     if not isinstance(target, int) or not 1 <= target <= config["total_steps"]:
         raise ValueError("training steps must be positive and cannot exceed the saved campaign horizon")
-    return dict(config, total_steps=target)
+    result = dict(config, total_steps=target)
+    if config["objective"] == "ot":
+        if target_size is not None:
+            if not isinstance(target_size, int) or target_size < 1:
+                raise ValueError("OT target size must be positive")
+            result["target_size"] = target_size
+        if gradient_mode is not None:
+            if gradient_mode not in GRADIENT_MODES:
+                raise ValueError("unknown Sinkhorn gradient mode")
+            result["pca_ot"] = dict(config["pca_ot"], gradient_mode=gradient_mode)
+    return result
 
 
-def condition_step_prefix(campaign, condition, requested=None):
+def ot_settings(config):
+    return dict(target_size=config["target_size"], gradient_mode=config["pca_ot"].get("gradient_mode", "full_autograd"))
+
+
+def same_training_config(a, b):
+    """Compare checkpoint compatibility ignoring only the final training step."""
+    def normalized(config):
+        result = dict(config, total_steps=0)
+        if config["objective"] == "ot":
+            result["pca_ot"] = dict(config["pca_ot"], gradient_mode=ot_settings(config)["gradient_mode"])
+        return result
+    return normalized(a) == normalized(b)
+
+
+def condition_step_prefix(campaign, condition, requested=None, *, target_size=None, gradient_mode=None):
     config = read_json(campaign / "configs" / f"{condition}.json")
-    target = training_config(config, requested)["total_steps"]
-    return condition if target == config["total_steps"] else f"{condition}_s{target}"
+    effective = training_config(config, requested, target_size=target_size, gradient_mode=gradient_mode)
+    target = effective["total_steps"]
+    prefix = condition if target == config["total_steps"] else f"{condition}_s{target}"
+    if config["objective"] == "ot" and ot_settings(config) != ot_settings(effective):
+        prefix += f"_n{effective['target_size']}_{ot_settings(effective)['gradient_mode']}"
+    return prefix
 
 
 def legacy_config(config):

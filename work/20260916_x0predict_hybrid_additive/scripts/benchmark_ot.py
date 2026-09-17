@@ -30,10 +30,12 @@ def run(args):
     torch.manual_seed(1234)
     x = torch.randn(args.sources, args.dimension, dtype=torch.float64, device=device) * args.scale
     y = torch.randn(args.targets, args.dimension, dtype=torch.float64, device=device) * args.scale
-    config = dict(effective_config("softplus_ot")["pca_ot"], retry_max_iterations=args.max_iterations)
+    config = dict(effective_config("softplus_ot")["pca_ot"], retry_max_iterations=args.max_iterations,
+                  gradient_mode="full_autograd")
     funcs = {
         "legacy_retry": lambda a, b: legacy_retry(a, b, config),
         "continuation": lambda a, b: converged_entropic_ot(a, b, config),
+        "envelope": lambda a, b: converged_entropic_ot(a, b, dict(config, gradient_mode="envelope")),
         "epsilon_scaling_candidate": lambda a, b: solver.entropic_ot(a, b, epsilon=config["epsilon"],
             tolerance=config["tolerance"], max_iterations=args.max_iterations, epsilon_scaling=True),
     }
@@ -92,8 +94,8 @@ def main():
     p.add_argument("--threads", type=int, default=1)
     p.add_argument("--repeats", type=int, default=2)
     p.add_argument("--max-iterations", type=int, default=16000)
-    p.add_argument("--methods", nargs="+", default=["continuation", "legacy_retry", "epsilon_scaling_candidate"],
-                   choices=["continuation", "legacy_retry", "epsilon_scaling_candidate"])
+    p.add_argument("--methods", nargs="+", default=["continuation", "envelope"],
+                   choices=["continuation", "envelope", "legacy_retry", "epsilon_scaling_candidate"])
     p.add_argument("--output")
     args = p.parse_args()
     if min(args.sources, args.targets, args.dimension, args.threads, args.repeats) < 1 or args.max_iterations < 200:

@@ -10,21 +10,16 @@ solver = importlib.import_module("work.20260913_2step.losses.sinkhorn")
 timestep_sampler, soft_constraint = old.timestep_sampler, old.soft_constraint
 
 
-def converged_entropic_ot(prediction, target, config):
-    """Existing fixed-epsilon equations, with state retained across budget extensions.
-
-    Keep the legacy cost, KL objective, alternating updates, 10-step convergence
-    checks and differentiable checkpoint blocks. Only the budget control differs.
-    """
+def _converged_plan(cost, config):
+    """Solve the same log-domain problem in the caller's autograd context."""
     # Apply the 200-iteration start to immutable campaigns created with 2000 too.
     limit = min(200, int(config["max_iterations"]))
     ceiling = max(limit, int(config.get("retry_max_iterations", 16000)))
     epsilon, tolerance = float(config["epsilon"]), float(config["tolerance"])
     if limit < 1 or not math.isfinite(epsilon) or epsilon <= 0 or not 0 < tolerance < 1:
         raise ValueError("invalid Sinkhorn numerical settings")
-    cost = solver.cost_matrix(prediction, target)
-    log_a, log_b = -math.log(len(prediction)), -math.log(len(target))
-    u, v = torch.zeros_like(prediction[:, 0]), torch.zeros_like(target[:, 0])
+    log_a, log_b = -math.log(cost.shape[0]), -math.log(cost.shape[1])
+    u, v = cost.new_zeros(cost.shape[0]), cost.new_zeros(cost.shape[1])
     kernel = -cost / epsilon
 
     def block(kernel, u, v, count):
@@ -64,15 +59,39 @@ def converged_entropic_ot(prediction, target, config):
                       f"tolerance={tolerance:g}; continuing from current state to {limit}", flush=True)
     log_plan = kernel + u[:, None] + v[None, :]
     plan = log_plan.exp()
-    loss = ((plan * (cost + epsilon * (log_plan - log_a - log_b))).sum()
-            - epsilon * plan.sum() + epsilon)
-    finite("entropic OT", loss)
     info = dict(iterations=iteration, marginal_residual=residual, epsilon_scaling=False,
                 scales=[dict(epsilon=epsilon, iterations=iteration, marginal_residual=residual)],
                 max_iterations=limit, retry_max_iterations=ceiling, restarts=0,
                 budget_extensions=extensions)
     if extensions and config.get("verbose", False):
         print(f"[PCA OT] converged after {iteration} total iterations; marginal residual={residual:g}", flush=True)
+    return plan, log_plan, info
+
+
+def converged_entropic_ot(prediction, target, config):
+    """Full unrolled gradient, or envelope gradient with a converged fixed plan.
+
+    Both modes return the same entropic primal value for the same input and
+    stopping criterion. Envelope mode keeps prediction->cost differentiable,
+    but does not differentiate iterations, dual potentials or the final plan.
+    """
+    mode = config.get("gradient_mode", "full_autograd")
+    if mode not in ("full_autograd", "envelope"):
+        raise ValueError("unknown Sinkhorn gradient mode")
+    cost = solver.cost_matrix(prediction, target)
+    if mode == "envelope":
+        with torch.no_grad():
+            plan, log_plan, info = _converged_plan(cost, config)
+    else:
+        plan, log_plan, info = _converged_plan(cost, config)
+    epsilon = float(config["epsilon"])
+    log_a, log_b = -math.log(len(prediction)), -math.log(len(target))
+    # In envelope mode only cost carries gradients. Retain the KL term in the
+    # reported value; returning only <P,C> would report the wrong objective.
+    loss = ((plan * (cost + epsilon * (log_plan - log_a - log_b))).sum()
+            - epsilon * plan.sum() + epsilon)
+    finite("entropic OT", loss)
+    info.update(gradient_mode=mode, source_count=len(prediction), target_count=len(target))
     return loss, info
 
 

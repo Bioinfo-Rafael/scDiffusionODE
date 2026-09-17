@@ -1,17 +1,28 @@
 """Completed terminal diffusion metrics beside the same shared CellUNet baseline."""
+import json
+from pathlib import Path
 from ..common import STAGE1, CONDITIONS, SUITE, new_dir, read_json, run_id, write_csv, write_json, condition_step_prefix
 
 
-def compare(campaign, training_steps=None):
+def compare(campaign, training_steps=None, target_size=None, gradient_mode=None):
     import pandas as pd
     rows = []
     for condition in [STAGE1, *CONDITIONS]:
-        prefix = condition if condition == STAGE1 else condition_step_prefix(campaign, condition, training_steps)
+        prefix = condition if condition == STAGE1 else condition_step_prefix(
+            campaign, condition, training_steps, target_size=target_size, gradient_mode=gradient_mode)
         marker = campaign / "steps" / (prefix + "_analyze") / "completed.json"
         if not marker.exists():
             continue
         path = read_json(marker)["artifact"]
-        row = dict(condition=condition, baseline=STAGE1, numerical_source=path, step_prefix=prefix)
+        meta = read_json(Path(path) / "analysis_metadata.json")
+        sampling = read_json(Path(meta["trajectory"]) / "sampling_metadata.json")
+        config = meta["training_config"]
+        is_ot = config["objective"] == "ot"
+        row = dict(condition=condition, baseline=STAGE1, numerical_source=path, step_prefix=prefix,
+                   training_step=sampling.get("step"),
+                   training_target_size=config["target_size"] if is_ot else None,
+                   gradient_mode=config["pca_ot"].get("gradient_mode", "full_autograd") if is_ot else None,
+                   ot_transitions=json.dumps(sampling.get("ot_transitions", [])))
         for file, columns in {
             "collapse_coverage": ["aggregate_gene_variance", "mean_distance_from_population_centroid", "mean_knn_distance", "added_real_knn_radius_coverage"],
             "trajectory_diversity": ["mean", "median"],

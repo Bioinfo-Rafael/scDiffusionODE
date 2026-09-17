@@ -4,6 +4,7 @@ import hashlib
 import importlib
 import json
 import os
+import signal
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -28,6 +29,74 @@ os.environ.setdefault("MPLCONFIGDIR", str(TEMP / "matplotlib"))
 
 
 class Tests(unittest.TestCase):
+    def test_envelope_loss_gradient_and_no_iteration_graph(self):
+        config = dict(c.effective_config("softplus_ot")["pca_ot"], tolerance=1e-11)
+        pred = (torch.randn(3, 2, dtype=torch.float64) * .3).requires_grad_()
+        target = torch.randn(5, 2, dtype=torch.float64) * .3
+        with patch.object(obj, "checkpoint", side_effect=AssertionError("envelope must not checkpoint iterations")):
+            value, info = obj.rectangular_sinkhorn(pred, target, config)
+        gradient = torch.autograd.grad(value, pred)[0]
+        reference, ref_info = obj.rectangular_sinkhorn(pred, target, dict(config, gradient_mode="full_autograd"))
+        torch.testing.assert_close(value, reference, rtol=0, atol=0)
+        self.assertEqual(info["cross"]["iterations"], ref_info["cross"]["iterations"])
+        torch.testing.assert_close(gradient, torch.autograd.grad(reference, pred)[0], rtol=1e-6, atol=1e-8)
+        # Finite differences exercise both arguments of the prediction self term.
+        numeric = torch.empty_like(pred)
+        for row in range(len(pred)):
+            for col in range(pred.shape[1]):
+                plus, minus = pred.detach().clone(), pred.detach().clone()
+                plus[row, col] += 1e-5
+                minus[row, col] -= 1e-5
+                numeric[row, col] = (obj.rectangular_sinkhorn(plus, target, config)[0]
+                                     - obj.rectangular_sinkhorn(minus, target, config)[0]) / 2e-5
+        torch.testing.assert_close(gradient, numeric, rtol=1e-5, atol=1e-7)
+        self.assertIsNone(target.grad)
+        self.assertEqual(info["cross"]["gradient_mode"], "envelope")
+        with self.assertRaises(ValueError):
+            obj.converged_entropic_ot(pred, target, dict(config, gradient_mode="invalid"))
+
+    def test_8192_targets_remain_disjoint_and_differentiable(self):
+        sampler = d.DisjointTargets(9000, 8192)
+        source = np.arange(128)
+        ids, info = sampler.sample(source, 0)
+        source = ids[:128].copy()
+        ids, info = sampler.sample(source, 1)
+        self.assertEqual(len(np.unique(ids)), 8192)
+        self.assertEqual(info["repaired"], 128)
+        self.assertEqual(np.intersect1d(source, ids).size, 0)
+        pred = (torch.rand(4, 50) * .1).requires_grad_()
+        target = torch.rand(8192, 50) * .1
+        with patch.object(obj, "checkpoint", side_effect=AssertionError("iteration graph")):
+            value, info = obj.rectangular_sinkhorn(pred, target, c.effective_config("softplus_ot")["pca_ot"])
+        value.backward()
+        self.assertGreater(float(pred.grad.norm()), 0)
+        self.assertEqual(info["cross"]["target_count"], 8192)
+
+    def test_stop_campaign_selects_own_tree_and_rejects_reused_pid(self):
+        stop = importlib.import_module(PKG + ".scripts.stop_campaign")
+        campaign = "additive_test"
+        processes = {
+            100: ([PKG + ".scripts.run_all", "--resume-campaign", campaign], (1, "a", "S")),
+            101: ([PKG + ".cli", "train", "--campaign", campaign], (100, "b", "R")),
+            102: (["helper"], (101, "c", "S")),
+            200: ([PKG + ".scripts.run_all", "--resume-campaign", "additive_other"], (1, "d", "R")),
+            201: (["grep", campaign], (1, "e", "S")),
+            300: ([PKG + ".cli", "analyze", "/results/additive_test/path"], (1, "f", "S")),
+        }
+        selected = stop.descendants(processes, stop.select(processes, campaign))
+        self.assertEqual(selected, {100, 101, 102, 300})
+        with patch.object(stop, "identity", return_value=(1, "reused", "R")), patch.object(stop.os, "kill") as kill:
+            stop.send(100, signal.SIGTERM, processes)
+            kill.assert_not_called()
+        signals = []
+        with patch.object(stop, "snapshot", return_value=processes), \
+             patch.object(stop, "send", side_effect=lambda pid, sig, ps: signals.append((pid, sig))), \
+             patch.object(stop, "alive", return_value=False), patch.object(stop.Path, "is_dir", return_value=True):
+            self.assertEqual(stop.stop(campaign), 0)
+        self.assertEqual(signals[0], (100, signal.SIGSTOP))
+        self.assertIn((102, signal.SIGTERM), signals)
+        self.assertEqual(signals[-2:], [(100, signal.SIGTERM), (100, signal.SIGCONT)])
+
     def test_resume_source_accepts_only_pinned_retry_changes(self):
         current = c.source_provenance()
         policy = c.read_json(c.SUITE / "audit/resume_compatibility.json")
@@ -49,7 +118,7 @@ class Tests(unittest.TestCase):
 
     def test_sinkhorn_continuation_preserves_iterations_loss_and_gradient(self):
         torch.manual_seed(1234)
-        config = c.effective_config("softplus_ot")["pca_ot"]
+        config = dict(c.effective_config("softplus_ot")["pca_ot"], gradient_mode="full_autograd")
         pred = (torch.randn(4, 3, dtype=torch.float64) * 5).requires_grad_()
         target = torch.randn(7, 3, dtype=torch.float64) * 5
         with patch.object(obj.solver, "cost_matrix", wraps=obj.solver.cost_matrix) as cost, \
@@ -121,7 +190,8 @@ class Tests(unittest.TestCase):
             m.assert_single_ode(model.ode_model, cfg["ode_type"])
             self.assertEqual(c.build_diffusion(cfg).model_mean_type.name, "START_X")
             self.assertEqual((cfg["batch_size"], cfg["total_steps"], cfg["seed"]), (128, 10000, 1234))
-            self.assertEqual((cfg["target_size"], cfg["target_refresh_interval"], cfg["pca"]["dimension"]), (32768, 10, 50))
+            self.assertEqual((cfg["target_size"], cfg["target_refresh_interval"], cfg["pca"]["dimension"]), (8192, 10, 50))
+            self.assertEqual(cfg["pca_ot"]["gradient_mode"], "envelope")
 
     def test_additive_boundary_and_frozen_cell(self):
         times = torch.tensor([999, 501, 500, 250, 0])
@@ -161,8 +231,8 @@ class Tests(unittest.TestCase):
             cp.load_stage1(self.path / "epsilon.pt")
 
     def test_disjoint_32768_refresh_repair_and_reproducibility(self):
-        sampler = d.DisjointTargets(40000)
-        other = d.DisjointTargets(40000)
+        sampler = d.DisjointTargets(40000, 32768)
+        other = d.DisjointTargets(40000, 32768)
         target, info = sampler.sample(np.arange(128), 0)
         expected, _ = other.sample(np.arange(128), 0)
         np.testing.assert_array_equal(target, expected)
@@ -186,7 +256,7 @@ class Tests(unittest.TestCase):
         self.assertFalse(np.array_equal(current, repaired))
         self.assertEqual(len(np.intersect1d(current, source)), 0)
         with self.assertRaises(ValueError):
-            d.DisjointTargets(32800).sample(np.arange(128), 0)
+            d.DisjointTargets(32800, 32768).sample(np.arange(128), 0)
 
     def test_fixed_pca_cache_and_autograd(self):
         real = np.random.default_rng(42).normal(size=(53, 4)).astype(np.float32)
@@ -227,7 +297,7 @@ class Tests(unittest.TestCase):
             self.assertEqual(c.state_hash({k.removeprefix('ml_model.'):v for k,v in ema.items() if k.startswith('ml_model.')}), before)
 
     def test_gradient_equivalence_to_full_sinkhorn(self):
-        cfg = self.config("softplus_ot")["pca_ot"]
+        cfg = dict(self.config("softplus_ot")["pca_ot"], gradient_mode="full_autograd")
         prediction = (torch.rand(4, 3, dtype=torch.float64) * .2).requires_grad_()
         target = torch.rand(7, 3, dtype=torch.float64) * .2
         shifted, _ = obj.rectangular_sinkhorn(prediction, target, cfg)
@@ -303,6 +373,7 @@ class Tests(unittest.TestCase):
             cfg = original_config(condition)
             cfg.update(batch_size=5, total_steps=2, save_interval=1, log_interval=1)
             cfg["ot"]["batch_size"] = 5
+            cfg["pca_ot"]["gradient_mode"] = "full_autograd"
             return cfg
         fake_campaign = self.path / "additive_toy"
         with patch.object(launcher, "effective_config", side_effect=small_config), \
@@ -335,6 +406,33 @@ class Tests(unittest.TestCase):
             self.assertEqual(meta["frozen_cellunet_hash_before"], meta["frozen_cellunet_hash_after"])
             self.assertIsNotNone(meta["pca_provenance"])
             cache_hash = c.file_hash(Path(meta["pca_provenance"]["path"]) / "real_pca.npy")
+            # Switch a legacy full-autograd/20-target run to envelope/8 targets.
+            # Its final step=2 must not be relabelled: resume from step=1 and update.
+            legacy_hash = c.file_hash(final)
+            train_args.target_size = 8
+            train_args.sinkhorn_gradient_mode = "envelope"
+            expected_bundle = runner.latest_bundle_at_or_before(campaign, "softplus_ot", 1)
+            expected_state = c.state_hash(cp.read_checkpoint(expected_bundle["raw"])["state_dict"])
+            observations = []
+            def switched_loss(model, *a, **kw):
+                observations.append((c.state_hash(model), len(kw["target"])))
+                return original_loss(model, *a, **kw)
+            with patch.object(runner, "training_loss", side_effect=switched_loss):
+                fast = runner.train(train_args)
+            fast_meta = cp.read_checkpoint(fast)["metadata"]
+            self.assertEqual(observations, [(expected_state, 8)])
+            self.assertEqual(fast_meta["ot_transitions"][0]["first_new_update"], 2)
+            self.assertEqual(fast_meta["ot_transitions"][0]["before"], dict(target_size=20, gradient_mode="full_autograd"))
+            self.assertEqual(fast_meta["ot_transitions"][0]["after"], dict(target_size=8, gradient_mode="envelope"))
+            self.assertEqual(c.file_hash(final), legacy_hash)
+            self.assertEqual(runner.train(train_args), fast)
+            resumed_config = fast_meta["effective_config"]
+            fast_bundle = runner.latest_bundle_at_or_before(campaign, "softplus_ot", 2, config=resumed_config,
+                saved_config=c.read_json(campaign / "configs/softplus_ot.json"))
+            self.assertEqual(fast_bundle["ema"], str(fast))
+            fast_opt = torch.load(fast_bundle["optimizer"], weights_only=True)
+            self.assertTrue(all(int(s["step"]) == 2 for s in fast_opt["state"].values()))
+            del train_args.target_size, train_args.sinkhorn_gradient_mode
             train_args.condition = "centered_hill_ot"
             another = cp.read_checkpoint(runner.train(train_args))["metadata"]
             self.assertEqual(another["pca_provenance"]["real_pca_sha256"], cache_hash)
@@ -409,6 +507,11 @@ class Tests(unittest.TestCase):
         self.assertNotIn("cellunet_only_train", calls)
         self.assertEqual(len([x for x in calls if x.endswith("_train")]), 8)
         self.assertIn("softplus_ot_embed_plot", calls)
+        train_order = [name for name in calls if name.endswith("_train")]
+        self.assertEqual(train_order, [condition + "_train" for condition in c.CONDITIONS])
+        self.assertTrue(all(name.endswith("_reconst_train") for name in train_order[:4]))
+        for previous, following in zip(c.CONDITIONS[1:], c.CONDITIONS[2:]):
+            self.assertLess(calls.index(previous + "_embed_plot"), calls.index(following + "_train"))
 
     def test_shortened_horizon_uses_separate_step_markers(self):
         (self.path / "configs").mkdir()
@@ -434,7 +537,39 @@ class Tests(unittest.TestCase):
         self.assertIn("centered_hill_reconst_s10000_sample", calls)
         self.assertNotIn("centered_hill_reconst_sample", calls)
         self.assertEqual(calls.count("cellunet_only_sample"), 1)
-        compare.assert_called_once_with(self.path, training_steps=10000)
+        compare.assert_called_once_with(self.path, training_steps=10000, target_size=None, gradient_mode=None)
+
+    def test_ot_variant_markers_and_per_model_reconst_first_pipeline(self):
+        (self.path / "configs").mkdir()
+        for condition in c.CONDITIONS:
+            cfg = dict(c.effective_config(condition), total_steps=30000, target_size=32768)
+            cfg["pca_ot"].pop("gradient_mode")  # original campaign version
+            (self.path / "configs" / f"{condition}.json").write_text(json.dumps(cfg))
+        opts = dict(target_size=8192, gradient_mode="envelope")
+        self.assertEqual(c.condition_step_prefix(self.path, "softplus_ot", 10000, **opts),
+                         "softplus_ot_s10000_n8192_envelope")
+        self.assertEqual(c.condition_step_prefix(self.path, "softplus_reconst", 10000, **opts),
+                         "softplus_reconst_s10000")
+        calls = []
+        def fake(campaign, name, argv, key):
+            calls.append((name, argv))
+            return self.path / name
+        args = launcher.parser().parse_args(["--resume-campaign", "additive_test", "--all-eight",
+            "--training-steps", "10000", "--target-size", "8192", "--sinkhorn-gradient-mode", "envelope"])
+        comparison = importlib.import_module(PKG + ".analysis.comparison")
+        with patch.object(launcher, "canonical_stage1", return_value=({}, {"checkpoint": "stage1.pt"})), \
+             patch.object(comparison, "compare") as compare:
+            self.assertEqual(launcher.execute(self.path, args, step_fn=fake), [])
+        expected = ["cellunet_only_" + s for s in ("sample", "analyze", "analyze_plot", "embed", "embed_plot")]
+        for condition in c.CONDITIONS:
+            prefix = c.condition_step_prefix(self.path, condition, 10000, **opts)
+            expected += [prefix + "_" + s for s in ("train", "sample", "analyze", "analyze_plot", "embed", "embed_plot")]
+        self.assertEqual([name for name, argv in calls], expected)
+        for name, argv in calls:
+            if name.endswith("_train"):
+                self.assertIn("--target-size", argv)
+                self.assertIn("envelope", argv)
+        compare.assert_called_once_with(self.path, training_steps=10000, **opts)
 
     def test_evaluation_numeric_plot_and_small_umap(self):
         import anndata as ad

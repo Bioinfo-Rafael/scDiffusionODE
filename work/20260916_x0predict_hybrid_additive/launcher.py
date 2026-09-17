@@ -7,7 +7,7 @@ import subprocess
 import sys
 from .common import (SUITE, ROOT, VERSION, STAGE1, CONDITIONS, campaign_path, confined,
                      effective_config, file_hash, git_commit, load_real, new_dir, read_json,
-                     run_id, source_provenance, write_json, training_config, condition_step_prefix)
+                     run_id, source_provenance, write_json, training_config, condition_step_prefix, GRADIENT_MODES)
 from .training.checkpoints import load_stage1, save_checkpoint, canonical_stage1
 
 campaign_lock = importlib.import_module("work.20260915_x0predict.scripts.run_all").campaign_lock
@@ -26,6 +26,7 @@ def parser():
     p.add_argument("--target-size", type=int)
     p.add_argument("--target-refresh-interval", type=int)
     p.add_argument("--training-steps", type=int, help="Stage2 horizon (default 10000); may shorten an existing campaign")
+    p.add_argument("--sinkhorn-gradient-mode", choices=GRADIENT_MODES)
     p.add_argument("--device", default="cuda")
     p.add_argument("--analysis-device", default="cpu")
     p.add_argument("--dry-run", action="store_true")
@@ -58,7 +59,7 @@ def prepare(args):
         config.update(data_dir=data, edge_tsv_path=edge, output_campaign=campaign.name,
                       stage1_checkpoint=origin["checkpoint"])
         if condition != STAGE1:
-            config = training_config(config, args.training_steps)
+            config = training_config(config, args.training_steps, gradient_mode=args.sinkhorn_gradient_mode)
         for argument, key in ((args.target_size, "target_size"), (args.target_refresh_interval, "target_refresh_interval")):
             if argument is not None:
                 config[key] = argument
@@ -145,7 +146,8 @@ def execute(campaign, args, step_fn=step):
     errors = []
     _, origin = canonical_stage1(campaign)
     def evaluate(condition, checkpoint):
-        prefix = condition if condition == STAGE1 else condition_step_prefix(campaign, condition, args.training_steps)
+        prefix = condition if condition == STAGE1 else condition_step_prefix(
+            campaign, condition, args.training_steps, target_size=args.target_size, gradient_mode=args.sinkhorn_gradient_mode)
         try:
             sampled = step_fn(campaign, prefix + "_sample", ["sample", "--checkpoint", str(checkpoint), "--device", args.device], "TRAJECTORY_DIR")
         except Exception as exc:
@@ -160,15 +162,21 @@ def execute(campaign, args, step_fn=step):
     evaluate(STAGE1, origin["checkpoint"])
     for condition in [args.condition] if args.condition else CONDITIONS:
         try:
-            prefix = condition_step_prefix(campaign, condition, args.training_steps)
+            prefix = condition_step_prefix(campaign, condition, args.training_steps,
+                                           target_size=args.target_size, gradient_mode=args.sinkhorn_gradient_mode)
             options = [] if args.training_steps is None else ["--training-steps", str(args.training_steps)]
+            if args.target_size is not None:
+                options += ["--target-size", str(args.target_size)]
+            if args.sinkhorn_gradient_mode is not None:
+                options += ["--sinkhorn-gradient-mode", args.sinkhorn_gradient_mode]
             checkpoint = step_fn(campaign, prefix + "_train", ["train", "--campaign", campaign.name,
                                   "--condition", condition, "--device", args.device, *options], "EMA_CHECKPOINT")
             evaluate(condition, checkpoint)
         except Exception as exc:
             errors.append(dict(step=condition + "_train", error=str(exc)))
     from .analysis.comparison import compare
-    compare(campaign, training_steps=args.training_steps)
+    compare(campaign, training_steps=args.training_steps, target_size=args.target_size,
+            gradient_mode=args.sinkhorn_gradient_mode)
     return errors
 
 
@@ -178,13 +186,14 @@ def main(argv=None):
         print("Stage1 (read-only):", args.stage1_checkpoint or effective_config(STAGE1)["stage1_checkpoint"])
         print("Conditions:", [args.condition] if args.condition else CONDITIONS)
         print("Stage2 training steps:", args.training_steps or 10000)
+        print("OT override:", dict(target_size=args.target_size, gradient_mode=args.sinkhorn_gradient_mode))
         print("CellUNet-only baseline + native START_X additive sampling/analysis; no work executed")
         return 0
     if args.preflight_only:
         inputs(args)
         return 0
     if args.resume_campaign:
-        if any(x is not None for x in (args.stage1_checkpoint, args.data, args.edge_tsv, args.target_size, args.target_refresh_interval, args.pca_dimension)):
+        if any(x is not None for x in (args.stage1_checkpoint, args.data, args.edge_tsv, args.target_refresh_interval, args.pca_dimension)):
             raise ValueError("resume uses immutable campaign settings")
         campaign = campaign_path(args.resume_campaign)
         manifest = read_json(campaign / "campaign.json")
@@ -196,9 +205,12 @@ def main(argv=None):
     else:
         campaign = prepare(args)
     print(f"CAMPAIGN={campaign}", flush=True)
+    order = [args.condition] if args.condition else CONDITIONS
+    print("CONDITION_ORDER=" + ",".join(order), flush=True)
     with campaign_lock(campaign):
         errors = execute(campaign, args)
-        write_json(campaign / ("invocation_" + run_id() + ".json"), dict(errors=errors, arguments=vars(args), status="failed" if errors else "completed"))
+        write_json(campaign / ("invocation_" + run_id() + ".json"), dict(errors=errors, arguments=vars(args),
+                   condition_order=order, status="failed" if errors else "completed"))
     for error in errors:
         print(error, file=sys.stderr)
     return int(bool(errors))

@@ -1,0 +1,136 @@
+{
+  "torch_version": "2.5.1",
+  "python": "3.9.23",
+  "device": "cpu",
+  "device_name": "arm64",
+  "shape": [
+    8,
+    32768,
+    50
+  ],
+  "scale": 2.0,
+  "threads": 1,
+  "scope": "one rectangular OT forward/backward; excludes ODE, sampling and evaluation",
+  "results": [
+    {
+      "method": "continuation",
+      "trial": 0,
+      "status": "ok",
+      "forward_seconds": 0.50052725,
+      "backward_seconds": 0.38762429100000007,
+      "total_seconds": 0.888151541,
+      "loss": 6.834935474289172,
+      "solver": {
+        "iterations": 80,
+        "marginal_residual": 5.674456777973735e-06,
+        "epsilon_scaling": false,
+        "scales": [
+          {
+            "epsilon": 0.1,
+            "iterations": 80,
+            "marginal_residual": 5.674456777973735e-06
+          }
+        ],
+        "max_iterations": 200,
+        "retry_max_iterations": 16000,
+        "restarts": 0,
+        "budget_extensions": [],
+        "gradient_mode": "full_autograd",
+        "source_count": 8,
+        "target_count": 32768
+      },
+      "loss_difference": 0.0,
+      "gradient_relative_error": 0.0
+    },
+    {
+      "method": "continuation",
+      "trial": 1,
+      "status": "ok",
+      "forward_seconds": 0.1987880839999998,
+      "backward_seconds": 0.35676404100000036,
+      "total_seconds": 0.5555521250000002,
+      "loss": 6.834935474289172,
+      "solver": {
+        "iterations": 80,
+        "marginal_residual": 5.674456777973735e-06,
+        "epsilon_scaling": false,
+        "scales": [
+          {
+            "epsilon": 0.1,
+            "iterations": 80,
+            "marginal_residual": 5.674456777973735e-06
+          }
+        ],
+        "max_iterations": 200,
+        "retry_max_iterations": 16000,
+        "restarts": 0,
+        "budget_extensions": [],
+        "gradient_mode": "full_autograd",
+        "source_count": 8,
+        "target_count": 32768
+      },
+      "loss_difference": 0.0,
+      "gradient_relative_error": 0.0
+    },
+    {
+      "method": "envelope",
+      "trial": 0,
+      "status": "ok",
+      "forward_seconds": 0.20067091599999998,
+      "backward_seconds": 0.0019216669999999603,
+      "total_seconds": 0.20259258299999994,
+      "loss": 6.834935474289172,
+      "solver": {
+        "iterations": 80,
+        "marginal_residual": 5.674456777973735e-06,
+        "epsilon_scaling": false,
+        "scales": [
+          {
+            "epsilon": 0.1,
+            "iterations": 80,
+            "marginal_residual": 5.674456777973735e-06
+          }
+        ],
+        "max_iterations": 200,
+        "retry_max_iterations": 16000,
+        "restarts": 0,
+        "budget_extensions": [],
+        "gradient_mode": "envelope",
+        "source_count": 8,
+        "target_count": 32768
+      },
+      "loss_difference": 0.0,
+      "gradient_relative_error": 6.887617174614421e-05
+    },
+    {
+      "method": "envelope",
+      "trial": 1,
+      "status": "ok",
+      "forward_seconds": 0.20711466599999984,
+      "backward_seconds": 0.0022617920000000957,
+      "total_seconds": 0.20937645799999993,
+      "loss": 6.834935474289172,
+      "solver": {
+        "iterations": 80,
+        "marginal_residual": 5.674456777973735e-06,
+        "epsilon_scaling": false,
+        "scales": [
+          {
+            "epsilon": 0.1,
+            "iterations": 80,
+            "marginal_residual": 5.674456777973735e-06
+          }
+        ],
+        "max_iterations": 200,
+        "retry_max_iterations": 16000,
+        "restarts": 0,
+        "budget_extensions": [],
+        "gradient_mode": "envelope",
+        "source_count": 8,
+        "target_count": 32768
+      },
+      "loss_difference": 0.0,
+      "gradient_relative_error": 6.887617174614421e-05
+    }
+  ]
+}

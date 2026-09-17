@@ -8,7 +8,7 @@ from pathlib import Path
 import torch
 from ..common import (STAGE1, SUITE, build_diffusion, campaign_path, file_hash, finite, git_commit,
                       load_real, new_dir, read_json, run_id, seed_all, source_provenance,
-                      state_hash, umap_core, write_json, training_config, confined)
+                      state_hash, umap_core, write_json, training_config, confined, same_training_config, ot_settings)
 from ..models import build_model, freeze_from_stage1, assert_frozen, optimizer_for, update_ema
 from ..data import source_batches, DisjointTargets, fit_pca, load_pca
 from ..analysis.diagnostics import BranchRecorder
@@ -48,12 +48,27 @@ def pca_for_campaign(campaign, matrix, config, origin):
     return module, real, dict(path=str(path), **info)
 
 
-def latest_bundle_at_or_before(campaign, condition, target):
-    candidates = []
+def latest_bundle_at_or_before(campaign, condition, target, *, config=None, saved_config=None):
+    candidates, originals = [], []
     for marker in (campaign / condition).glob("*/checkpoints/bundle*.json"):
         record = read_json(marker)
         if record["step"] <= target:
-            candidates.append((record["step"], str(marker), record))
+            item = (record["step"], str(marker), record)
+            if config is None:
+                candidates.append(item)
+                continue
+            raw_path = confined(record["raw"])
+            if not raw_path.is_relative_to(campaign / condition):
+                raise ValueError("resume bundle escaped condition")
+            meta = read_json(raw_path.with_suffix(".json"))
+            if same_training_config(meta["effective_config"], config):
+                candidates.append(item)
+            elif (saved_config is not None and record["step"] < target
+                  and same_training_config(meta["effective_config"], saved_config)):
+                originals.append(item)
+    # Once the requested variant has a saved checkpoint, continue that branch.
+    # A legacy final checkpoint cannot be relabelled as a newly trained variant.
+    candidates = candidates or originals
     if not candidates:
         return None
     record = max(candidates)[2]
@@ -73,7 +88,9 @@ def completed_at_target(campaign, condition, config):
         if not path.is_relative_to(campaign / condition) or file_hash(path) != record["checkpoint_sha256"]:
             raise ValueError("completed checkpoint changed/escaped condition")
         meta = read_checkpoint(path)["metadata"]
-        if (meta["step"] != config["total_steps"] or meta["effective_config"] != config
+        if not same_training_config(meta["effective_config"], config):
+            continue
+        if (meta["step"] != config["total_steps"] or meta["effective_config"]["total_steps"] != config["total_steps"]
                 or meta["checkpoint_kind"] != "ema"):
             raise ValueError("completed checkpoint metadata mismatch")
         return record
@@ -83,7 +100,9 @@ def completed_at_target(campaign, condition, config):
 def train(args):
     campaign = campaign_path(args.campaign)
     saved_config = read_json(campaign / "configs" / f"{args.condition}.json")
-    config = training_config(saved_config, getattr(args, "training_steps", None))
+    config = training_config(saved_config, getattr(args, "training_steps", None),
+                             target_size=getattr(args, "target_size", None),
+                             gradient_mode=getattr(args, "sinkhorn_gradient_mode", None))
     if config["objective"] == "stage1":
         raise ValueError("this campaign never trains Stage1")
     source = source_provenance()
@@ -105,11 +124,19 @@ def train(args):
             raise ValueError(f"need source batch + {config['target_size']} distinct target cells; no size reduction allowed")
         pca, real_pca, pca_meta = pca_for_campaign(campaign, data.X, config, origin)
         pca = pca.to(args.device)
-    bundle = latest_bundle_at_or_before(campaign, args.condition, config["total_steps"])
+    bundle = latest_bundle_at_or_before(campaign, args.condition, config["total_steps"], config=config, saved_config=saved_config)
     raw = read_checkpoint(bundle["raw"]) if bundle else None
-    if raw and (dict(raw["metadata"]["effective_config"], total_steps=config["total_steps"]) != config
-                or raw["metadata"]["originating_stage1"] != origin):
+    if raw and (not any(same_training_config(raw["metadata"]["effective_config"], candidate)
+                       for candidate in (config, saved_config)) or raw["metadata"]["originating_stage1"] != origin):
         raise ValueError("resume config/Stage1 mismatch")
+    transitions = list(raw["metadata"].get("ot_transitions", [])) if raw else []
+    if raw and config["objective"] == "ot" and ot_settings(raw["metadata"]["effective_config"]) != ot_settings(config):
+        transition = dict(after_step=bundle["step"], first_new_update=bundle["step"]+1,
+                          before=ot_settings(raw["metadata"]["effective_config"]), after=ot_settings(config),
+                          source_checkpoint=bundle["raw"], source_checkpoint_sha256=bundle["raw_sha256"],
+                          optimizer_policy="preserve AdamW moments and step, EMA and LR schedule")
+        transitions.append(transition)
+        print(f"[OT transition] {json.dumps(transition)}", flush=True)
     model = build_model(config, genes, state=raw["state_dict"] if raw else None)
     frozen_hash = freeze_from_stage1(model, stage1["state_dict"])
     del stage1, raw
@@ -135,6 +162,7 @@ def train(args):
                     model_mean_type="START_X", predict_xstart=True, git_commit=git_commit(), source_sha256=source,
                     pca_provenance=pca_meta, continuation=bundle, source_migration=source_migration,
                     saved_campaign_total_steps=saved_config["total_steps"],
+                    ot_transitions=transitions,
                     resume_rng_policy="restart seeded indexed source/target/diffusion streams; restore optimizer/EMA/count")
     write_json(run / "metadata.json", metadata)
     write_json(run / "effective_config.json", config)
@@ -159,6 +187,8 @@ def train(args):
         return ema_path
 
     print(f"{args.condition} start_step={start} total_steps={config['total_steps']} git={metadata['git_commit']}", flush=True)
+    if config["objective"] == "ot":
+        print(f"[OT settings] {json.dumps(ot_settings(config))}", flush=True)
     log_started, logged_step = time.perf_counter(), start
     def clock(profile):
         if profile and torch.device(args.device).type == "cuda":

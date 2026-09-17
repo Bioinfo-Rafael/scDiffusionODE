@@ -1,5 +1,12 @@
 # 20260916: x0 prediction + additive Hybrid + independent-target PCA OT
 
+**現在の既定値（2026-09-17更新）:** Stage2は10k、OT targetは8192、
+`pca_ot.gradient_mode="envelope"`です。既存campaignへは
+`--target-size 8192 --sinkhorn-gradient-mode envelope`を明示して切り替えます。
+指定しないresumeは保存済みのtarget数・勾配方式を維持します。
+実行順は全4reconstruction、その後全4OTで、各条件のtrain→sample→analysis→UMAPを
+終えてから次条件へ進みます。元の32768/full-autograd結果は保持します。
+
 ## Background
 
 従来の `r*ODE + (1-r)*CellUNet` では、ODEの比重を増やすほどCellUNetの
@@ -28,7 +35,7 @@ Stage1を新規学習するコマンドはありません。
 | OT | `work/20260913_2step/losses/sinkhorn.py::entropic_ot` / `sinkhorn_divergence` |
 | Sampling | 20260915 `sampling/trajectory.py`、native `diffusion.p_sample` |
 | 評価 | 20260915 `analysis/diagnostics.py`, `distributions.py`, `evaluation_ot.py`, `sliced_wasserstein.py`, `umaps.py`, `plotting.py`, `runner.py` |
-| Recovery | 20260915 training runnerの完了チェック / bundle検証関数、campaignの排他lock |
+| Recovery | 20260915のbundle形式・hash検証を継承。新suiteで上限・OT方式ごとの復元を実装。campaignの排他lockは再利用 |
 
 `reuse.py` は元ファイルを新スイートのprivate module namespaceへ読み込みます。
 相対importが新しいpath confinement・checkpoint restore・additive modelへ解決するため、
@@ -140,9 +147,10 @@ targetから完全に除外**します。対応づけを崩し、別のreal cell
 
 - Source batchは128のまま、low-noise `t ~ Uniform{0,...,49}`。
 - `prediction=Hybrid(x_t,t)` はx0そのもの。epsilon→x0変換はありません。
-- Targetは既定 **32768 distinct cells**。source batchと同じtraining populationから選びます。
+- Targetは既定 **8192 distinct cells**。source batchと同じtraining populationから選びます。
 - `DisjointTargets.sample` は毎step、unique件数と `source∩target=∅` をassertします。
-- 32768はtarget distributionのsampling sparsityを減らすためで、sourceを32768に増やしません。
+- 当初の32768はtarget distributionのsampling sparsityを減らすためでした。
+  ユーザー指定により8192へ短縮しました。source128は維持します。
 - `target_refresh_interval=10`。zero-based step 0/10/20/...で全targetをrefreshします。
 - 中間stepでsourceがcached targetに入った場合は、そのslotだけ現在のsourceと残りtargetを
   除外した集合からwithout replacementで補充します。それ以外のtargetは維持します。
@@ -162,7 +170,7 @@ training data全体に、deterministicな一度の`IncrementalPCA` fitを行い�
 PCA cacheはdataset hash、gene-order hash、transform/hashで検証します。
 可視化用PCA/UMAPは従来定義のままであり、このtraining OT用PCAとは別です。
 
-### OTの数学的定義と32768²を作らない理由
+### OTの数学的定義とtarget自己行列を作らない理由
 
 従来のOTはexact unregularized OTではなく、log-domain **debiased Sinkhorn divergence**です。
 
@@ -183,17 +191,34 @@ Q = cached_real_pca[disjoint_target_indices]
 L_total = L_PCA_OT + L_soft
 ```
 
-これは一方向のentropic OTへの勝手な置換ではなく、**同じmodel-gradientを持つ目的関数**です。
-prediction側自己項は残します。既存solverを使った小規模テストで、完全なSεとgradientが
-完全一致することを確認します。ただしログのscalarは完全なdivergenceではありません。
+target-only定数の省略はmodel-gradientを変えません。prediction側自己項は残します。
+`full_autograd`では既存solverによる完全なSεとの勾配の厳密一致を検証しています。
+`envelope`では収束した輸送計画から勾配を計算します。有限反復を微分する旧方式と
+完全一致する保証はなく、その違いを以下で説明します。ログのscalarは完全なdivergenceではありません。
 `sinkhorn_divergence_up_to_target_constant` と明記し、targetが変わるstep間や旧実験との
 絶対値比較には使用しません。target-only項の省略は学習勾配についての等価性であり、
 divergenceの数値を計算したという意味ではありません。
 
-計算するcost matrixは **128×32768** と **128×128** のみです。float64のcross cost
-本体は32 MiBです（autograd/checkpointingの作業領域は別途必要）。巨大なtarget自己行列は
-計算しません。既存solverの10-iteration単位のgradient checkpointingと全反復の微分を再利用し、
-transport planをdetachする近似は追加しません。KeOps等の新しい大きな依存はありません。
+現在のcost matrixは **128×8192** と **128×128** のみです。float64のcross cost
+本体は8 MiBです（他の作業領域は別途必要）。巨大なtarget自己行列は計算しません。
+KeOps等の新しい依存はありません。
+
+### Envelope勾配
+
+`training/objectives.py::converged_entropic_ot`は2方式を持ちます。
+
+- `full_autograd`: 10反復ごとのcheckpointingで全反復を微分する従来方式。
+- `envelope`: 同じcost・epsilon・収束判定でdual変数を`torch.no_grad()`内で求め、
+  `π=exp(-C/epsilon+u+v)`を固定して`sum(π*dC)`だけをbackpropagateします。
+
+prediction→PCA→costのグラフは維持します。predictionをdetachすることはありません。
+lossのforward値には従来どおりKL正則化も含め、単なる輸送距離だけを表示しません。
+自己OTはpredictionが両方の引数に入るため、両側からの勾配を含みます。
+有限の許容誤差で止めたplanは近似解なので、envelope勾配もその精度に依存します。
+`epsilon=0.1`、`tolerance=1e-5`、float64、固定PCA50、target除外とrefresh10は維持します。
+厳しい許容誤差でのfinite-difference testと全4ODEへのbackwardを検証しています。
+
+参照: [GeomLossの収束点での明示勾配の説明](https://www.kernel-operations.io/geomloss/_auto_examples/sinkhorn_multiscale/plot_kernel_truncation.html)。
 
 PCA costは `mean((p-q)^2)`、すなわち50次元ならsquared distance / 50です。
 epsilon 0.1、uniform marginals、float64、absolute marginal tolerance `1e-5`、
@@ -285,14 +310,15 @@ seedから再開します。旧suiteと同じく、途中再開と無中断run�
 ### OTの反復上限と再開
 
 PCA OTは200反復を初回上限とし、未収束の場合、同じprediction・targetで上限を
-400 → 600 → ... → 16000へ200ずつ増やし、dual変数と勾配の計算履歴を保持して続行します。
+400 → 600 → ... → 16000へ200ずつ増やし、dual変数を保持して続行します。
+勾配の反復履歴は`full_autograd`のときだけ保持します。
 既存solverのcost関数を再利用し、固定epsilonの更新式・目的関数を同じまま
 新suiteの`converged_entropic_ot`に継続処理を実装しています。
 200回までの計算を400回枠でやり直すことはなく、追加で200回だけ進めます。
 旧方式で上限16000まで全再試行すると合計648000反復でしたが、継続方式は合計16000反復です。
-epsilon=0.1、marginal tolerance=1e-5、cost、目的関数、微分方法は維持します。
+epsilon=0.1、marginal tolerance=1e-5、cost、目的関数は維持します。
 10回ごとに収束を判定し、収束すれば早期終了します。16000でも未収束なら停止します。
-非有限値などの例外でも停止します。全反復を微分するため多数の反復には計算時間・メモリが必要です。
+非有限値などの例外でも停止します。Envelopeでもforwardの収束計算は必要です。
 累積反復数・上限延長履歴・`restarts=0`をlosses.csvのsinkhorn欄へ記録します。
 stdoutは既定で50stepごとの進捗・秒/step・残り時間・cross/selfの反復数を出します。
 毎200反復の通知は`pca_ot.verbose=true`の場合のみです。反復履歴は常にCSVへ保存します。
@@ -315,7 +341,7 @@ source SHA、および各lossのsolver情報で追跡できます。
 10kの比較表・UMAPなどは新attemptに保存し、30k結果を保持します。
 bundleがなければその条件をstep 0から開始します。元の失敗ログは保持します。
 再開時のsource照合は`audit/resume_compatibility.json`で既知の修正前後SHA256を
-照合し、確認済みのSinkhorn継続・10k上限・計測・launcher修正だけを許可します。
+照合し、確認済みのSinkhorn・10k上限・OT方式切替・計測・launcher修正だけを許可します。
 それ以外のsource変更は引き続き拒否します。campaign作成時のsource snapshotと
 immutable configは書き換えず、新しいrun/checkpointの`source_migration`に
 変更前後のSHA256と適用policyを保存します。
@@ -323,22 +349,56 @@ immutable configは書き換えず、新しいrun/checkpointの`source_migration
 
 高速化調査、CPU比較結果、未採用のアルゴリズム候補は
 [`audit/PERFORMANCE_REVIEW.md`](audit/PERFORMANCE_REVIEW.md)を参照してください。
+今回のEnvelope採用・8192への切替・測定結果は
+[`audit/ENVELOPE_8192.md`](audit/ENVELOPE_8192.md)に記録しています。
 
-既存campaignを10kに短縮してbackgroundで再開する例（旧processの停止後）：
+既存campaignを8192/envelopeへ切り替える場合、変更前のraw/EMA/AdamW stateを
+保持し、`ot_transitions`に切替前後の設定と最初の新方式update番号を保存します。
+同方式のcheckpointがすでにあればその続きを優先します。旧方式が10k完了済みなら、
+10k未満の最新bundleから続きを実行します。旧10kをenvelopeで学習したと付け替えません。
+切替前に旧方式で学習した履歴を持つため、結果は最初から8192/envelopeで学習した実験とは異なります。
+
+OTのmarkerは`<condition>_s10000_n8192_envelope_train/sample/analyze/...`になります
+（元から10kのcampaignでは`s10000`部分がありません）。比較表は新方式の解析を参照し、
+target数・gradient mode・切替履歴も併記します。reconstructionの既存10k解析は再利用します。
+
+旧job停止→pull→8192/envelopeで再開→ログ監視を一括実行する例：
 
 ```bash
-cd /home/suzuki/Projects/scDiffusion-github
-git pull --ff-only origin feat/20260916-x0predict-hybrid-additive
-source "$(conda info --base)/etc/profile.d/conda.sh"
-conda activate scdiffusion
-LOG_DIR=$(mktemp -d work/20260916_x0predict_hybrid_additive/runs/launch_XXXXXXXX)
-nohup env PYTHONUNBUFFERED=1 PYTHON="$(command -v python)" \
-  bash work/20260916_x0predict_hybrid_additive/scripts/run_all.sh \
-  --resume-campaign additive_20260916T034022Z_fcc39362 \
-  --all-eight --training-steps 10000 --gpu 0 --device cuda --analysis-device cpu \
-  > "$LOG_DIR/output.log" 2>&1 < /dev/null &
-echo "$!" > "$LOG_DIR/pid"
-tail -n 100 -F "$LOG_DIR/output.log"
+(
+  set -eo pipefail
+  cd /home/suzuki/Projects/scDiffusion-github
+  git fetch origin feat/20260916-x0predict-hybrid-additive
+  git show origin/feat/20260916-x0predict-hybrid-additive:work/20260916_x0predict_hybrid_additive/scripts/stop_campaign.py \
+    | python3 - --campaign additive_20260916T034022Z_fcc39362
+  git switch feat/20260916-x0predict-hybrid-additive
+  git pull --ff-only origin feat/20260916-x0predict-hybrid-additive
+  source "$(conda info --base)/etc/profile.d/conda.sh"
+  conda activate scdiffusion
+  LOG_DIR=$(mktemp -d work/20260916_x0predict_hybrid_additive/runs/launch_XXXXXXXX)
+  touch "$LOG_DIR/output.log"
+  nohup env PYTHONUNBUFFERED=1 PYTHON="$(command -v python)" \
+    bash work/20260916_x0predict_hybrid_additive/scripts/run_all.sh \
+    --resume-campaign additive_20260916T034022Z_fcc39362 \
+    --all-eight --training-steps 10000 --target-size 8192 --sinkhorn-gradient-mode envelope \
+    --gpu 0 --device cuda --analysis-device cpu \
+    > "$LOG_DIR/output.log" 2>&1 < /dev/null &
+  echo "$!" > "$LOG_DIR/pid"
+  echo "PID: $(cat "$LOG_DIR/pid")"
+  echo "LOG: $LOG_DIR/output.log"
+  tail -n 100 -F "$LOG_DIR/output.log"
+)
+```
+
+停止scriptはLinux `/proc`で同じユーザー・campaignに属するlauncher/workerを特定し、
+launcherを一時停止して次の条件への遷移を防いでから、その子孫も含めてSIGTERMを送ります。
+PIDの開始時刻も照合し、PID再利用による別processの停止を避けます。
+停止確認が取れない場合は非ゼロ終了し、上記コマンドは新jobを起動しません。
+停止だけならpull済み環境で以下を使えます（ML用conda環境は不要）。
+
+```bash
+python3 work/20260916_x0predict_hybrid_additive/scripts/stop_campaign.py \
+  --campaign additive_20260916T034022Z_fcc39362
 ```
 
 ### 1. Pull・環境activate
@@ -374,7 +434,8 @@ bash work/20260916_x0predict_hybrid_additive/scripts/run_all.sh \
 それぞれ新campaignになります。`--gpu 1`なら物理GPU1を子processにも引き継ぎます。
 CUDA visibilityはtorchをimportする前に設定します。CellUNet-only解析はどちらでも含みます。
 PCA次元/target件数/refresh間隔はconfig化され、新campaignでは
-`--pca-dimension 50 --target-size 32768 --target-refresh-interval 10` で明示もできます。
+`--pca-dimension 50 --target-size 8192 --target-refresh-interval 10 --sinkhorn-gradient-mode envelope`
+で明示もできます。
 
 ### 4. Pullから全8条件のbackground実行まで
 

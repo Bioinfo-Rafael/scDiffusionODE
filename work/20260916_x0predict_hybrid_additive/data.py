@@ -21,7 +21,7 @@ def source_batches(matrix, batch_size, seed):
 
 
 class DisjointTargets:
-    def __init__(self, count, size=32768, refresh_interval=10, seed=1235):
+    def __init__(self, count, size=8192, refresh_interval=10, seed=1235):
         if min(size, refresh_interval) < 1 or count <= size:
             raise ValueError("target sampling requires count > size > 0 and positive interval")
         self.count, self.size, self.interval = count, size, refresh_interval

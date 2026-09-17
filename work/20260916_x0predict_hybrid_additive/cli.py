@@ -1,7 +1,7 @@
 """Single worker CLI; native START_X sampling plus unchanged legacy evaluation."""
 import argparse
 from pathlib import Path
-from .common import CONDITIONS, build_diffusion, file_hash, result_root, run_id, seed_all
+from .common import CONDITIONS, GRADIENT_MODES, build_diffusion, file_hash, result_root, run_id, seed_all
 
 
 def main(argv=None):
@@ -12,6 +12,8 @@ def main(argv=None):
     train.add_argument("--condition", choices=CONDITIONS, required=True)
     train.add_argument("--device", default="cuda")
     train.add_argument("--training-steps", type=int)
+    train.add_argument("--target-size", type=int)
+    train.add_argument("--sinkhorn-gradient-mode", choices=GRADIENT_MODES)
     sample = commands.add_parser("sample")
     sample.add_argument("--checkpoint", required=True)
     sample.add_argument("--device", default="cuda")

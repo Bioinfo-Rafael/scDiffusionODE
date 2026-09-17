@@ -8,11 +8,12 @@
     "batch_size": 4096,
     "whiten": false
   },
-  "target_size": 32768,
+  "target_size": 8192,
   "target_refresh_interval": 10,
   "source_seed": 1234,
   "target_seed": 1235,
   "pca_ot": {
+    "gradient_mode": "envelope",
     "epsilon": 0.1,
     "max_iterations": 200,
     "tolerance": 1e-05,
