@@ -1,18 +1,18 @@
 {
-  "id": "sinkhorn_retry_200_increment_resume_v1",
-  "previous_commits": ["83b1423", "91296b0", "4ca2f13", "f466ff1"],
+  "id": "sinkhorn_state_continuation_resume_v2",
+  "previous_commits": ["83b1423", "91296b0", "4ca2f13", "f466ff1", "5fa8f38"],
   "files": {
     "work/20260916_x0predict_hybrid_additive/training/runner.py": {
       "current_sha256": "ff2548b3fd508b63ed07f5020e546928d968b79466b5411f5f6621920d36ca78",
       "previous_sha256": ["f96bf8a9996ac8bf26db2acbd631b64137c28609910d3c41814a9e001a88d7e2"]
     },
     "work/20260916_x0predict_hybrid_additive/training/objectives.py": {
-      "current_sha256": "eca5e2a8d49dd3506195d8a51ad103a615877631b3114b9a823340932146e635",
+      "current_sha256": "1d606211631fb607f00fd4e33ac652c3085a6a0ad75ede5aed3e09340dbc42b2",
       "previous_sha256": ["f7ffed4c0a9eb3cd0d9aeeb4d49a437b25b2475aad4aefbd59efbda4c8f7f937", "45c74c733139b886623cb66f0b8ce58fc0596c078053dd78d06352089f13b084", "df857993d5fcecc7e631ca078e09c2ab76e49f4318d32615d88c89d244429eee", "eca5e2a8d49dd3506195d8a51ad103a615877631b3114b9a823340932146e635"]
     },
     "work/20260916_x0predict_hybrid_additive/tests/test_suite.py": {
-      "current_sha256": "2b8466816a04993767303d84ff93d1e875e65a18f3bf3a75c068a4d82efb401c",
-      "previous_sha256": ["e232117a271216810b455c7f433789581d914a5df3af9f56aa91db046adfc5ff", "e09093be5095dc23c0dc677ff9c6aebdea8b41cd67027761331bfb96f7776d86", "afc35ada962f0781a85e70cbbc80c380557b7e9edceb476970c4164177a43f07", "9acaf4dea66f53f8dcaa42aa5c0eb9705d86823689efdbf8d31159008ec5aa6c"]
+      "current_sha256": "4d7e308a128804248146e68094782f82d29450ffa44faff2198285643ed56a2c",
+      "previous_sha256": ["e232117a271216810b455c7f433789581d914a5df3af9f56aa91db046adfc5ff", "e09093be5095dc23c0dc677ff9c6aebdea8b41cd67027761331bfb96f7776d86", "afc35ada962f0781a85e70cbbc80c380557b7e9edceb476970c4164177a43f07", "9acaf4dea66f53f8dcaa42aa5c0eb9705d86823689efdbf8d31159008ec5aa6c", "2b8466816a04993767303d84ff93d1e875e65a18f3bf3a75c068a4d82efb401c"]
     },
     "work/20260916_x0predict_hybrid_additive/configs/base.json": {
       "current_sha256": "0b9a4134b0b8eae512c98f0567bbb9894bb1974d5c1e0d9f65937eae1e863f82",

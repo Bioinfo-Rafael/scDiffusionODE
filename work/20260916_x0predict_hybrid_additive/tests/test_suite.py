@@ -47,42 +47,34 @@ class Tests(unittest.TestCase):
         with self.assertRaises(ValueError):
             runner.validate_resume_source(original, {k: v for k, v in current.items() if k not in policy["files"]})
 
-    def test_sinkhorn_retry_preserves_settings_and_gradient(self):
+    def test_sinkhorn_continuation_preserves_iterations_loss_and_gradient(self):
+        torch.manual_seed(1234)
         config = c.effective_config("softplus_ot")["pca_ot"]
-        pred = torch.randn(4, 3, dtype=torch.float64, requires_grad=True)
-        target = torch.randn(7, 3, dtype=torch.float64)
-        original = obj.solver.entropic_ot
-        calls = []
-        def delayed(x, y, **kwargs):
-            calls.append(kwargs.copy())
-            if len(calls) < 3:
-                raise obj.solver.SinkhornConvergenceError("test iteration limit")
-            return original(x, y, **kwargs)
-        with patch.object(obj.solver, "entropic_ot", side_effect=delayed):
+        pred = (torch.randn(4, 3, dtype=torch.float64) * 5).requires_grad_()
+        target = torch.randn(7, 3, dtype=torch.float64) * 5
+        with patch.object(obj.solver, "cost_matrix", wraps=obj.solver.cost_matrix) as cost, \
+             patch.object(obj, "checkpoint", wraps=obj.checkpoint) as blocks:
             loss, info = obj.converged_entropic_ot(pred, target, config)
+        self.assertEqual(cost.call_count, 1)
+        self.assertEqual(sum(call.args[4] for call in blocks.call_args_list), info["iterations"])
+        self.assertEqual([x["iterations"] for x in info["budget_extensions"]], [200, 400])
+        self.assertEqual([x["next_limit"] for x in info["budget_extensions"]], [400, 600])
+        self.assertEqual(info["restarts"], 0)
         gradient = torch.autograd.grad(loss, pred)[0]
-        reference, _ = original(pred, target, epsilon=config["epsilon"],
-                                tolerance=config["tolerance"], max_iterations=600)
+        reference, ref_info = obj.solver.entropic_ot(pred, target, epsilon=config["epsilon"],
+                                tolerance=config["tolerance"], max_iterations=16000)
+        self.assertEqual(info["iterations"], ref_info["iterations"])
+        torch.testing.assert_close(loss, reference, rtol=0, atol=0)
         torch.testing.assert_close(gradient, torch.autograd.grad(reference, pred)[0], rtol=0, atol=0)
-        self.assertEqual([x["max_iterations"] for x in calls], [200, 400, 600])
-        self.assertTrue(all(x["epsilon"] == .1 and x["tolerance"] == 1e-5 for x in calls))
-        self.assertEqual(len(info["retries"]), 2)
-        short_config = dict(config, max_iterations=1)
-        recovered, recovery_info = obj.converged_entropic_ot(pred, target, short_config)
-        self.assertGreater(len(recovery_info["retries"]), 0)
-        self.assertLessEqual(recovery_info["marginal_residual"], config["tolerance"])
-        self.assertTrue(torch.isfinite(torch.autograd.grad(recovered, pred)[0]).all())
-        with patch.object(obj.solver, "entropic_ot", side_effect=obj.solver.SinkhornConvergenceError("limit")) as failed:
-            with self.assertRaises(obj.solver.SinkhornConvergenceError):
-                obj.converged_entropic_ot(pred, target, config)
-        self.assertEqual(failed.call_count, 80)
-        with patch.object(obj.solver, "entropic_ot", side_effect=original) as legacy:
-            obj.converged_entropic_ot(pred, target, dict(config, max_iterations=2000))
-        self.assertEqual(legacy.call_args_list[0].kwargs["max_iterations"], 200)
-        with patch.object(obj.solver, "entropic_ot", side_effect=FloatingPointError("nonfinite")) as invalid:
-            with self.assertRaises(FloatingPointError):
-                obj.converged_entropic_ot(pred, target, config)
-        self.assertEqual(invalid.call_count, 1)
+        _, legacy_info = obj.converged_entropic_ot(pred, target, dict(config, max_iterations=2000))
+        self.assertEqual(legacy_info["budget_extensions"][0]["iterations"], 200)
+        with torch.no_grad():
+            no_grad_loss, _ = obj.converged_entropic_ot(pred, target, config)
+        torch.testing.assert_close(loss, no_grad_loss, rtol=0, atol=0)
+        with self.assertRaisesRegex(obj.solver.SinkhornConvergenceError, "iterations=200"):
+            obj.converged_entropic_ot(pred, target, dict(config, retry_max_iterations=200))
+        with self.assertRaises(FloatingPointError):
+            obj.converged_entropic_ot(pred * float("nan"), target, config)
 
     def setUp(self):
         c.seed_all(1234)

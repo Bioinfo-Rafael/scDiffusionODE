@@ -1,6 +1,8 @@
 """START_X reconstruction or independent-target PCA Sinkhorn gradients."""
 import importlib
+import math
 import torch
+from torch.utils.checkpoint import checkpoint
 from ..common import assert_start_x, finite
 
 old = importlib.import_module("work.20260915_x0predict.training.objectives")
@@ -9,27 +11,67 @@ timestep_sampler, soft_constraint = old.timestep_sampler, old.soft_constraint
 
 
 def converged_entropic_ot(prediction, target, config):
-    """Retry only nonconvergence; keep the objective and marginal tolerance fixed."""
+    """Existing fixed-epsilon equations, with state retained across budget extensions.
+
+    Keep the legacy cost, KL objective, alternating updates, 10-step convergence
+    checks and differentiable checkpoint blocks. Only the budget control differs.
+    """
     # Apply the 200-iteration start to immutable campaigns created with 2000 too.
     limit = min(200, int(config["max_iterations"]))
     ceiling = max(limit, int(config.get("retry_max_iterations", 16000)))
-    failures = []
-    while True:
-        try:
-            loss, info = solver.entropic_ot(
-                prediction, target, epsilon=config["epsilon"],
-                max_iterations=limit, tolerance=config["tolerance"])
-        except solver.SinkhornConvergenceError as exc:
-            if limit >= ceiling:
-                raise
-            failures.append(dict(max_iterations=limit, error=str(exc)))
-            next_limit = min(limit + 200, ceiling)
-            print(f"[PCA OT] {exc}; retry from initialization with max_iterations={next_limit}", flush=True)
+    epsilon, tolerance = float(config["epsilon"]), float(config["tolerance"])
+    if limit < 1 or not math.isfinite(epsilon) or epsilon <= 0 or not 0 < tolerance < 1:
+        raise ValueError("invalid Sinkhorn numerical settings")
+    cost = solver.cost_matrix(prediction, target)
+    log_a, log_b = -math.log(len(prediction)), -math.log(len(target))
+    u, v = torch.zeros_like(prediction[:, 0]), torch.zeros_like(target[:, 0])
+    kernel = -cost / epsilon
+
+    def block(kernel, u, v, count):
+        for _ in range(count):
+            u = log_a - torch.logsumexp(kernel + v[None, :], dim=1)
+            v = log_b - torch.logsumexp(kernel + u[:, None], dim=0)
+        return u, v
+
+    extensions = []
+    iteration, residual = 0, float("inf")
+    while iteration < ceiling:
+        count = min(10, limit - iteration)
+        if torch.is_grad_enabled() and kernel.requires_grad:
+            u, v = checkpoint(block, kernel, u, v, count, use_reentrant=False)
         else:
-            info.update(max_iterations=limit, retry_max_iterations=ceiling, retries=failures)
-            return loss, info
-        # Leave the exception scope before rebuilding the differentiable solver graph.
-        limit = next_limit
+            u, v = block(kernel, u, v, count)
+        iteration += count
+        with torch.no_grad():
+            checked_plan = kernel + u[:, None] + v[None, :]
+            residual = max(
+                (checked_plan.logsumexp(1).exp() - math.exp(log_a)).abs().max().item(),
+                (checked_plan.logsumexp(0).exp() - math.exp(log_b)).abs().max().item())
+        if not math.isfinite(residual):
+            raise FloatingPointError("nonfinite Sinkhorn marginal residual")
+        if residual <= tolerance:
+            break
+        if iteration == limit:
+            if limit == ceiling:
+                raise solver.SinkhornConvergenceError(
+                    f"Sinkhorn did not converge: epsilon={epsilon:g}, marginal residual={residual:g}, "
+                    f"tolerance={tolerance:g}, iterations={iteration}")
+            limit = min(limit + 200, ceiling)
+            extensions.append(dict(iterations=iteration, marginal_residual=residual, next_limit=limit))
+            print(f"[PCA OT] iterations={iteration}, marginal residual={residual:g}, "
+                  f"tolerance={tolerance:g}; continuing from current state to {limit}", flush=True)
+    log_plan = kernel + u[:, None] + v[None, :]
+    plan = log_plan.exp()
+    loss = ((plan * (cost + epsilon * (log_plan - log_a - log_b))).sum()
+            - epsilon * plan.sum() + epsilon)
+    finite("entropic OT", loss)
+    info = dict(iterations=iteration, marginal_residual=residual, epsilon_scaling=False,
+                scales=[dict(epsilon=epsilon, iterations=iteration, marginal_residual=residual)],
+                max_iterations=limit, retry_max_iterations=ceiling, restarts=0,
+                budget_extensions=extensions)
+    if extensions:
+        print(f"[PCA OT] converged after {iteration} total iterations; marginal residual={residual:g}", flush=True)
+    return loss, info
 
 
 def rectangular_sinkhorn(prediction, target, config):
