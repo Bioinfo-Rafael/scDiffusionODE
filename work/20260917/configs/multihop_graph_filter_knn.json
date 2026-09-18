@@ -1,0 +1,4 @@
+{
+  "model_type": "multihop_graph_filter",
+  "aux_loss": "knn"
+}

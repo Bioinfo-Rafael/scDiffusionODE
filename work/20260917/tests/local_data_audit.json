@@ -1,0 +1,41 @@
+{
+  "data_path": "/Users/cls-lab/Git/scDiffusionODE/work/20260215_embryonic/data/Embryonic.h5ad",
+  "shape": [
+    156726,
+    1024
+  ],
+  "gene_order_hash": "fb81110ae67cb366871328c32ab8b20896d7588089c17b7a16d8c71153ea2da5",
+  "grn_path": "/Users/cls-lab/Git/scDiffusionODE/external_data/tf_target_edges.tsv",
+  "orientation": "source=from -> target=to; W[target,source]",
+  "input_edges": 5870450,
+  "retained_edges": 8221,
+  "dropped_unmapped_edges": 5859556,
+  "duplicate_mapped_edges": 2673,
+  "grn_genes_absent_from_data_count": 29208,
+  "grn_genes_absent_from_data_examples": [
+    "A1BG",
+    "A1BG-AS1",
+    "A1CF",
+    "A2M-AS1",
+    "A2ML1",
+    "A2MP1",
+    "A3GALT2",
+    "A4GALT",
+    "A4GNT",
+    "AA06"
+  ],
+  "data_genes_absent_from_grn_count": 166,
+  "data_genes_absent_from_grn_examples": [
+    "AC000036.1",
+    "AC000061.1",
+    "AC002563.1",
+    "AC004053.1",
+    "AC004264.1",
+    "AC004771.5",
+    "AC004832.1",
+    "AC005342.1",
+    "AC005355.1",
+    "AC005920.3"
+  ],
+  "note": "Read-only mapping audit of local files. Full name lists and gene_to_column are saved by each actual run. No trained checkpoint available locally."
+}

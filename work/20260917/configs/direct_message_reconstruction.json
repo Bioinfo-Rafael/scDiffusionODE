@@ -1,0 +1,4 @@
+{
+  "model_type": "direct_message",
+  "aux_loss": "reconstruction"
+}

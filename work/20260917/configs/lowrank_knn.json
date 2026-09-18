@@ -1,0 +1,4 @@
+{
+  "model_type": "lowrank",
+  "aux_loss": "knn"
+}

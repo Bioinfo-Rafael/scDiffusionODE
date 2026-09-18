@@ -1,0 +1,11 @@
+{
+  "knn": {
+    "k": 15,
+    "num_negatives": 5,
+    "delta_t": 0.001,
+    "lambda_knn": 1.0,
+    "lambda_neg": 1.0,
+    "a": 1.0,
+    "b": 1.0
+  }
+}

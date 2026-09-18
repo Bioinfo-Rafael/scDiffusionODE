@@ -1,0 +1,40 @@
+test_cache_and_negative_exclusion_and_formula (work.20260917.tests.test_smoke.Smoke) ... ok
+test_evaluation_metrics_and_summary_end_to_end (work.20260917.tests.test_smoke.Smoke) ... SUMMARY=/Users/cls-lab/Git/scDiffusionODE/work/20260917/cache/smoke_5h2pm21l/comparison_fixture/summaries/20260917T154446Z_ff724740/comparison.csv
+ok
+test_mapping_direction_and_exact_source_classes (work.20260917.tests.test_smoke.Smoke) ... ok
+test_native_sampling_and_evaluation_adapters (work.20260917.tests.test_smoke.Smoke) ... [build_edge_mask] genes=7, edges(in-list)=4
+[build_edge_mask] genes=7, edges(in-list)=4
+[build_edge_mask] genes=7, edges(in-list)=4
+saved 2/2 trajectories
+ok
+test_rng_and_initialization_match_across_objectives (work.20260917.tests.test_smoke.Smoke) ... ok
+test_schedule_and_original_reconstruction (work.20260917.tests.test_smoke.Smoke) ... ok
+test_sparse_rhs_forward_and_backward_never_dense (work.20260917.tests.test_smoke.Smoke) ... ok
+test_ten_conditions_forward_backward_and_two_epochs (work.20260917.tests.test_smoke.Smoke) ... [build_edge_mask] genes=7, edges(in-list)=4
+[build_edge_mask] genes=7, edges(in-list)=4
+[build_edge_mask] genes=7, edges(in-list)=4
+{"condition": "lowrank_reconstruction", "step": 8, "epoch": 2, "primary": 0.419845849275589, "soft": 0.17974437773227692, "total": 0.5995902419090271, "loss_reconstruction": 0.419845849275589, "loss_knn": 0.0, "loss_knn_pos": 0.0, "loss_knn_neg": 0.0, "knn_contribution": 0.0, "knn_loss_seconds": 0.0}
+[build_edge_mask] genes=7, edges(in-list)=4
+{"condition": "lowrank_knn", "step": 8, "epoch": 2, "primary": 1.7049939632415771, "soft": 0.1851024329662323, "total": 1.8900964260101318, "loss_reconstruction": 0.0, "loss_knn": 1.7049939632415771, "loss_knn_pos": 0.029713263735175133, "loss_knn_neg": 1.6752806901931763, "knn_contribution": 1.7049939632415771, "knn_loss_seconds": 0.00032437499999993236}
+[build_edge_mask] genes=7, edges(in-list)=4
+{"condition": "matsum_reconstruction", "step": 8, "epoch": 2, "primary": 0.41316163539886475, "soft": 1.34009850025177, "total": 1.7532601356506348, "loss_reconstruction": 0.41316163539886475, "loss_knn": 0.0, "loss_knn_pos": 0.0, "loss_knn_neg": 0.0, "knn_contribution": 0.0, "knn_loss_seconds": 0.0}
+[build_edge_mask] genes=7, edges(in-list)=4
+{"condition": "matsum_knn", "step": 8, "epoch": 2, "primary": 1.7049592733383179, "soft": 1.34009850025177, "total": 3.045057773590088, "loss_reconstruction": 0.0, "loss_knn": 1.7049592733383179, "loss_knn_pos": 0.029712585732340813, "loss_knn_neg": 1.6752467155456543, "knn_contribution": 1.7049592733383179, "knn_loss_seconds": 0.00028149999999982356}
+[build_edge_mask] genes=7, edges(in-list)=4
+{"condition": "lora_reconstruction", "step": 8, "epoch": 2, "primary": 0.44601187109947205, "soft": 1.7108805179595947, "total": 2.1568922996520996, "loss_reconstruction": 0.44601187109947205, "loss_knn": 0.0, "loss_knn_pos": 0.0, "loss_knn_neg": 0.0, "knn_contribution": 0.0, "knn_loss_seconds": 0.0}
+[build_edge_mask] genes=7, edges(in-list)=4
+{"condition": "lora_knn", "step": 8, "epoch": 2, "primary": 1.7050563097000122, "soft": 1.7108776569366455, "total": 3.4159340858459473, "loss_reconstruction": 0.0, "loss_knn": 1.7050563097000122, "loss_knn_pos": 0.029711047187447548, "loss_knn_neg": 1.6753453016281128, "knn_contribution": 1.7050563097000122, "knn_loss_seconds": 0.0003144590000001557}
+{"condition": "direct_message_reconstruction", "step": 8, "epoch": 2, "primary": 4.456991195678711, "soft": 0.0, "total": 4.456991195678711, "loss_reconstruction": 4.456991195678711, "loss_knn": 0.0, "loss_knn_pos": 0.0, "loss_knn_neg": 0.0, "knn_contribution": 0.0, "knn_loss_seconds": 0.0}
+{"condition": "direct_message_knn", "step": 8, "epoch": 2, "primary": 1.699453592300415, "soft": 0.0, "total": 1.699453592300415, "loss_reconstruction": 0.0, "loss_knn": 1.699453592300415, "loss_knn_pos": 0.030579298734664917, "loss_knn_neg": 1.6688742637634277, "knn_contribution": 1.699453592300415, "knn_loss_seconds": 0.0003119160000002452}
+{"condition": "multihop_graph_filter_reconstruction", "step": 8, "epoch": 2, "primary": 19.46903419494629, "soft": 0.0, "total": 19.46903419494629, "loss_reconstruction": 19.46903419494629, "loss_knn": 0.0, "loss_knn_pos": 0.0, "loss_knn_neg": 0.0, "knn_contribution": 0.0, "knn_loss_seconds": 0.0}
+{"condition": "multihop_graph_filter_knn", "step": 8, "epoch": 2, "primary": 1.677164912223816, "soft": 0.0, "total": 1.677164912223816, "loss_reconstruction": 0.0, "loss_knn": 1.677164912223816, "loss_knn_pos": 0.030758151784539223, "loss_knn_neg": 1.6464067697525024, "knn_contribution": 1.677164912223816, "knn_loss_seconds": 0.00026487500000005326}
+ok
+test_zero_lambda_skips_graph_and_reconstruction (work.20260917.tests.test_smoke.Smoke) ... ok
+
+----------------------------------------------------------------------
+Ran 9 tests in 3.879s
+
+OK
+[build_edge_mask] genes=7, edges(in-list)=4
+[build_edge_mask] genes=7, edges(in-list)=4
+[build_edge_mask] genes=7, edges(in-list)=4

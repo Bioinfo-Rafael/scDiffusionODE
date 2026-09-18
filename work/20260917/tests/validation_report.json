@@ -1,0 +1,27 @@
+{
+  "verified_at": "2026-09-17T15:45:26.737353+00:00",
+  "python": "3.9.23",
+  "pytorch": "2.5.1",
+  "device": "cpu",
+  "test_result": "Ran 9 tests in 3.879s",
+  "status": "passed",
+  "conditions": 10,
+  "cells": 12,
+  "genes": 7,
+  "epochs_per_condition": 2,
+  "updates_per_condition": 8,
+  "native_sampling": "1000 DDPM + 100 Euler steps; 2 synthetic cells",
+  "launcher": "all-condition and single-condition dry-run configs and CSV verified",
+  "full_data_training": "not run; original final Stage1 checkpoint unavailable locally",
+  "gpu_benchmark": "not run",
+  "original_source_sha256": {
+    "work/20260916_x0predict_hybrid_additive/models.py": "1a6eceb1ab78ac3eeb43f6e115692aaa6ffa7328728b48713b13904f4ca94e78",
+    "work/20260916_x0predict_hybrid_additive/training/runner.py": "bb4fad70a53be4b00b11bc761a08bdab43754d80430cf479746ca97481766dd0",
+    "work/20260916_x0predict_hybrid_additive/training/objectives.py": "e84cf0458581d40a85ea9293d9dc85248796f4e991e4f86b444b1c2dcbdb5fcc",
+    "work/20260915_x0predict/training/objectives.py": "c8c0653fcab8705579e12b65d2e6a0196e8865d4789b7363dae0b63343fc8c13",
+    "work/20260913_2step/models/hybrid500.py": "ebf86d36e49f65e85cb40b73690511fc5840926f1cecdb32bac24f8ece82b42c",
+    "work/20260609_MathMLPHybrid/cell_train_20260609.py": "6067acbfe042e02ab565055fee375b821c2f39e2aa02901b442fdaa60649788f",
+    "ODE/ode_20260609_mathmlp.py": "bbcabc0767e8585635ba0f4e29d822db6724ca639820dffe7eb321926feb7332",
+    "work/20260830/models/factory.py": "c49d6ac1ad9cbaba2866acfb987976ba5b5aedfe8f89d38afef924a8c4187d1a"
+  }
+}
