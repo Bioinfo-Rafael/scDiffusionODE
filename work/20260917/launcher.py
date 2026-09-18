@@ -1,7 +1,5 @@
 """Sequential fresh-process campaign; identical overrides for all ten conditions."""
 import argparse
-import copy
-import json
 import subprocess
 import sys
 from pathlib import Path
@@ -9,15 +7,35 @@ from .common import (SUITE, ROOT, MODELS, LOSSES, CONDITIONS, STAGE1, effective_
                      new_dir, read_json, run_id, write_json, source_provenance, load_real, umap_core)
 from .training.checkpoints import load_stage1, save_checkpoint
 from .scripts.summarize import summarize
+from .src.progress import phase, report
 
 
 def worker(campaign, label, arguments):
     log = campaign / (label + ".log")
-    with log.open("x") as handle:
-        result = subprocess.run([sys.executable, "-m", "work.20260917.cli", *map(str, arguments)],
-                                cwd=ROOT, stdout=handle, stderr=subprocess.STDOUT)
-    if result.returncode:
-        raise RuntimeError(f"worker failed ({result.returncode}): {log}")
+    with phase(f"{label} log={log}"), log.open("x", buffering=1) as handle:
+        child = subprocess.Popen(
+            [sys.executable, "-u", "-m", "work.20260917.cli", *map(str, arguments)],
+            cwd=ROOT, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            text=True, encoding="utf-8", errors="replace", bufsize=1)
+        try:
+            report(f"WORKER {label} pid={child.pid}")
+            for line in child.stdout:
+                handle.write(line)
+                print(f"[{label}] {line}", end="", flush=True)
+            code = child.wait()
+            if code:
+                raise RuntimeError(f"worker failed ({code}): {log}")
+        except BaseException:
+            if child.poll() is None:
+                child.terminate()
+                try:
+                    child.wait(timeout=5)
+                except subprocess.TimeoutExpired:
+                    child.kill()
+                    child.wait()
+            raise
+        finally:
+            child.stdout.close()
     return log
 
 
@@ -64,19 +82,26 @@ def main(argv=None):
     write_json(campaign / "campaign.json", dict(conditions=chosen, dry_run=a.dry_run, arguments=vars(a)))
     write_json(campaign / "source_sha256.json", source_provenance())
     print(f"CAMPAIGN={campaign}", flush=True)
+    order = "training only" if a.train_only else "shared baseline sample/analyze/embed, then condition train/sample/analyze/embed"
+    report(f"PLAN conditions={len(chosen)} order={order}")
     if a.dry_run:
         summarize(campaign)
         return
     c = next(iter(configs.values()))
     # Preflight once before any expensive training; strict source conventions retained.
-    payload, origin = load_stage1(c["stage1_checkpoint"])
-    if file_hash(c["data_dir"]) != origin["data_sha256"] or file_hash(c["edge_tsv_path"]) != origin["edge_tsv_sha256"]:
-        raise ValueError("dataset/GRN differs from Stage1; supply a path to identical files")
-    data, genes, _ = load_real(c, payload["metadata"]["gene_names"])
-    if umap_core().gene_order_hash(genes) != origin["gene_order_hash"]:
-        raise ValueError("gene order differs from Stage1")
+    with phase("preflight: load and validate Stage1 checkpoint"):
+        payload, origin = load_stage1(c["stage1_checkpoint"])
+    with phase("preflight: verify dataset and GRN hashes"):
+        if file_hash(c["data_dir"]) != origin["data_sha256"] or file_hash(c["edge_tsv_path"]) != origin["edge_tsv_sha256"]:
+            raise ValueError("dataset/GRN differs from Stage1; supply a path to identical files")
+    with phase("preflight: load dataset and validate gene order"):
+        data, genes, _ = load_real(c, payload["metadata"]["gene_names"])
+        if umap_core().gene_order_hash(genes) != origin["gene_order_hash"]:
+            raise ValueError("gene order differs from Stage1")
     from .src.grn import load_grn
-    load_grn(genes, c["edge_tsv_path"])
+    with phase("preflight: map GRN to dataset columns"):
+        src, _, _ = load_grn(genes, c["edge_tsv_path"])
+        report(f"DATA cells={data.n_obs} genes={len(genes)} GRN_edges={len(src)}")
     if data.n_obs < c["batch_size"]:
         raise ValueError("not enough cells for one source batch")
     del data
@@ -86,7 +111,8 @@ def main(argv=None):
         baseline_config = dict(c, condition=STAGE1)
         baseline_meta = dict(payload["metadata"], effective_config=baseline_config,
                              originating_stage1=origin)
-        path = save_checkpoint(campaign / "stage1_ema.pt", payload["state_dict"], baseline_meta)
+        with phase("save shared baseline checkpoint"):
+            path = save_checkpoint(campaign / "stage1_ema.pt", payload["state_dict"], baseline_meta)
         try:
             log = worker(campaign, "cellunet_only_sample", ["sample","--checkpoint",path,"--device",a.device])
             trajectory = marker(log, "TRAJECTORY_DIR")
@@ -98,7 +124,8 @@ def main(argv=None):
         except Exception as exc:
             failures.append(dict(condition=STAGE1, action="sample", error=str(exc)))
     del payload
-    for name in chosen:
+    for number, name in enumerate(chosen, start=1):
+        report(f"CONDITION {number}/{len(chosen)} {name}")
         try:
             log = worker(campaign, name+"_train", ["train","--config",campaign/"configs"/(name+".json"),
                          "--output",campaign/name/"training","--device",a.device])
@@ -118,6 +145,7 @@ def main(argv=None):
     write_json(campaign / "finished.json", dict(status="failed" if failures else "completed", failures=failures))
     if failures:
         raise SystemExit(f"{len(failures)} jobs failed; see {campaign / 'finished.json'}")
+    report(f"CAMPAIGN COMPLETE {campaign}")
 
 
 if __name__ == "__main__":

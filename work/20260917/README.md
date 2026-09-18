@@ -259,6 +259,12 @@ launcherは新campaignを作り、既存結果を上書きしない。独立条�
 `finished.json`と非ゼロ終了コードで失敗を報告する。途中checkpointはraw/EMA/optimizerを保存するが、
 このsuiteに途中学習resumeのCLIはない。再実行は新campaignのstep0からとなる。
 
+launcherは各処理のSTART/DONE/FAILED、子プロセスPIDとログパス、30秒ごとのRUNNINGを
+標準出力へ表示する。RUNNINGは処理の実行中表示であり、進捗率ではない。
+子プロセスは`python -u`で起動し、stdout/stderrを個別ログとlauncher標準出力の両方へ即時転送する。
+共通baselineのsampling・解析・UMAPを終えてから条件1の学習が始まる。
+バックグラウンド実行では`nohup python -u -m work.20260917.launcher > <ログパス> 2>&1 < /dev/null &`を使う。
+
 ## 検証状況
 
 `tests/smoke_test.log`にCPU結果（9 tests passed）。小規模の12 cells×7 genesで全10条件を2 epoch（各8 updates）実行。
