@@ -1,5 +1,37 @@
 # Frozen Stage1 CellUNet: manifold geometry / exposure bias / mode occupancy
 
+## 概要：各図が何を描いているか（全11図）
+
+この解析では、学習済み CellUNet が生成中の細胞を **real data の manifold に近づけるのか、
+manifold に沿って動かすのか、特定の細胞集団へ偏らせるのか**を調べる。
+以下は各図の描写と読み方であり、実験結果についての結論ではない。
+
+ここで **tangent（接線）** は real data の局所的な広がりに沿う方向、
+**normal（法線）** はその広がりに垂直な方向を指す。
+**model drift** は DDPM の1 step でモデルの予測平均へ向かう移動、
+**noise** はその step で実際に加わった確率的な移動である。
+normal 成分が大きいだけでは manifold に近づいているとは限らず、向きは図07で確認する。
+
+| 図 | 何を描写しているか | 何を確認するための図か |
+|---|---|---|
+| **01 — Score の tangent / normal 成分** | 横軸は diffusion timestep、縦軸はモデルの x0 予測から求めた score の tangent / normal 成分の平均 norm。2本の線を比較する。 | 学習された score が、局所 manifold に沿う方向と垂直な方向のどちらに強く向いているかを見る。score は実際の1 step の移動量そのものではない。 |
+| **02 — Model drift の tangent / normal 成分（主要解析）** | 横軸は timestep、縦軸は「native DDPM の予測平均 − 更新前 state」を分解した各成分の平均 norm。 | 生成の後半でも manifold に沿う移動が残るか、それとも model drift 全体が小さくなるかを見る。図01の score の性質が実際の reverse movement にどう表れるかを確認する。 |
+| **03 — Noise による tangent / normal 移動** | 横軸は timestep、縦軸は「実際の更新後 state − 予測平均」を分解した各成分の平均 norm。 | 生成点の散布がモデルの移動によるものか、DDPM noise によるものかを図02と比較する。最後の t=0 update では noise は加わらない。 |
+| **04 — 移動のうち normal 方向が占める割合** | 横軸は timestep、縦軸は normal 成分の二乗 norm / 全体の二乗 norm。score、model drift、noise、total displacement の4種類を重ねる。 | ベクトルの大きさとは別に、方向の配分を比較する。1に近いほど normal 優位。ただし高次元では等方的 noise も normal 割合が大きくなるため、図07と併読する。 |
+| **05 — Manifold からの距離と normal drift** | 横軸は scaled local tangent plane への normal residual、縦軸は model drift の normal norm。同じ timestep 内で距離を区切って平均し、時刻ごとに線を描く。 | manifold から遠い点ほど垂直方向の移動が大きく、近い点ほど小さいかを見る。移動が manifold 側を向いているかどうかは図07で区別する。 |
+| **06 — Manifold からの距離と tangent drift** | 横軸は図05と同じ距離、縦軸は model drift の tangent norm。時刻ごとに距離との関係を描く。 | manifold に近づいた後にも、それに沿う移動が残っているかを見る。図05と合わせて「垂直方向の補正が弱まった後、接線方向の移動も止まるのか」を調べる。 |
+| **07 — Manifold へ向かう normal 方向との角度** | 横軸は manifold distance、縦軸は model drift と「局所平面へ垂直に戻る方向」の cosine。時刻ごとに線を描く。 | +1に近いと局所平面へほぼ直線的に向かい、0付近ならその方向とほぼ直交し、負なら離れる成分がある。normal norm の大きさだけでは分からない、移動の向きを調べる。 |
+| **08 — Training input と reverse state の分布のずれ** | 横軸は timestep、縦軸は同じ時刻の forward-noised real と reverse sampling state の PCA 上の SWD。独立した forward 同士の SWD も基準線として描く。 | reverse trajectory が training input distribution からいつ離れ始めるかを見る。有限標本による差と比較するため forward/forward 基準を併記しており、差の原因をこの図だけで断定しない。 |
+| **09 — 分布の中心と広がりのずれ** | 横軸は timestep。左は forward/reverse の重心間距離、右は covariance trace の reverse/forward 比。 | 図08の分布差を補足し、中心の移動と全体の広がりの違いを確認する。右の比が1なら総分散が同じ、1より大きければ reverse 側が広い。ただし分布の形まで同じとは限らない。 |
+| **10 — 細胞集団への割り当て割合の変化** | 各時刻の pred_xstart を real の annotation へ kNN 多数決で割り当てる。左は集団ごとの generated fraction − real fraction の heatmap、右は全体の比率差を表す TV / JS。Superclass と celltype を別々に描く。 | 生成途中でどの real-defined mode が過剰・不足になり、その偏りがいつ強まるかを見る。遠く離れた生成点にも label は付くため、real に近いかどうかは図11で確認する。 |
+| **11 — Real と generated の近傍混合** | real/generated を同数に揃え、各生成点の joint kNN に real が占める割合を測る。左は平均・中央値・near-zero 割合と無作為混合の基準、右は細胞ごとの値の箱ひげ図。各 pred_xstart と最終 sample を表示する。 | generated が real と局所近傍を共有するか、generated だけの島を作るかを見る。real-neighbor fraction が低い点が多いほど分離が疑われる。near-zero は既定で0.05以下を指す。 |
+
+図01–07は、局所 tangent dimension **d=5,10,20** を別 panel で比較し、
+既定では **t≤200** を対象にする。図05–07の点は距離 bin 内の平均で、個々の細胞ではない。
+時刻の図は **大きい t → 小さい t** の生成順に読む。
+図10–11の `final` は最後の t=0 update **後**の sample であり、追加の diffusion step ではない。
+まず図02・03・07で移動の大きさと向きを確認し、図08・10・11で分布・集団比率・局所混合を確認すると追いやすい。
+
 ローカル実装先は `scDiffusionODE/work/20260921`、本番実行先は
 `/home/suzuki/Projects/scDiffusion-github/work/20260921`。
 対象は **20260915_x0predict の canonical Stage1 final EMA** のみ。
