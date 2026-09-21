@@ -1,0 +1,86 @@
+VALID_CAMPAIGN /home/suzuki/Projects/scDiffusion-github/work/20260915_x0predict/runs/x0predict_20260915T131558Z_6802c20b checkpoint=/home/suzuki/Projects/scDiffusion-github/work/20260915_x0predict/runs/x0predict_20260915T131558Z_6802c20b/stage1_cellunet/20260915T131601Z_1085706d/checkpoints/ema_0.9999_030000.pt
+RUN_DIRECTORY=/home/suzuki/Projects/scDiffusion-github/work/20260921/results/20260921T071306Z_1404916
+DATA verified SHA256 + gene order: (156726, 1024); fitting real-only PCA
+SAMPLING 50/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 100/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 150/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 200/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 250/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 300/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 350/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 400/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 450/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 500/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 550/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 600/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 650/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 700/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 750/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 800/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 850/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 900/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 950/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1000/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1050/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1100/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1150/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1200/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1250/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1300/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1350/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1400/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1450/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1500/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1550/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1600/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1650/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1700/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1750/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1800/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1850/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1900/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 1950/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2000/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2050/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2100/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2150/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2200/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2250/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2300/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2350/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2400/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2450/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2500/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2550/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2600/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2650/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2700/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2750/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2800/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2850/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2900/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 2950/3000 trajectories; completed all 1000 native DDPM steps
+SAMPLING 3000/3000 trajectories; completed all 1000 native DDPM steps
+GEOMETRY t=200 cached_anchors=2905
+GEOMETRY t=100 cached_anchors=5216
+GEOMETRY t=50 cached_anchors=6760
+GEOMETRY t=20 cached_anchors=7736
+GEOMETRY t=10 cached_anchors=8223
+GEOMETRY t=5 cached_anchors=8540
+GEOMETRY t=1 cached_anchors=8842
+GEOMETRY t=0 cached_anchors=8993
+DIAGNOSTICS t=999 SWD=0.03143 forward_baseline=0.0324911
+DIAGNOSTICS t=900 SWD=0.0332728 forward_baseline=0.0338455
+DIAGNOSTICS t=700 SWD=0.0352076 forward_baseline=0.0311139
+DIAGNOSTICS t=500 SWD=0.054529 forward_baseline=0.0475922
+DIAGNOSTICS t=300 SWD=0.0840903 forward_baseline=0.0698672
+DIAGNOSTICS t=200 SWD=0.166271 forward_baseline=0.0940987
+DIAGNOSTICS t=100 SWD=0.369548 forward_baseline=0.118702
+DIAGNOSTICS t=50 SWD=0.558391 forward_baseline=0.0979962
+DIAGNOSTICS t=20 SWD=0.794784 forward_baseline=0.105261
+DIAGNOSTICS t=10 SWD=0.907566 forward_baseline=0.0948526
+DIAGNOSTICS t=5 SWD=1.0784 forward_baseline=0.0889103
+DIAGNOSTICS t=1 SWD=1.23284 forward_baseline=0.0976059
+DIAGNOSTICS t=0 SWD=1.30763 forward_baseline=0.0892786
+FIGURES generating eleven overview figures
+COMPLETED /home/suzuki/Projects/scDiffusion-github/work/20260921/results/20260921T071306Z_1404916; checkpoint and model hashes unchanged
