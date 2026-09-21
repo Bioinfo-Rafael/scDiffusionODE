@@ -123,9 +123,9 @@ Stage1 campaign config/metadata は JSON として読む。
 normalize_total / log1p / scale / whitening / gene filtering を追加しない。
 座標とベクトルを分ける:
 
-\[
+$$
 z=C(x-\mu),\qquad v^{PCA}=Cv,\qquad CC^T=I.
-\]
+$$
 
 実装は行ベクトル表記で `(x-mu) @ C.T` と `v @ C.T`。
 PCA は randomized SVD、seed 固定。fit と transform を分離し、すべての点に同じ
@@ -139,9 +139,9 @@ PCA50 でも捨てた gene-space 成分は測れない。
 時刻 t では `a_t=sqrt(alpha_bar_t)` とおくと、forward process の中心は
 `a_t M`。固定 PCA 原点を保持して変換するため、
 
-\[
+$$
 z_i^{(t)}=C(a_t x_i-\mu)=a_t z_i+(a_t-1)C\mu.
-\]
+$$
 
 単に `a_t*z_i` とすると PCA mean の分だけ anchor と距離がずれる。
 nearest anchor は
@@ -153,16 +153,16 @@ tangent basis の向きは変わらない。
 
 anchor 自身を除いた clean real の k=50 nearest neighbors を取り、
 
-\[
+$$
 \mu_i=\frac1k\sum_{j\in N_i}z_j,\qquad
 Z_i=[(z_j-\mu_i)^T]_{j\in N_i}=U\Sigma V^T.
-\]
+$$
 
 上位 d=5,10,20 の right singular vectors を列に並べた `V_T` を使う。
 
-\[
+$$
 P_T=V_TV_T^T,\quad v_T=V_T(V_T^Tv),\quad v_N=v-v_T.
-\]
+$$
 
 巨大な projector を作らず `v @ V_T @ V_T.T` を計算。
 query が実際に使った anchor についてのみ SVD を計算し、anchor ID で cache。
@@ -171,11 +171,11 @@ rank < d の場合は flag を付ける。残りの軸の向きは識別でき�
 
 ### START_X score
 
-\[
+$$
 x_t=\sqrt{\bar\alpha_t}x_{clean}+\sqrt{1-\bar\alpha_t}\epsilon,
 \quad \hat x_{clean}=f_\theta(x_t,t),
 \quad s_\theta(x_t,t)=\frac{\sqrt{\bar\alpha_t}\hat x_{clean}-x_t}{1-\bar\alpha_t}.
-\]
+$$
 
 `GaussianDiffusion.p_mean_variance` の START_X 分岐は raw model output を
 `pred_xstart` にする。clip=False、denoised_fn=None なので余計な変換はない。
@@ -184,9 +184,9 @@ x_t=\sqrt{\bar\alpha_t}x_{clean}+\sqrt{1-\bar\alpha_t}\epsilon,
 
 全ベクトルについて norm、tangent/normal norm、その比と
 
-\[
+$$
 R_T=\|v_T\|^2/\|v\|^2,\quad R_N=\|v_N\|^2/\|v\|^2
-\]
+$$
 
 を保存。ゼロベクトルの比は未定義なので CSV では NaN（空欄）。
 例えば t=0 では noise norm=0 だが noise normal fraction は0ではなく未定義。
@@ -198,11 +198,11 @@ normal は (D-d)/D になる。D=50 で normal fraction が大きいことだけ
 
 native `p_mean_variance()` の mean と、native `p_sample()` の sample を使い、
 
-\[
+$$
 \Delta x_{model}=\mu_\theta(x_t,t)-x_t,\quad
 \Delta x_{noise}=x_{t-1}-\mu_\theta(x_t,t),\quad
 \Delta x_{total}=x_{t-1}-x_t.
-\]
+$$
 
 3つとも gene-space 差分を `C` で投影して同じ `V_T` で分解する。
 PCA 上で total=model+noise の一致も assert する。
@@ -215,15 +215,15 @@ PCA 上で total=model+noise の一致も assert する。
 
 局所平均にも同じ affine scaling を適用:
 
-\[
+$$
 \mu_i^{(t)}=a_t\mu_i+(a_t-1)C\mu,\quad
 r_N=-(I-P_T)(z_t-\mu_i^{(t)}),\quad d_M=\|r_N\|.
-\]
+$$
 
-\[
+$$
 \cos_{normal}=\frac{\Delta z_{model}\cdot r_N}
  {\|\Delta z_{model}\|\|r_N\|}.
-\]
+$$
 
 ここで `Delta z_model=C Delta x_model`。
 `cos_normal≈1` は局所平面へ向かう normal correction と model drift が揃うことを表す。
@@ -246,10 +246,10 @@ repo の index は0始まりで `alpha_bar[0]=0.9999`。したがって、ここ
 
 ### Exposure bias: state marginals
 
-\[
+$$
 q_t(x)=\int q(x_t\mid x_{clean})p_{data}(x_{clean})\,dx_{clean},
 \qquad p_{\theta,t}(x)=\operatorname{Law}(x_t^{reverse}).
-\]
+$$
 
 real を経験分布から復元抽出し、既存 `diffusion.q_sample()` で forward state を生成する。
 reverse **更新前** state と同じ timestep で比較する。
@@ -258,10 +258,10 @@ reverse **更新前** state と同じ timestep で比較する。
 主指標は sliced **1**-Wasserstein distance。
 N 個ずつの PCA 座標 q,p、単位ベクトル u_l を L=256 本使い、
 
-\[
+$$
 SWD_1(q,p)=\frac1{LN}\sum_{l=1}^{L}\sum_{i=1}^{N}
 |\operatorname{sort}(q^Tu_l)_i-\operatorname{sort}(p^Tu_l)_i|.
-\]
+$$
 
 全時刻で同じ seed+3 の unit projections を共有する。
 補助は centroid distance と covariance trace ratio `tr(Cov(p))/tr(Cov(q))`。
@@ -282,20 +282,20 @@ SWD は mismatch を検出するが、原因を exposure bias の累積誤差だ
 
 real PCA だけを reference に、各 snapshot の **pred_xstart** に k=15 の多数決:
 
-\[
+$$
 \hat c(g)=\arg\max_c\sum_{j\in kNN_{real}(g)}1[y_j=c],\quad
 p_{real}(c)=\#\{i:y_i=c\}/N_{real},\quad
 p_{gen,t}(c)=\#\{g:\hat c(g)=c\}/N_{gen}.
-\]
+$$
 
 同票は label の辞書順で決定し、vote_fraction も保存する。
 kNN label transfer は mode 所属を定める手段であり **distribution metric ではない**。
 noise level が異なる raw x_t を clean real に直接割り当てない。
 
-\[
+$$
 TV(p,q)=\frac12\sum_c|p_c-q_c|,\quad
 JS(p,q)=\tfrac12 KL(p\|m)+\tfrac12 KL(q\|m),\quad m=(p+q)/2.
-\]
+$$
 
 JS は natural log、単位は nats、平方根を取らない。ゼロ項は0と扱う。
 label、real/generated fraction、difference、timestep を保存する。
@@ -307,9 +307,9 @@ label、real/generated fraction、difference、timestep を保存する。
 `n=min(Nreal,Ngen)` に非復元抽出し joint kNN (k=30) を検索する。
 同じ seed+4 で各時刻の real subset と trajectory subset を揃える。
 
-\[
+$$
 mix(g)=\#\{\text{real neighbors of }g\}/k.
-\]
+$$
 
 query 自身は **index の一致**で除く。座標の重複があっても、返ってきた先頭を
 無条件に落とす処理はしない。mean、median、全 point の値、
