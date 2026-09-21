@@ -12,19 +12,233 @@ manifold に沿って動かすのか、特定の細胞集団へ偏らせるの�
 **noise** はその step で実際に加わった確率的な移動である。
 normal 成分が大きいだけでは manifold に近づいているとは限らず、向きは図07で確認する。
 
-| 図 | 何を描写しているか | 何を確認するための図か |
-|---|---|---|
-| **01 — Score の tangent / normal 成分** | 横軸は diffusion timestep、縦軸はモデルの x0 予測から求めた score の tangent / normal 成分の平均 norm。2本の線を比較する。 | 学習された score が、局所 manifold に沿う方向と垂直な方向のどちらに強く向いているかを見る。score は実際の1 step の移動量そのものではない。 |
-| **02 — Model drift の tangent / normal 成分（主要解析）** | 横軸は timestep、縦軸は「native DDPM の予測平均 − 更新前 state」を分解した各成分の平均 norm。 | 生成の後半でも manifold に沿う移動が残るか、それとも model drift 全体が小さくなるかを見る。図01の score の性質が実際の reverse movement にどう表れるかを確認する。 |
-| **03 — Noise による tangent / normal 移動** | 横軸は timestep、縦軸は「実際の更新後 state − 予測平均」を分解した各成分の平均 norm。 | 生成点の散布がモデルの移動によるものか、DDPM noise によるものかを図02と比較する。最後の t=0 update では noise は加わらない。 |
-| **04 — 移動のうち normal 方向が占める割合** | 横軸は timestep、縦軸は normal 成分の二乗 norm / 全体の二乗 norm。score、model drift、noise、total displacement の4種類を重ねる。 | ベクトルの大きさとは別に、方向の配分を比較する。1に近いほど normal 優位。ただし高次元では等方的 noise も normal 割合が大きくなるため、図07と併読する。 |
-| **05 — Manifold からの距離と normal drift** | 横軸は scaled local tangent plane への normal residual、縦軸は model drift の normal norm。同じ timestep 内で距離を区切って平均し、時刻ごとに線を描く。 | manifold から遠い点ほど垂直方向の移動が大きく、近い点ほど小さいかを見る。移動が manifold 側を向いているかどうかは図07で区別する。 |
-| **06 — Manifold からの距離と tangent drift** | 横軸は図05と同じ距離、縦軸は model drift の tangent norm。時刻ごとに距離との関係を描く。 | manifold に近づいた後にも、それに沿う移動が残っているかを見る。図05と合わせて「垂直方向の補正が弱まった後、接線方向の移動も止まるのか」を調べる。 |
-| **07 — Manifold へ向かう normal 方向との角度** | 横軸は manifold distance、縦軸は model drift と「局所平面へ垂直に戻る方向」の cosine。時刻ごとに線を描く。 | +1に近いと局所平面へほぼ直線的に向かい、0付近ならその方向とほぼ直交し、負なら離れる成分がある。normal norm の大きさだけでは分からない、移動の向きを調べる。 |
-| **08 — Training input と reverse state の分布のずれ** | 横軸は timestep、縦軸は同じ時刻の forward-noised real と reverse sampling state の PCA 上の SWD。独立した forward 同士の SWD も基準線として描く。 | reverse trajectory が training input distribution からいつ離れ始めるかを見る。有限標本による差と比較するため forward/forward 基準を併記しており、差の原因をこの図だけで断定しない。 |
-| **09 — 分布の中心と広がりのずれ** | 横軸は timestep。左は forward/reverse の重心間距離、右は covariance trace の reverse/forward 比。 | 図08の分布差を補足し、中心の移動と全体の広がりの違いを確認する。右の比が1なら総分散が同じ、1より大きければ reverse 側が広い。ただし分布の形まで同じとは限らない。 |
-| **10 — 細胞集団への割り当て割合の変化** | 各時刻の pred_xstart を real の annotation へ kNN 多数決で割り当てる。左は集団ごとの generated fraction − real fraction の heatmap、右は全体の比率差を表す TV / JS。Superclass と celltype を別々に描く。 | 生成途中でどの real-defined mode が過剰・不足になり、その偏りがいつ強まるかを見る。遠く離れた生成点にも label は付くため、real に近いかどうかは図11で確認する。 |
-| **11 — Real と generated の近傍混合** | real/generated を同数に揃え、各生成点の joint kNN に real が占める割合を測る。左は平均・中央値・near-zero 割合と無作為混合の基準、右は細胞ごとの値の箱ひげ図。各 pred_xstart と最終 sample を表示する。 | generated が real と局所近傍を共有するか、generated だけの島を作るかを見る。real-neighbor fraction が低い点が多いほど分離が疑われる。near-zero は既定で0.05以下を指す。 |
+### 共通の記号：座標・成分・平均
+
+$x_t$ は更新前の gene-space state、$\hat x_0=f_\theta(x_t,t)$ はモデルの clean prediction、
+$\mu_\theta(x_t,t)$ は native DDPM の予測平均を表す。
+解析は real だけで fit した PCA 座標 $z_t=C(x_t-\mu)$ で行い、ベクトルには平行移動を加えず $Cv$ を使う。
+$\mu$ は global PCA mean であり、DDPM の予測平均 $\mu_\theta$ とは異なる。
+
+query ごとに、時刻 $t$ に合わせて縮小した real manifold 上の nearest anchor を取り、
+その局所 tangent basis を $V_T$ とする。以下では query / anchor の添字を省略する。
+
+$$
+P_T=V_TV_T^T,\qquad P_N=I-P_T,\qquad
+v_T=P_Tv,\qquad v_N=P_Nv.
+$$
+
+$T$ は tangent、$N$ は normal。$\lVert v\rVert_2$ はベクトルの大きさである。
+$\langle a\rangle_t$ は **同じ時刻の生成細胞について scalar $a$ を平均する**記号として使う。
+したがって、図01–03は「各細胞の norm の平均」であり、「平均ベクトルの norm」ではない。
+
+### 図01 — Score の tangent / normal 成分
+
+まず START_X prediction から gene-space score を求め、それを PCA に投影したものを $s$ と書く。
+
+$$
+s_\theta(x_t,t)=\frac{\sqrt{\bar\alpha_t}\,\hat x_0-x_t}{1-\bar\alpha_t},
+\qquad s=C s_\theta(x_t,t),\qquad s_T=P_Ts,\qquad s_N=P_Ns.
+$$
+
+**横軸は $t$、縦軸の2本の線は次の量。**
+
+$$
+\text{tangent}:\ \langle\lVert s_T\rVert_2\rangle_t,
+\qquad
+\text{normal}:\ \langle\lVert s_N\rVert_2\rangle_t.
+$$
+
+学習された score が、局所 manifold に沿う方向と垂直な方向のどちらに強く向いているかを見る。
+$s$ は実際の1 step の移動量そのものではなく、その移動は図02で確認する。
+
+### 図02 — Model drift の tangent / normal 成分（主要解析）
+
+native DDPM の「予測平均 − 更新前 state」を PCA に投影した移動を $\Delta z_{\mathrm{model}}$ とする。
+
+$$
+\Delta z_{\mathrm{model}}=C\bigl(\mu_\theta(x_t,t)-x_t\bigr),\qquad
+\Delta z_{\mathrm{model},T}=P_T\Delta z_{\mathrm{model}},\qquad
+\Delta z_{\mathrm{model},N}=P_N\Delta z_{\mathrm{model}}.
+$$
+
+**横軸は $t$、縦軸は $\langle\lVert\Delta z_{\mathrm{model},T}\rVert_2\rangle_t$ と
+$\langle\lVert\Delta z_{\mathrm{model},N}\rVert_2\rangle_t$。**
+生成の後半でも manifold に沿う移動が残るか、それとも model drift 全体が小さくなるかを見る。
+図01の score の性質が実際の reverse movement にどう表れるかを確認する。
+
+### 図03 — Noise による tangent / normal 移動
+
+実際の更新後 state と予測平均との差を取り、DDPM noise が実現した移動を分離する。
+
+$$
+\Delta z_{\mathrm{noise}}=C\bigl(x_{t-1}-\mu_\theta(x_t,t)\bigr),\qquad
+\Delta z_{\mathrm{noise},T}=P_T\Delta z_{\mathrm{noise}},\qquad
+\Delta z_{\mathrm{noise},N}=P_N\Delta z_{\mathrm{noise}}.
+$$
+
+**横軸は $t$、縦軸は $\langle\lVert\Delta z_{\mathrm{noise},T}\rVert_2\rangle_t$ と
+$\langle\lVert\Delta z_{\mathrm{noise},N}\rVert_2\rangle_t$。**
+図02と比較し、散布を担うのが model drift か stochastic noise かを見る。
+最後の $t=0$ update では noise が加わらないため、両 norm は0になる。
+
+### 図04 — 全体のうち normal 成分が占める割合
+
+実際の全移動を $\Delta z_{\mathrm{total}}$ とし、各ベクトルの squared normal fraction を計算する。
+
+$$
+\Delta z_{\mathrm{total}}=C(x_{t-1}-x_t)
+=\Delta z_{\mathrm{model}}+\Delta z_{\mathrm{noise}},\qquad
+R_N(v)=\frac{\lVert P_Nv\rVert_2^2}{\lVert v\rVert_2^2},\qquad
+R_T(v)=\frac{\lVert P_Tv\rVert_2^2}{\lVert v\rVert_2^2}.
+$$
+
+**横軸は $t$、縦軸の4本の線は次の量。**
+
+$$
+\langle R_N(s)\rangle_t,\quad
+\langle R_N(\Delta z_{\mathrm{model}})\rangle_t,\quad
+\langle R_N(\Delta z_{\mathrm{noise}})\rangle_t,\quad
+\langle R_N(\Delta z_{\mathrm{total}})\rangle_t.
+$$
+
+1に近いほど normal 優位。非ゼロベクトルなら $R_T+R_N=1$ だが、ゼロベクトルでは比は未定義。
+これは細胞ごとの比の平均であり、norm の二乗を全細胞で合計してから取る比ではない。
+解析次元を $D$ とすると等方的 noise でも $\mathbb E[R_N]=(D-d)/D$ になるため、
+normal 割合の大きさだけを manifold correction の証拠にしない。
+
+### 図05 — Manifold からの距離と normal drift
+
+clean real の局所平均を $\bar z_i$、$a_t=\sqrt{\bar\alpha_t}$ とすると、
+同じ PCA 原点を保った scaled local mean と平面への距離は次のとおり。
+
+$$
+\bar z_i^{(t)}=a_t\bar z_i+(a_t-1)C\mu,\qquad
+ d_M(x_t)=\lVert P_N(z_t-\bar z_i^{(t)})\rVert_2.
+$$
+
+**横軸は $d_M(x_t)$、縦軸は $\lVert\Delta z_{\mathrm{model},N}\rVert_2$。**
+実際の描画は同じ $t$ の距離 bin $B$ ごとの平均で、点の座標は
+
+$$
+\left(\langle d_M\rangle_{t,B},\quad
+\langle\lVert\Delta z_{\mathrm{model},N}\rVert_2\rangle_{t,B}\right).
+$$
+
+時刻ごとに別の線を描き、遠い点ほど垂直方向の移動が大きく、近い点ほど小さいかを見る。
+$d_M$ は nearest-real distance ではなく、局所 affine tangent plane への normal residual。
+移動が manifold 側を向くかどうかは図07で区別する。
+
+### 図06 — Manifold からの距離と tangent drift
+
+**横軸は図05と同じ $d_M(x_t)$、縦軸は $\lVert\Delta z_{\mathrm{model},T}\rVert_2$。**
+同じく時刻・距離 bin ごとの平均を描く。
+
+$$
+\left(\langle d_M\rangle_{t,B},\quad
+\langle\lVert\Delta z_{\mathrm{model},T}\rVert_2\rangle_{t,B}\right).
+$$
+
+$d_M$ が小さい点にも tangent movement が残るかを見る。
+図05と合わせて「垂直方向の補正が弱まった後、接線方向の移動も止まるのか」を調べる。
+
+### 図07 — Manifold へ向かう normal 方向との角度
+
+局所平面へ垂直に戻る correction vector を $r_N$ とする。
+
+$$
+r_N=-P_N(z_t-\bar z_i^{(t)}),\qquad
+\cos_{\mathrm{normal}}=
+\frac{\Delta z_{\mathrm{model}}^T r_N}
+{\lVert\Delta z_{\mathrm{model}}\rVert_2\lVert r_N\rVert_2}.
+$$
+
+**横軸は $d_M(x_t)$、縦軸は $\cos_{\mathrm{normal}}$**で、図05–06と同じ時刻・距離 bin の平均を描く。
++1に近いと局所平面へほぼ直線的に向かい、0付近ならその方向とほぼ直交し、
+負なら離れる成分がある。normal norm の大きさだけでは分からない、移動の向きを調べる。
+分母が0の場合は未定義として除外する。
+
+### 図08 — Training input と reverse state の分布のずれ
+
+$Q_t=\operatorname{Law}(C(x_t^{\mathrm{forward}}-\mu))$、
+$P_t=\operatorname{Law}(C(x_t^{\mathrm{reverse}}-\mu))$ を同じ時刻の PCA-space state marginal とする。
+**横軸は $t$、縦軸は $\operatorname{SWD}_1(Q_t,P_t)$。**
+
+N個ずつの標本、L本の固定単位射影 $u_\ell$ について、
+$q_{\ell,(j)},p_{\ell,(j)}$ を各射影値を小さい順に並べたものとすると、描く推定値は
+
+$$
+\widehat{\operatorname{SWD}}_1(Q_t,P_t)
+=\frac{1}{LN}\sum_{\ell=1}^{L}\sum_{j=1}^{N}
+\left\lvert q_{\ell,(j)}-p_{\ell,(j)}\right\rvert.
+$$
+
+独立した2組の forward 標本による $\widehat{\operatorname{SWD}}_1(Q_t^{(1)},Q_t^{(2)})$ も基準線として描く。
+reverse trajectory が training input distribution からいつ離れ始めるかを見る。
+有限標本による差と比較するための基準であり、分布差の原因をこの図だけで断定しない。
+
+### 図09 — 分布の中心と広がりのずれ
+
+図08の PCA 標本の平均を $\hat\mu_t^Q,\hat\mu_t^P$、標本共分散を
+$\hat\Sigma_t^Q,\hat\Sigma_t^P$ とする。**両 panel の横軸は $t$**。
+
+$$
+\text{左の縦軸}:\quad
+\lVert\hat\mu_t^P-\hat\mu_t^Q\rVert_2,
+\qquad
+\text{右の縦軸}:\quad
+\frac{\operatorname{tr}(\hat\Sigma_t^P)}{\operatorname{tr}(\hat\Sigma_t^Q)}.
+$$
+
+左は中心のずれ、右は全体の広がりの違いを表す。
+右が1なら総分散が同じ、1より大きければ reverse 側が広い。ただし分布の形まで同じとは限らない。
+
+### 図10 — 細胞集団への割り当て割合の変化
+
+各時刻の clean prediction $\hat x_0$ を PCA に写し、real-reference kNN 多数決で label $c$ を付ける。
+その比率を $\pi_t^{\mathrm{gen}}(c)$、元の real annotation 比率を $\pi^{\mathrm{real}}(c)$ と書く。
+**左の heatmap は横軸が時刻、縦軸が label、色が次の差を表す。**
+
+$$
+\Delta\pi_t(c)=\pi_t^{\mathrm{gen}}(c)-\pi^{\mathrm{real}}(c).
+$$
+
+正ならその label が過剰、負なら不足。**右は横軸が時刻、縦軸が TV と JS の2本の線**で、
+以下の $p=\pi_t^{\mathrm{gen}}$, $q=\pi^{\mathrm{real}}$ を使う。
+
+$$
+\operatorname{TV}(p,q)=\frac12\sum_c\lvert p_c-q_c\rvert,\qquad
+\operatorname{JS}(p,q)=\frac12\operatorname{KL}(p\Vert m)+\frac12\operatorname{KL}(q\Vert m),
+\qquad m=\frac{p+q}{2}.
+$$
+
+$\operatorname{KL}(p\Vert m)=\sum_{c:p_c>0}p_c\log(p_c/m_c)$、JS の単位は nats。
+Superclass と celltype を別々に描き、どの mode の偏りがいつ強まるかを見る。
+遠く離れた生成点にも label は付くため、real に近いかどうかは図11で確認する。
+
+### 図11 — Real と generated の近傍混合
+
+real/generated を同数 $n$ に揃え、各生成点 $g$ の joint kNN に real が占める割合を測る。
+query 自身は近傍から除く。
+
+$$
+\operatorname{mix}(g)=\frac1k\sum_{j\in\operatorname{kNN}_{\mathrm{joint}}(g)}
+\mathbf 1[j\text{ is real}],\qquad
+f_{\mathrm{near\text{-}zero}}=\frac1n\sum_{g=1}^{n}
+\mathbf 1[\operatorname{mix}(g)\leq0.05].
+$$
+
+**横軸は pred_xstart の時刻と final sample。左の縦軸には次の3量と基準線を描く。**
+
+$$
+\operatorname{mean}_g\operatorname{mix}(g),\quad
+\operatorname{median}_g\operatorname{mix}(g),\quad
+f_{\mathrm{near\text{-}zero}},\qquad
+\text{無作為混合の基準}=\frac{n}{2n-1}.
+$$
+
+右の箱ひげ図は細胞ごとの $\operatorname{mix}(g)$ の分布。
+mean / median が低い、または $f_{\mathrm{near\text{-}zero}}$ が高いほど、
+generated-only island の存在が疑われる。near-zero の閾値0.05は CLI で変更できる。
 
 図01–07は、局所 tangent dimension **d=5,10,20** を別 panel で比較し、
 既定では **t≤200** を対象にする。図05–07の点は距離 bin 内の平均で、個々の細胞ではない。
