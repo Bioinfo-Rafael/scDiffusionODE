@@ -1,0 +1,10 @@
+{
+  "mode": "full",
+  "analysis_config": "../20260821_noeqThermo/configs/full.json",
+  "timesteps": [
+    100,
+    900,
+    1000
+  ],
+  "batch_size": 128
+}

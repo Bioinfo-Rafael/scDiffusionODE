@@ -31,7 +31,7 @@ from .landscape import (
     save_landscape,
     simulate_stationary_distribution,
 )
-from .plotting import plot_core_figures, plot_lap
+from .plotting import plot_core_figures, plot_lap, shared_plot_scales
 
 HERE = Path(__file__).resolve().parents[2]
 REPO_ROOT = HERE.parent.parent
@@ -198,8 +198,9 @@ def _project_model_velocity(
     prior,
     *,
     device: Any,
+    velocity_provider=None,
 ) -> tuple[Any, dict[str, Any]]:
-    """Restore one ODE, evaluate V(x), and reuse the existing scVelo projection."""
+    """Evaluate an ODE or supplied gene-space field, then share scVelo projection."""
 
     import anndata as ad
 
@@ -215,19 +216,24 @@ def _project_model_velocity(
     observed_genes = prior["gene_names"](shared)
     if observed_genes != list(genes):
         raise ValueError("shared h5ad gene ordering changed before model evaluation")
-    run_config = inputs["config"]
-    prior["validate_target"](run_config)
-    diffusion = prior["build_diffusion"](run_config)
-    model = prior["load_model"](run_config, list(genes), diffusion, inputs["checkpoint"], device)
-    adapter = prior["adapter"](
-        model.ode_model,
-        device=device,
-        batch_size=int(config.get("model_batch_size", 128)),
-    )
     X = prior["dense"](shared.X)
-    if X.shape[1] != adapter.dimension or X.shape[1] != len(genes):
-        raise ValueError(f"model/expression/gene mismatch: X={X.shape}, D={adapter.dimension}, genes={len(genes)}")
-    velocity_gene = np.asarray(adapter.func(X), dtype=np.float32)
+    field_metadata = {}
+    if velocity_provider is None:
+        run_config = inputs["config"]
+        prior["validate_target"](run_config)
+        diffusion = prior["build_diffusion"](run_config)
+        model = prior["load_model"](run_config, list(genes), diffusion, inputs["checkpoint"], device)
+        adapter = prior["adapter"](
+            model.ode_model, device=device,
+            batch_size=int(config.get("model_batch_size", 128)),
+        )
+        if X.shape[1] != adapter.dimension or X.shape[1] != len(genes):
+            raise ValueError("model/expression/gene mismatch")
+        velocity_gene = np.asarray(adapter.func(X), dtype=np.float32)
+        del adapter, model, diffusion
+    else:
+        velocity_gene, field_metadata = velocity_provider(X, genes, inputs, device)
+        velocity_gene = np.asarray(velocity_gene, dtype=np.float32)
     if velocity_gene.shape != X.shape or not np.isfinite(velocity_gene).all():
         raise ValueError("gene-space model velocity is invalid or misaligned")
 
@@ -277,7 +283,12 @@ def _project_model_velocity(
         "coordinates_sha256": _hash_array(coordinates),
         "velocity_umap_sha256": _hash_array(velocity_umap),
     }
-    del adapter, model, diffusion, velocity_gene
+    metadata["field"] = field_metadata
+    if velocity_provider is not None:
+        # Keep the full gene-space field outside AnnData (whose X is a placeholder).
+        metadata["gene_velocity_sha256"] = _hash_array(velocity_gene)
+        minimal.uns["gene_velocity"] = velocity_gene
+    del velocity_gene
     gc.collect()
     return minimal, metadata
 
@@ -299,7 +310,7 @@ def _save_common(shared: Any, genes: Sequence[str], source_cells: int, output_di
     np.savez_compressed(
         common_dir / "erythropoietic_fixed_umap.npz",
         coordinates=coordinates,
-        cell_ids=np.asarray(shared.obs_names.astype(str)),
+        cell_ids=np.asarray(shared.obs_names.astype(str), dtype=str),
         genes=np.asarray(genes, dtype=str),
     )
     metadata = {
@@ -318,7 +329,7 @@ def _save_common(shared: Any, genes: Sequence[str], source_cells: int, output_di
 
 
 def _model_name(inputs: Mapping[str, Any], used: set[str]) -> str:
-    base = _slug(f"{inputs['config'].get('experiment', 'model')}__{inputs['run_dir'].name}")
+    base = _slug(inputs.get("name") or f"{inputs['config'].get('experiment', 'model')}__{inputs['run_dir'].name}")
     name = base
     counter = 2
     while name in used:
@@ -334,11 +345,25 @@ def run_pipeline(
     output_dir: str | Path,
     *,
     device_name: str = "auto",
+    prepared_inputs=None,
+    velocity_provider=None,
+    resume_identity=None,
 ) -> dict[str, Any]:
+    if (prepared_inputs is None) != (velocity_provider is None):
+        raise ValueError("prepared_inputs and velocity_provider must be supplied together")
     prior = _load_prior_symbols()
     output_dir = Path(output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     manifest_path = output_dir / "analysis_manifest.json"
+    if resume_identity is not None:
+        identity_path = output_dir / "resume_identity.json"
+        if identity_path.exists():
+            if json.loads(identity_path.read_text()) != resume_identity:
+                raise ValueError("output directory belongs to different inputs/config/code; use a new output directory")
+        elif any(output_dir.iterdir()):
+            raise ValueError("cannot resume a nonempty output directory without resume_identity.json")
+        else:
+            _write_json(identity_path, resume_identity)
     started = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
     manifest: dict[str, Any] = {
         "status": "running",
@@ -352,11 +377,14 @@ def run_pipeline(
     }
     _write_json(manifest_path, manifest)
     try:
-        inputs_list = [
-            prior["discover"](path, checkpoint="", sample_path="") for path in run_dirs
-        ]
-        for inputs in inputs_list:
-            prior["validate_target"](inputs["config"])
+        if prepared_inputs is None:
+            inputs_list = [prior["discover"](path, checkpoint="", sample_path="") for path in run_dirs]
+            for inputs in inputs_list:
+                prior["validate_target"](inputs["config"])
+        else:
+            inputs_list = list(prepared_inputs)
+        if not inputs_list:
+            raise ValueError("at least one field is required")
         data_paths = {str(inputs["data_path"].resolve()) for inputs in inputs_list}
         if len(data_paths) != 1:
             raise ValueError(
@@ -381,6 +409,7 @@ def run_pipeline(
                 config,
                 prior,
                 device=device,
+                velocity_provider=velocity_provider,
             )
             if projection_metadata["coordinates_sha256"] != coordinate_hash:
                 raise RuntimeError("a model changed the shared UMAP coordinates")
@@ -389,7 +418,7 @@ def run_pipeline(
                 model_dir / "observed_umap_velocity.npz",
                 coordinates=np.asarray(model_adata.obsm["X_umap"], dtype=np.float64),
                 velocity_umap=velocity_umap,
-                cell_ids=np.asarray(model_adata.obs_names.astype(str)),
+                cell_ids=np.asarray(model_adata.obs_names.astype(str), dtype=str),
             )
             pd.DataFrame(
                 {
@@ -400,6 +429,13 @@ def run_pipeline(
                     "velocity_UMAP2": velocity_umap[:, 1],
                 }
             ).to_csv(model_dir / "observed_umap_velocity.csv", index=False)
+            if "gene_velocity" in model_adata.uns:
+                np.savez_compressed(
+                    model_dir / "observed_gene_velocity.npz",
+                    velocity=model_adata.uns.pop("gene_velocity"),
+                    genes=np.asarray(genes, dtype=str),
+                    cell_ids=np.asarray(shared.obs_names.astype(str), dtype=str),
+                )
             fit_metadata = fit_dynamo_vector_field(model_adata, config["dynamo"])
             save_dynamo_results(model_adata, model_dir, fit_metadata)
             vecfld = model_adata.uns["VecFld_umap"]
@@ -437,6 +473,21 @@ def run_pipeline(
                     points, state, expected_version=str(config["dynamo"]["version"])
                 )
 
+            if resume_identity is not None:
+                # Reject reuse if a recomputed embedding or fitted field changed.
+                probe_x = np.linspace(bounds[0, 0], bounds[0, 1], 16)
+                probe_y = np.linspace(bounds[1, 0], bounds[1, 1], 16)
+                xx, yy = np.meshgrid(probe_x, probe_y)
+                fingerprint = {
+                    "coordinates": coordinate_hash,
+                    "projected_velocity": item["projection"]["velocity_umap_sha256"],
+                    "field_grid": _hash_array(field(np.column_stack((xx.ravel(), yy.ravel())))),
+                    "calibration": calibration,
+                }
+                fingerprint_path = model_dir / "simulation_identity.json"
+                if fingerprint_path.exists() and json.loads(fingerprint_path.read_text()) != fingerprint:
+                    raise ValueError("recomputed field differs from simulation checkpoint; use a new output directory")
+                _write_json(fingerprint_path, fingerprint)
             num_tra, total_Fx, total_Fy, simulation_metadata = simulate_stationary_distribution(
                 field,
                 bounds,
@@ -458,15 +509,6 @@ def run_pipeline(
             )
             save_landscape(result, model_dir)
             fixed_points, fixed_types = fixed_points_from_adata(item["adata"])
-            figures = plot_core_figures(
-                result,
-                coordinates,
-                labels,
-                fixed_points,
-                fixed_types,
-                model_dir,
-                config["plot"],
-            )
             lap_paths, lap_status = run_least_action_paths(
                 item["adata"],
                 celltype_key=celltype_key,
@@ -474,16 +516,9 @@ def run_pipeline(
                 diffusion=float(calibration["D"]),
             )
             save_lap(lap_paths, lap_status, model_dir)
-            if lap_paths:
-                plot_lap(
-                    result,
-                    coordinates,
-                    labels,
-                    lap_paths,
-                    model_dir / "10_least_action_paths.png",
-                    config["plot"],
-                )
-                figures.append("10_least_action_paths.png")
+            item.update(result=result, fixed_points=fixed_points, fixed_types=fixed_types,
+                        lap_paths=lap_paths)
+            figures = []
             model_manifest = {
                 "name": item["name"],
                 "run_dir": str(item["inputs"]["run_dir"]),
@@ -504,7 +539,7 @@ def run_pipeline(
                     "curl_and_landscape_space": "2D UMAP only",
                 },
             }
-            _write_json(model_dir / "model_manifest.json", model_manifest)
+            item["manifest"] = model_manifest
             model_summaries.append(
                 {
                     "model": item["name"],
@@ -514,6 +549,23 @@ def run_pipeline(
                     "lap_pairs": len(lap_paths),
                 }
             )
+        scales = shared_plot_scales([item["result"] for item in prepared]) if config["plot"].get("shared_scales") else {}
+        if scales:
+            _write_json(output_dir / "common" / "plot_scales.json", scales)
+        for item in prepared:
+            plot_config = {**config["plot"], **scales}
+            if scales:
+                plot_config["axis_bounds"] = bounds.tolist()
+            if item["inputs"].get("plot_label"):
+                plot_config["condition_label"] = item["inputs"]["plot_label"]
+            figures = plot_core_figures(item["result"], coordinates, labels,
+                                        item["fixed_points"], item["fixed_types"], item["dir"], plot_config)
+            if item["lap_paths"]:
+                plot_lap(item["result"], coordinates, labels, item["lap_paths"],
+                         item["dir"] / "10_least_action_paths.png", plot_config)
+                figures.append("10_least_action_paths.png")
+            item["manifest"].update(figures=figures, plot_settings=plot_config)
+            _write_json(item["dir"] / "model_manifest.json", item["manifest"])
         pd.DataFrame(model_summaries).to_csv(output_dir / "model_comparison_summary.csv", index=False)
         completed = datetime.now(timezone.utc).astimezone().isoformat(timespec="seconds")
         manifest.update(

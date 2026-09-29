@@ -11,7 +11,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from matplotlib.colors import TwoSlopeNorm
+from matplotlib.colors import TwoSlopeNorm, Normalize
 
 from .landscape import LandscapeResult
 
@@ -22,7 +22,30 @@ FIXED_POINT_STYLES = {
 }
 
 
-def _finish(fig: plt.Figure, path: Path, dpi: int) -> None:
+def shared_plot_scales(results):
+    """One color scale per quantity across all conditions."""
+    def finite_values(name):
+        values = np.concatenate([np.asarray(getattr(r, name)).ravel() for r in results])
+        return values[np.isfinite(values)]
+    curl = finite_values("curl")
+    probability = finite_values("probability")
+    potential = finite_values("potential_for_gradient")
+    return {
+        "curl_scale": max(float(np.quantile(np.abs(curl), 0.98)), np.finfo(float).eps),
+        "probability_limits": [0.0, float(probability.max())],
+        "potential_limits": [float(potential.min()), float(potential.max())],
+    }
+
+
+def _finish(fig: plt.Figure, path: Path, dpi: int, cfg=None) -> None:
+    if cfg and cfg.get("axis_bounds"):
+        for ax in fig.axes:
+            if ax.get_xlabel() == "UMAP1" and ax.get_ylabel() == "UMAP2":
+                ax.set_xlim(*cfg["axis_bounds"][0])
+                ax.set_ylim(*cfg["axis_bounds"][1])
+    if cfg and cfg.get("condition_label"):
+        fig.suptitle(cfg["condition_label"], fontsize=10)
+        fig.tight_layout(rect=(0, 0, 1, 0.93))
     fig.savefig(path, dpi=dpi, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
@@ -143,6 +166,8 @@ def plot_core_figures(
     dpi = int(cfg["dpi"])
     stride = int(cfg["quiver_stride"])
     created: list[str] = []
+    potential_norm = Normalize(*cfg["potential_limits"]) if "potential_limits" in cfg else None
+    probability_norm = Normalize(*cfg["probability_limits"]) if "probability_limits" in cfg else None
 
     fig, ax = plt.subplots(figsize=(7.2, 5.8))
     _cell_scatter(ax, coordinates, labels, cfg)
@@ -150,7 +175,7 @@ def plot_core_figures(
     ax.set(title="Erythropoietic continuous UMAP vector field", xlabel="UMAP1", ylabel="UMAP2")
     ax.legend(frameon=False, fontsize=7, ncol=2, loc="best")
     name = "01_umap_vector_field.png"
-    _finish(fig, output_dir / name, dpi)
+    _finish(fig, output_dir / name, dpi, cfg)
     created.append(name)
 
     fig, ax = plt.subplots(figsize=(7.2, 5.8))
@@ -160,12 +185,12 @@ def plot_core_figures(
     ax.set(title="Vector-field topography", xlabel="UMAP1", ylabel="UMAP2")
     ax.legend(frameon=False, fontsize=7, ncol=2, loc="best")
     name = "02_topography_fixed_points.png"
-    _finish(fig, output_dir / name, dpi)
+    _finish(fig, output_dir / name, dpi, cfg)
     created.append(name)
 
     finite_curl = result.curl[np.isfinite(result.curl)]
     curl_scale = float(np.quantile(np.abs(finite_curl), 0.98)) if len(finite_curl) else 1.0
-    curl_scale = max(curl_scale, np.finfo(float).eps)
+    curl_scale = float(cfg.get("curl_scale", max(curl_scale, np.finfo(float).eps)))
     fig, ax = plt.subplots(figsize=(6.4, 5.4))
     _heatmap(
         ax,
@@ -178,14 +203,14 @@ def plot_core_figures(
     _stream(ax, result, color="#222222", density=1.0)
     ax.set(title="Curl of reconstructed 2D UMAP field", xlabel="UMAP1", ylabel="UMAP2")
     name = "03_curl_umap.png"
-    _finish(fig, output_dir / name, dpi)
+    _finish(fig, output_dir / name, dpi, cfg)
     created.append(name)
 
     fig, ax = plt.subplots(figsize=(6.4, 5.4))
-    _heatmap(ax, result, result.probability, cmap="turbo", label=r"$P_{ss}$")
+    _heatmap(ax, result, result.probability, cmap="turbo", label=r"$P_{ss}$", norm=probability_norm)
     ax.set(title="Steady-state probability", xlabel="UMAP1", ylabel="UMAP2")
     name = "04_steady_state_probability.png"
-    _finish(fig, output_dir / name, dpi)
+    _finish(fig, output_dir / name, dpi, cfg)
     created.append(name)
 
     fig = plt.figure(figsize=(7.2, 6.0))
@@ -195,6 +220,7 @@ def plot_core_figures(
         result.Ygrid,
         result.potential_for_gradient,
         cmap="jet",
+        norm=potential_norm,
         linewidth=0,
         antialiased=True,
         alpha=0.92,
@@ -212,9 +238,11 @@ def plot_core_figures(
     )
     fig.colorbar(surface, ax=ax, shrink=0.65, pad=0.1, label=r"Potential $U=-\log P_{ss}$")
     ax.set(xlabel="UMAP1", ylabel="UMAP2", zlabel="Potential", title="Nonequilibrium potential landscape")
+    if "potential_limits" in cfg:
+        ax.set_zlim(*cfg["potential_limits"])
     ax.view_init(elev=45, azim=30)
     name = "05_potential_landscape.png"
-    _finish(fig, output_dir / name, dpi)
+    _finish(fig, output_dir / name, dpi, cfg)
     created.append(name)
 
     vector_panels = [
@@ -224,14 +252,14 @@ def plot_core_figures(
     ]
     for name, title, x_component, y_component in vector_panels:
         fig, ax = plt.subplots(figsize=(6.4, 5.4))
-        _heatmap(ax, result, result.potential_for_gradient, cmap="turbo", label="Potential")
+        _heatmap(ax, result, result.potential_for_gradient, cmap="turbo", label="Potential", norm=potential_norm)
         _normalized_quiver(ax, result, x_component, y_component, stride)
         ax.set(title=title, xlabel="UMAP1", ylabel="UMAP2")
-        _finish(fig, output_dir / name, dpi)
+        _finish(fig, output_dir / name, dpi, cfg)
         created.append(name)
 
     fig, ax = plt.subplots(figsize=(7.2, 5.8))
-    _heatmap(ax, result, result.potential_for_gradient, cmap="turbo", label="Potential")
+    _heatmap(ax, result, result.potential_for_gradient, cmap="turbo", label="Potential", norm=potential_norm)
     _normalized_quiver(
         ax,
         result,
@@ -248,7 +276,7 @@ def plot_core_figures(
         ylabel="UMAP2",
     )
     name = "09_landscape_flux_overlay.png"
-    _finish(fig, output_dir / name, dpi)
+    _finish(fig, output_dir / name, dpi, cfg)
     created.append(name)
     return created
 
@@ -290,7 +318,7 @@ def plot_lap(
     if color_values:
         fig.colorbar(scatter, ax=ax, label="Cumulative action")
     ax.set(title="Dynamo least-action paths", xlabel="UMAP1", ylabel="UMAP2")
-    _finish(fig, Path(output_path), int(cfg["dpi"]))
+    _finish(fig, Path(output_path), int(cfg["dpi"]), cfg)
 
 
 __all__ = ["plot_core_figures", "plot_lap"]
