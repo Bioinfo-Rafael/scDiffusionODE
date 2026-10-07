@@ -1,0 +1,7 @@
+data/
+figures/
+.ipynb_checkpoints/
+__pycache__/
+*.executed.ipynb
+
+.venv/
