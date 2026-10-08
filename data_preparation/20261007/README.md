@@ -4,10 +4,10 @@ mouse gastrulation全体として取得するscVeloデータと、benchmark Data
 
 ## リモートで実行
 
-配置先は `/home/suzuki/Projects/scDiffusion-github/data_preparation/20261007_` です。ローカルではデータ取得もNotebook実行もしていません。
+配置先は `/home/suzuki/Projects/scDiffusion-github/data_preparation/20261007` です。ローカルではデータ取得もNotebook実行もしていません。
 
 ```bash
-cd /home/suzuki/Projects/scDiffusion-github/data_preparation/20261007_
+cd /home/suzuki/Projects/scDiffusion-github/data_preparation/20261007
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
@@ -15,7 +15,7 @@ python download_data.py
 python -m jupyterlab inspect_gastrulation.ipynb
 ```
 
-Notebookを上から順に実行してください。保存先の引数や環境変数の指定は不要です。download_data.pyは自身の配置場所を基準にします。Notebookは現在地・親ディレクトリ・その配下の `data_preparation/20261007_` を探索し、最後に上記リモート配置先を確認します。リポジトリ名をローカルの `scDiffusionODE` と仮定しません。
+Notebookを上から順に実行してください。保存先の引数や環境変数の指定は不要です。download_data.pyは自身の配置場所を基準にします。Notebookは現在地・親ディレクトリ・その配下の `data_preparation/20261007` を探索し、最後に上記リモート配置先を確認します。リポジトリ名をローカルの `scDiffusionODE` と仮定しません。
 
 必要ならリモートで非対話実行できます（既存Notebookの出力は上書きしません）。
 
