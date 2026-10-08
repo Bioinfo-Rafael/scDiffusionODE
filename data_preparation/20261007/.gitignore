@@ -1,5 +1,6 @@
 data/
 figures/
+reports/
 .ipynb_checkpoints/
 __pycache__/
 *.executed.ipynb
