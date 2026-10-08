@@ -3,7 +3,7 @@
 import argparse
 import numpy as np
 from common import *
-from plot_umap import draw_panel
+from plot_umap import draw_panel, SELECTION_VERSION
 
 def main(argv=None):
     p=argparse.ArgumentParser(); p.add_argument('--campaign',required=True); a=p.parse_args(argv)
@@ -12,6 +12,8 @@ def main(argv=None):
     import matplotlib.pyplot as plt
     folder=inside(a.campaign)/'umap'
     meta=read_json(folder/'embedding.json')
+    if meta.get('settings',{}).get('selection_version')!=SELECTION_VERSION:
+        raise ValueError('Refit with all Erythropoietic real cells before making comparison')
     if meta['fit_count']!=1 or meta['coordinate_sha256']!=sha256(folder/'coordinates.npz'):
         raise ValueError('Shared coordinate provenance is invalid')
     with np.load(folder/'coordinates.npz') as data:

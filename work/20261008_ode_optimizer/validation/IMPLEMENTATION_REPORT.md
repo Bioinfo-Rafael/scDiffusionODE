@@ -47,3 +47,11 @@
 - `validation/protected_files.json`
 - `validation/static_checks.json`
 - `validation/IMPLEMENTATION_REPORT.md`（この記録）
+
+## UMAP再作図の修正
+
+20260911/src/umap_adapter.py、20260913_2step/common.py・analysis/umaps.py、20260915_x0predict/common.py・analysis/umaps.pyを確認。これらのReal参照集団はSuperclass == Erythropoieticの全細胞。今回の全細胞から最大3000件という旧選択を修正し、同じErythropoietic全件選択へ変更した。既存exp_config.jsonは変更せず、そのumap_real_cells制限を作図で無視する。
+
+更新: scripts/plot_umap.py、scripts/plot_comparison.py、tests/test_suite.py、README.md、この記録。追加: scripts/replot_umaps.py、tests/test_umap_reference.py。
+
+AST構文検査・git diff --checkはPASS。ローカルで学習/sampling/UMAP実行は行っていない。新しい4件の参照選択/25PNG再描画テストはリモートで実行するために追加（実行成功の主張はしない）。replot_umaps.pyはUMAP再fitと25PNG生成だけを実行し、元のsampling NPZやcheckpointを変更しない。

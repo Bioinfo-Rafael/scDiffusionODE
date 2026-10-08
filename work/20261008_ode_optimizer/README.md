@@ -63,11 +63,11 @@ checkpointの数字は完了済みoptimizer更新回数。`model000000.pt`は真
 
 各chunkで`p_sample_loop_progressive()`を一度だけ走らせ、上記6状態をコピーする。新しいsampling式は実装しない。`samples/step_0000.npz`〜`step_1000.npz`には`cell_gen`、cell_index、seed、checkpoint、reverse_updates、step_definitionを保存。`sampling.json`にcheckpoint hashと乱数プロトコルを保存する。
 
-UMAPは全Real subset（標準3000 cells）と**全4条件×6状態**をconcatし、一度だけfitする。20260830の`hematopoietic_viz/core.py::compute_common_umap`と同じPCA(arpack,50)、neighbors(15,40 PCs)、Scanpy UMAP設定を継承する。小データでは次元/neighbor数を上限に合わせる。neighbors乱数seedも明示する。正規化・log・scaleなし。
+UMAPは`Superclass == "Erythropoietic"`（`superclass`表記も対応）の**Real全細胞**と**全4条件×6状態のGenerated全細胞**をconcatし、一度だけfitする。20260911・20260913_2step・20260915_x0predictと同じReal選択であり、3000件への間引きは行わない。既存run configの`umap_real_cells`は互換性のため残すが、作図では使用しない。該当ラベルがない場合は全細胞へのfallbackをせずエラーにする。20260830の`hematopoietic_viz/core.py::compute_common_umap`と同じPCA(arpack,50)、neighbors(15,40 PCs)、Scanpy UMAP設定を継承する。小データでは次元/neighbor数を上限に合わせる。neighbors乱数seedも明示する。正規化・log・scaleなし。
 
 `s=0`の全条件の配列一致、gene順序、sampling seed/batch/device、cell index対応を検査する。joint UMAPの座標は同じembedding内でのみ比較可能であり、距離を発現空間の定量誤差と同一視しない。
 
-`umap/coordinates.npz`に全座標、Realの元index、Generated index、全図共通の軸範囲を保存。24枚の各条件/step図と以下を再samplingなしで再描画できる。
+`umap/coordinates.npz`に全座標、Realの元index/細胞名、Generated index、全図共通の軸範囲を保存。24枚の各条件/step図と以下を再samplingなしで再描画できる。
 
 `umap/umap_comparison_600_1000_all_conditions.png`
 
@@ -153,3 +153,22 @@ python -B "$SUITE/scripts/plot_comparison.py" --campaign "$SUITE/runs/$BATCH"
 ## 検証状況
 
 実行結果は`validation/IMPLEMENTATION_REPORT.md`を参照。静的検査と実際に実行したテストを分けて記録する。
+
+## 保存済みsamplingからUMAPだけ全て作り直す
+
+```bash
+python -B work/20261008_ode_optimizer/scripts/replot_umaps.py
+# 特定campaignを指定する場合:
+python -B work/20261008_ode_optimizer/scripts/replot_umaps.py \
+  --campaign work/20261008_ode_optimizer/runs/<batch-id>
+```
+
+指定なしでは、4条件×6状態が全て保存されている最新samplingのcampaignを選ぶ。ログ冒頭に選択先を表示する。`plot_umap.py --refit`→`plot_comparison.py`のみ実行し、旧座標・24枚の各step PNG・4×2比較PNGを置き換える。学習、sampling、checkpoint解析、全リポジトリbaseline検査は実行しない。`embedding.json`に選択列、全選択細胞数、celltype別件数、Generated件数を保存し、凡例にもReal/Generatedの件数を表示する。Generatedは保存済み件数（標準3000）であり、再作図で細胞数を増やすことはない。
+
+Realの選択と表現は202609*を参考にしているが、今回保存したGeneratedの表現は指定どおりreverse update後のstate。20260913等の`pred_xstart`とは区別する。今回の既存NPZを別表現とみなして描画することはしない。全4条件×6状態の共通座標系は維持する。
+
+軽量検証（学習・samplingなし）:
+
+```bash
+python -B -m unittest discover -s work/20261008_ode_optimizer/tests -p 'test_umap_reference.py' -v
+```

@@ -165,7 +165,7 @@ class PipelineSmoke(unittest.TestCase):
         root=SUITE/'validation/smoke'
         root.mkdir(parents=True,exist_ok=True)
         a=ad.AnnData(np.random.default_rng(7).normal(size=(12,4)).astype(np.float32),
-                    obs=pd.DataFrame({'celltype':['toy']*12},index=[f'c{i}' for i in range(12)]),
+                    obs=pd.DataFrame({'celltype':['toy']*12,'Superclass':['Erythropoietic']*8+['Immune']*4},index=[f'c{i}' for i in range(12)]),
                     var=pd.DataFrame({'gene_name':['a','b','c','d']},index=['a','b','c','d']))
         data=root/'toy.h5ad'; a.write_h5ad(data)
         edge=root/'edges.tsv'; edge.write_text('from\tto\na\tb\nc\td\n')
