@@ -1,3 +1,58 @@
+# @Rafaメモ：
+- benchmark論文のdata 3についてZenodoから入手したものはscveloのデータの完全に一部であることがわかった。
+- 前処理はraw countのまま
+
+# chatGPT
+
+結論：はい。FullからErythroidの5種類のcelltypeを切り出せばよいと判断できます。発現行列もraw count相当です。
+
+更新後のNotebookを確認しました。
+
+## 1. FullとErythroidの対応
+
+| 検証項目                  | 結果              |
+| --------------------- | --------------- |
+| Fullの細胞数              | 89,267          |
+| Erythroidの細胞数         | 9,815           |
+| Fullから5種類のcelltypeを抽出 | 9,815           |
+| `stage × celltype`の分布 | 完全一致            |
+| Barcode一致             | 9,755 / 9,815   |
+| 発現量完全一致               | 9,755 / 9,755   |
+| `celltype`一致率         | 100%            |
+| `stage`一致率            | 100%            |
+| 共通遺伝子                 | 53,801 / 53,801 |
+
+特に、9,755細胞では53,801遺伝子すべてについて、X・spliced・unsplicedが完全一致しています。
+
+残り60細胞はbarcodeが一致しませんでしたが、`-1`というsuffixが付いたIDです。こちらはID変換を試す余地があります。
+
+さらに5種類のcelltype別細胞数だけでなく、stageとのクロス集計まで完全一致しています。
+
+したがって、以下で評価用subsetを作る方針で進められます。
+
+```
+ery_celltypes = [    "Blood progenitors 1",    "Blood progenitors 2",    "Erythroid1",    "Erythroid2",    "Erythroid3",]ery_eval = full[    full.obs["celltype"].isin(ery_celltypes)].copy()print(ery_eval.shape)# (9815, 53801)
+```
+
+60細胞の同一性は未検証ですが、評価用の集団としては非常に強い一致が確認されています。
+
+## 2. preprocessing状態
+
+| 項目                | Full    | Erythroid |
+| ----------------- | ------- | --------- |
+| `X`               | Count相当 | Count相当   |
+| `X == spliced`    | 完全一致    | 完全一致      |
+| `X == raw_counts` | layerなし | 完全一致      |
+| `unspliced`       | あり      | あり        |
+| log1p済み           | 形跡なし    | 形跡なし      |
+| Library size正規化   | 形跡なし    | 形跡なし      |
+| HVG subset        | 未実施と推定  | 未実施と推定    |
+| PCA / UMAP        | 計算済み    | 計算済み      |
+
+注意点として、`X`はspliced countであって、spliced + unsplicedではありません。
+
+scDiffusionODEの学習前には、Fullの89,267細胞についてnormalize、log1p、HVG選択などを実施する必要があります。
+
 # Gastrulation dataset check — 2026-10-07
 
 mouse gastrulation全体として取得するscVeloデータと、benchmark Data 3の対応を調べるためのダウンロード・読取専用診断コードです。annotation移植、統合、filter、normalize、HVG選択、モデル学習、velocity推論、評価指標計算は行いません。データ内容に関する結論は実行後の観測値から判断してください。
