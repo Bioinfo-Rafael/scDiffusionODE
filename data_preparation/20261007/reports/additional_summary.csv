@@ -1,0 +1,14 @@
+項目,結果
+Full cell count,89267
+Erythroid cell count,9815
+Fullの5 celltype抽出数,9815
+Barcode一致率,0.9938869077941925
+一意に対応できた細胞数,9755
+発現量完全一致の細胞数（候補あり・曖昧例を含む）,9755
+検証した共通gene数,53801
+検証matrix,"['X', 'spliced', 'unspliced']"
+celltype一致率（双方nonmissing）,1.0
+stage一致率（双方nonmissing）,1.0
+Xとsplicedの一致,"[{'dataset': 'full', 'left': 'X', 'right': 'spliced', 'status': 'checked_all_elements', 'elements_checked': 4802653867, 'finite_different_elements': 0, 'nonfinite_locations': 0, 'different_elements': 0, 'max_absolute_error': 0.0, 'mean_absolute_error': 0.0, 'exact_equal': True}, {'dataset': 'ery', 'left': 'X', 'right': 'spliced', 'status': 'checked_all_elements', 'elements_checked': 528056815, 'finite_different_elements': 0, 'nonfinite_locations': 0, 'different_elements': 0, 'max_absolute_error': 0.0, 'mean_absolute_error': 0.0, 'exact_equal': True}]"
+raw countsと判断できる根拠（推定材料）,"full: sampled integer fraction=1.0, min=0, negative count=0, library size range=(3676.0, 63680.0); ery: sampled integer fraction=1.0, min=0, negative count=0, library size range=(3733.0, 35274.0); Ery raw_counts exhaustive comparisons: [{'dataset': 'ery', 'left': 'X', 'right': 'raw_counts', 'status': 'checked_all_elements', 'elements_checked': 528056815, 'finite_different_elements': 0, 'nonfinite_locations': 0, 'different_elements': 0, 'max_absolute_error': 0.0, 'mean_absolute_error': 0.0, 'exact_equal': True}, {'dataset': 'ery', 'left': 'spliced', 'right': 'raw_counts', 'status': 'checked_all_elements', 'elements_checked': 528056815, 'finite_different_elements': 0, 'nonfinite_locations': 0, 'different_elements': 0, 'max_absolute_error': 0.0, 'mean_absolute_error': 0.0, 'exact_equal': True}]"
+未確認,raw由来と前処理履歴は未確定。全要素matrix一致は上表参照。annotationは未採用。

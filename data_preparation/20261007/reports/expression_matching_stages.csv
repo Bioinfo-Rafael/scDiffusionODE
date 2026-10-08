@@ -1,0 +1,10 @@
+matrix,cumulative_genes,candidate_pairs_remaining,ery_cells_remaining
+X,256,9755,9755
+X,2048,9755,9755
+X,53801,9755,9755
+spliced,256,9755,9755
+spliced,2048,9755,9755
+spliced,53801,9755,9755
+unspliced,256,9765,9755
+unspliced,2048,9755,9755
+unspliced,53801,9755,9755
