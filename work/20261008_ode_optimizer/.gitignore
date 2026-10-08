@@ -1,0 +1,8 @@
+__pycache__/
+*.pyc
+runs/
+validation/smoke/
+validation/smoke.log
+validation/protected_files_remote.json
+tests/tmp*/
+validation/smoke_result.json
