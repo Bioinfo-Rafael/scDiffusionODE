@@ -45,7 +45,13 @@ def sha256(path):
             h.update(block)
     return h.hexdigest()
 
+def prediction_target(c):
+    if type(c['predict_xstart']) is not bool:
+        raise ValueError('predict_xstart must be a JSON boolean (true/false)')
+    return 'x_start' if c['predict_xstart'] else 'epsilon'
+
 def validate(c):
+    prediction_target(c)
     if c['experiment'] not in CONDITIONS or c['cell_ode_reg_lambda_20260830'] != CONDITIONS[c['experiment']]:
         raise ValueError('Only the four specified lambda conditions are allowed')
     for key, expected in dict(ode_type='hill_after_linear', lr=1e-4, ode_lr=1e-4,
@@ -103,7 +109,12 @@ def diffusion_for(c):
     from guided_diffusion.script_util import create_gaussian_diffusion
     keys = ('learn_sigma','noise_schedule','use_kl','predict_xstart','rescale_timesteps',
             'rescale_learned_sigmas','timestep_respacing')
-    return create_gaussian_diffusion(steps=c['diffusion_steps'], **{k:c[k] for k in keys})
+    diffusion = create_gaussian_diffusion(steps=c['diffusion_steps'], **{k:c[k] for k in keys})
+    from guided_diffusion.gaussian_diffusion import ModelMeanType
+    expected = ModelMeanType.START_X if prediction_target(c) == 'x_start' else ModelMeanType.EPSILON
+    if diffusion.model_mean_type != expected:
+        raise RuntimeError('Diffusion target does not match the run config')
+    return diffusion
 
 def load_cells(c):
     import scanpy as sc

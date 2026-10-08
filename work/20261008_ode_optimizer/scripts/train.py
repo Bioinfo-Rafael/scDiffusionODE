@@ -32,7 +32,7 @@ def main(argv=None):
     model=build(c,genes,device)
     initial_hash=legacy('analysis.gradients').parameter_fingerprint(model)
     write_json(run/'model_info.json',dict(initial_parameter_sha256=initial_hash,
-        denoising_output='ml_model_only',ode=model.ode_model.get_model_info(),
+        denoising_output='ml_model_only',prediction_target=prediction_target(c),ode=model.ode_model.get_model_info(),
         optimizer={'cell':'AdamW','ode':'SGD','momentum':0,'weight_decay':c['weight_decay']},
         data_order='seeded private torch.Generator; shuffle/drop_last; checkpointed permutation and cursor'))
     data=StatefulBatches(x,labels,c['batch_size'],c['seed'])

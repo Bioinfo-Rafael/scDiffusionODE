@@ -16,7 +16,7 @@ def per_run(run):
     clean=torch.from_numpy(x[indices]); np.save(root/'cell_indices.npy',indices)
     diffusion=diffusion_for(c); model=build(c,genes,device); cp=checkpoint(run)
     model.load_state_dict(torch_load(cp)); step=legacy('analysis.gradients').checkpoint_training_step(cp)
-    meta=dict(experiment=c['experiment'],ode_type=c['ode_type'],
+    meta=dict(experiment=c['experiment'],ode_type=c['ode_type'],prediction_target=prediction_target(c),
         cell_ode_reg_lambda_20260830=c['cell_ode_reg_lambda_20260830'],
         cell_ode_reg_schedule_20260830='constant',run_directory=str(run),
         checkpoint_path=str(cp),checkpoint_training_step=step,
@@ -152,7 +152,7 @@ def summarize(runs, folder):
         f['experiment']=run.name; frames.append(f)
         d=pd.read_csv(run/'analysis/checkpoint_csv/diffusion_metrics_by_timestep.csv')
         o=pd.read_csv(run/'analysis/checkpoint_csv/cell_ode_metrics_by_timestep.csv')
-        summary.append(dict(experiment=run.name,lambda_value=CONDITIONS[run.name],
+        summary.append(dict(experiment=run.name,lambda_value=CONDITIONS[run.name],prediction_target=prediction_target(c),
             total_steps=c['total_steps'],lr_anneal_steps=c['lr_anneal_steps'],
             checkpoint_training_step=legacy('analysis.gradients').checkpoint_training_step(cp),
             cell_target_mse=float(d.cell_target_mse_mean.mean()),cell_ode_mse=float(o.cell_ode_mse_mean.mean()),

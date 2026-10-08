@@ -33,7 +33,7 @@ def main(argv=None):
     cp=checkpoint(run); output=run/'samples'; output.mkdir(parents=True,exist_ok=True)
     if (output/'sampling.json').exists() and not a.force:
         m=read_json(output/'sampling.json')
-        if m['checkpoint_sha256']==sha256(cp) and all((output/f'step_{s:04d}.npz').exists() for s in STEPS):
+        if m.get('prediction_target','epsilon')==prediction_target(c) and m['checkpoint_sha256']==sha256(cp) and all((output/f'step_{s:04d}.npz').exists() for s in STEPS):
             return
         raise FileExistsError('Sampling inputs changed; use --force')
     _,genes,_=load_cells(c); device=device_for(c)
@@ -54,7 +54,7 @@ def main(argv=None):
     finally: hook.remove()
     if calls: raise RuntimeError('ODE must not run during sampling')
     definition='s = completed reverse diffusion updates; s=0 initial Gaussian; s=1000 final sample after t=0'
-    metadata=dict(checkpoint=str(cp),checkpoint_sha256=sha256(cp),seed=c['sampling_seed'],
+    metadata=dict(prediction_target=prediction_target(c),checkpoint=str(cp),checkpoint_sha256=sha256(cp),seed=c['sampling_seed'],
         sampling_steps=list(STEPS),step_definition=definition,num_samples=c['num_samples'],
         sample_batch_size=c['sample_batch_size'],sampler='p_sample_loop_progressive',
         rng_protocol='reseed after model load; Gaussian initial then 1000 ancestral draws per chunk',

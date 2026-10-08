@@ -172,3 +172,23 @@ Realの選択と表現は202609*を参考にしているが、今回保存した
 ```bash
 python -B -m unittest discover -s work/20261008_ode_optimizer/tests -p 'test_umap_reference.py' -v
 ```
+
+## X_START予測で4条件を新規実行
+
+`--set predict_xstart=true`を指定する。`GaussianDiffusion.model_mean_type`は`START_X`、diffusion MSEのtargetはnoise εではなく前処理済みのclean X（x_start）となる。samplingも同じconfigでSTART_Xとして出力を解釈し、checkpoint解析もx_startを正解として評価する。モデル構造、初期化、soft constraint、AdamW/SGD設定、λの4条件、step数はそのまま。
+
+consistencyは引き続きCellUnet出力とODE出力のMSEであり、このrunではCellUnetのX_START予測とODE出力を合わせる正則化になる。旧ε予測のMSEとはtarget・尺度が異なるため、loss値を同一尺度の改善として比較しない。
+
+```bash
+python -B work/20261008_ode_optimizer/scripts/launch.py \
+  --batch-id ode-sgd-xstart-NEW_ID --stage all \
+  --set predict_xstart=true --set total_steps=30000 --set device=cuda
+```
+
+旧ε予測runからresumeせず、新しいbatch-idで最初から学習する。既存configの既定値falseは旧run互換のため維持する。model_info.json、sampling.json、analysis metadata/summary CSVにprediction_targetを記録する。UMAPはErythropoietic全Real cellsと保存済みGenerated全件を使い、全4条件×6状態の共通座標系で24図＋4×2比較図を作る。
+
+専用のCPU小規模検証（実データ/本格学習なし）:
+
+```bash
+python -B -m unittest discover -s work/20261008_ode_optimizer/tests -p 'test_xstart.py' -v
+```

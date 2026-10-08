@@ -55,3 +55,9 @@
 更新: scripts/plot_umap.py、scripts/plot_comparison.py、tests/test_suite.py、README.md、この記録。追加: scripts/replot_umaps.py、tests/test_umap_reference.py。
 
 AST構文検査・git diff --checkはPASS。ローカルで学習/sampling/UMAP実行は行っていない。新しい4件の参照選択/25PNG再描画テストはリモートで実行するために追加（実行成功の主張はしない）。replot_umaps.pyはUMAP再fitと25PNG生成だけを実行し、元のsampling NPZやcheckpointを変更しない。
+
+## X_STARTでの新規4条件実験
+
+既存のpredict_xstart=trueが学習/sampling/解析で共通のdiffusion factoryに伝わることを確認。booleanの厳密検証とModelMeanType.START_X/EPSILONの整合性検査を追加し、model_info・sampling metadata・analysis metadata/summaryにprediction_targetを明記した。旧既定falseは保持し、新規batch-idと--set predict_xstart=trueで再学習する。
+
+tests/test_xstart.pyに4条件のtarget設定、真のclean XへのMSE、samplerのX_START解釈、λ=0のCell勾配、X_START runの分割resume一致、異targetからのresume拒否を検証する4テストを追加。AST構文検査とgit diff --checkを実施。ローカル学習・runtimeテストは未実行。リモート起動コマンドの冒頭で専用CPUテストを実行する。
