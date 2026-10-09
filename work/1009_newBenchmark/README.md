@@ -105,10 +105,12 @@ PYTHON_BIN=python STAGE1_DEVICE=cuda bash work/1009_newBenchmark/run_all.sh
 
 完了済みcheckpoint/同一生成物を再利用し、途中checkpointなら学習をresumeする。最後のbenchmark適格性判定でexit 2となり、全工程・定量評価に成功したとは報告しない。
 
-remoteで既存の学習Python環境をactivateした後、次の一括コマンドで `origin/main` をfast-forward pullし、入力を確認してバックグラウンド実行できる。実行中のPID、全ログ、最終exit codeをこのworkの`runs/logs/`に残す。`exit_code=2`はRNA velocity benchmarkの科学的適用不可を意味し、前工程の正常終了とは区別してログを確認する。
+remoteで `scdiffusion` 環境を明示的にactivateした後、次の一括コマンドで `origin/main` をfast-forward pullし、入力を確認してバックグラウンド実行できる。base環境のPythonには`anndata`等がない場合があるため、`RUN_PYTHON`はactivate後に取得する。実行中のPID、全ログ、最終exit codeをこのworkの`runs/logs/`に残す。`exit_code=2`はRNA velocity benchmarkの科学的適用不可を意味し、前工程の正常終了とは区別してログを確認する。
 
 ```bash
 set -e
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate scdiffusion
 cd /home/suzuki/Projects/scDiffusion-github
 git pull --ff-only origin main
 test -f data_preparation/20261007/data/MouseGastrulation.h5ad
