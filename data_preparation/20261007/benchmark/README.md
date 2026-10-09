@@ -306,3 +306,101 @@ float32 overflow異常系の意図したRuntimeWarningが1件あり、公式のA
 全53,801遺伝子ではfloat32行列1枚だけで約2.1 GB、公式近傍用全対距離でも追加メモリを使います。
 入力full AnnDataの読込も含め、十分なRAMが必要です。小RAM向けのbacked/streaming動作は保証しません。
 遺伝子を勝手に間引いてメモリ不足を回避する処理はありません。
+
+## `work/`からの標準的な使い方
+
+各実験を`work/20261009_xxx/`で行い、学習・推論後にvelocityをAnnDataへ保存して共通入口を呼び出します。
+
+```text
+work/20261009_xxx/
+├── train.py
+├── predict.py
+├── evaluate_velocity.py
+└── runs/
+    ├── checkpoint.pt
+    └── velocity_prediction.h5ad
+
+data_preparation/20261007/benchmark/run.py
+    └── erythroid 9,815細胞への照合 → 公式VeloEV → results/<method>/
+```
+
+### 初回だけ行う準備
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github
+git submodule update --init --recursive
+uv python install 3.12.14
+PYTHON_BIN="$(uv python find 3.12.14)" bash data_preparation/20261007/benchmark/setup_env.sh
+python data_preparation/20261007/benchmark/prepare.py
+```
+
+`erythroid.h5ad`が存在する場合、`prepare.py`は上書きせず停止します。環境構築とデータ準備は各`work/`で繰り返しません。
+
+### 各`work/`からの評価
+
+モデルから`velocity`（`[n_cells, n_genes]`の`ds/dt`）、`cell_ids`、`gene_ids`、`checkpoint_path`を取得します。
+全89,267細胞分でもerythroid 9,815細胞分でも入力できますが、評価対象は必ず9,815細胞へ照合されます。
+
+```python
+from pathlib import Path
+import subprocess
+import sys
+import anndata as ad
+import pandas as pd
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parents[1]
+prediction = ad.AnnData(
+    X=None,
+    obs=pd.DataFrame(index=pd.Index(cell_ids)),
+    var=pd.DataFrame(index=pd.Index(gene_ids)),
+)
+prediction.layers["velocity"] = velocity
+prediction.uns["benchmark_velocity"] = {
+    "definition": "ds_dt",
+    "expression_scale": "spliced_independent_normalize_total_1e4",
+    "time_direction": "forward",
+    "training_n_cells": 89267,
+    "time_unit": "model ODE time (arbitrary unit)",
+    "inference_description": "ODE evaluated on normalized spliced X",
+    "checkpoint": str(Path(checkpoint_path).resolve()),
+}
+out = HERE / "runs"
+out.mkdir(exist_ok=True)
+prediction_path = out / "velocity_prediction.h5ad"
+genes_path = out / "gene_ids.txt"
+prediction.write_h5ad(prediction_path)
+genes_path.write_text("\n".join(gene_ids) + "\n")
+benchmark = ROOT / "data_preparation/20261007/benchmark/run.py"
+subprocess.run([
+    sys.executable, str(benchmark),
+    "--prediction", str(prediction_path), "--genes", str(genes_path),
+    "--method", "experiment_001",
+], check=True)
+```
+
+`run.py`は評価専用venvをsubprocessで起動します。モデル時刻を出力する場合は`obs["latent_time"]`または
+`obs["model_time"]`へ保存し、時刻がない場合は公式`scv.tl.velocity_pseudotime()`を使用します。
+`ds_dt`などの契約は、実際のモデル出力が満たす場合だけ宣言してください。
+
+### 結果と注意点
+
+```text
+data_preparation/20261007/data/benchmark/results/experiment_001/
+├── metrics.csv
+├── cbdir_transitions.csv
+├── cell_times.csv
+├── metadata.json
+├── run.log
+├── evaluation/
+└── postprocess/
+```
+
+`metrics.csv`にはCBDir、ICVCoh、CTO、TSCを保存します。`metadata.json`には細胞数・遺伝子数、時刻の種類、
+パラメータ、入力hash、VeloEV commit、条件差を保存します。同じ`--method`名での再実行は上書きせずエラーになります。
+
+ODEの`ds/dt`は評価できますが、CellUNetの`x_start`予測やdenoiser出力をそのままvelocityとして扱うことはできません。
+PCA/UMAPは2,000 HVG、velocity graphはモデルのgene集合を使うため、遺伝子数の異なるモデルは同一条件ではありません。
+syntheticデータによる33テストと公式VeloEVの4指標計算は確認済みですが、実9,815細胞・checkpointでの評価はリモート環境で実行してください。
+
+結果を各実験ディレクトリへ直接保存する`--output-dir`は現時点では未実装です。現在は`--method`で実験名を分けてください。
