@@ -159,7 +159,7 @@ subprocess.run([
 ```
 
 宣言は実際のモデル定義に合わせてください。ODE場のds/dtとSTART_X/denoiser予測は異なります。
-`work/20261007`では指定された実験上の仮定としてCellUNet生出力をds/dtと宣言しています。
+`work/20261009_newBenchmark`では指定された実験上の仮定としてCellUNet生出力をds/dtと宣言しています。
 契約の検証はその生物学的妥当性を証明しません。subset後に1e4への再正規化もしません。
 
 export済み入力を評価するコマンド:
@@ -189,7 +189,7 @@ python data_preparation/20261007/benchmark/run.py --evaluation full \
 
 fullは従来の`data/benchmark/erythroid.h5ad`と単一metrics.csvを使います。
 fullモードには`--output-dir`と`--time-kind`はありません。
-移動した`work/20261007/evaluate.py`は動作を維持するためfullを明示しています。
+移動した`work/20261009_newBenchmark/evaluate.py`は動作を維持するためfullを明示しています。
 
 ## 出力と比較条件
 
