@@ -1,0 +1,3 @@
+[submodule "data_preparation/20261007/benchmark/vendor/VeloEV"]
+	path = data_preparation/20261007/benchmark/vendor/VeloEV
+	url = https://github.com/edawu11/VeloEV.git
