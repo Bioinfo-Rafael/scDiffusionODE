@@ -25,5 +25,5 @@ PY
 "$PYTHON_BIN" "$HERE/export_velocity.py" "$@" --device "$STAGE1_DEVICE"
 "$PYTHON_BIN" "$HERE/visualize.py" "$@" --scope all
 "$PYTHON_BIN" "$HERE/visualize.py" "$@" --scope erythroid
-# Exit 2 is intentional scientific inapplicability, never successful benchmarking.
+# Evaluate the stipulated V(x) with the existing isolated VeloEV runner.
 "$PYTHON_BIN" "$HERE/evaluate.py" "$@"

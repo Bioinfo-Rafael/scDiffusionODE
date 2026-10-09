@@ -2,7 +2,7 @@
 
 `work/20260915_x0predict` の **START_X予測のStage 1** を、新しいMouseGastrulationの全89,267細胞・1,024 HVGで学習する。Stage 2、ODE、Hybrid、GRN/TSV、soft constraintは使わない。長時間の本学習は自動実行していない。
 
-**このモデルから生物学的RNA velocity `ds/dt` は定義できない。** ベクトル場は再構成変位として可視化し、CBDir・ICVCoh・CTO・TSCは `not_applicable` と記録する。拡散時刻を発生時刻に読み替えたり、stageとの相関から方向を調整したりしない。
+この実験では**計算上の仮定**として、CellUNetの生出力を $ds/dt$ と定義する。全細胞/Erythroidでその場を可視化し、既存VeloEVのCBDir・ICVCoh・CTO・TSCを計算する。出力の予測対象がx_startであることは、この評価を止める条件にしない。他の実験ではHybridやODEのみから別の $V(x)$ を定めてもよく、各実験が実際の計算式・入力・時間条件を明記する。
 
 ## 採用した既存コードと設定
 
@@ -35,7 +35,7 @@
 
 `p_sample` の既定 `nw=0.5` は `exp(0.5 * log_variance)` という**標準偏差**の係数であり、「ノイズ分散を0.5倍」という意味ではない。元と同じFIXED_LARGE分散を使う。最終サンプルの負値をclipする追加処理はしない。
 
-## 出力の数学的定義と評価不能の理由
+## 出力と評価用velocityの定義
 
 $x_0$ は全遺伝子で独立1e4正規化済みのsplicedからHVG列を取った線形発現量、$k\in\{0,\ldots,999\}$ は拡散index。元実装は
 
@@ -43,16 +43,15 @@ $$x_k=\sqrt{\bar\alpha_k}x_0+\sqrt{1-\bar\alpha_k}\,\epsilon,\quad \epsilon\sim 
 
 に対して、$f_\theta(x_k,k)=\widehat{x_0}$ を返し、$\mathbb{E}_{x_0,k,\epsilon}\|f_\theta(x_k,k)-x_0\|^2$ の遺伝子平均・batch平均を最小化する。**epsilonを出力する9/13の条件とは異なる。**
 
-`export_velocity.py` は名前を旧依頼に合わせているが、保存するのは次の2層だけ。
+このworkで採用する実験仮説と計算式は、正規化済み線形spliced発現 $x$ と固定した拡散条件 $k=49$ に対し
 
-- `layers['cellunet_x_start']`: $f_\theta(q(x_0,k),k)$、生のx_start予測。
-- `layers['reconstruction_displacement']`: $D_k(x_0;\epsilon)=f_\theta(q(x_0,k),k)-x_0$、元の発現量から予測への**再構成変位**。時間では割らない。
+$$V(x)=f_\theta(x,49),\qquad ds/dt:=V(s)$$
 
-可視化は後者を発現空間上の矢印としてscVeloへ渡す。x_startは発現位置の予測なので、そのまま速度と表示しない。既定 `k=49`、noise seed=1234、float64 noise、batch=128。これは低noiseの診断条件として選んだ値であり、モデル学習条件・発生時間・forward timeではない。`config.json`で変更した値、seed、batch size、checkpointを記録する。1細胞あたり1回のnoise実現なので、noise平均場でも細胞軌道でもない。
+である。`export_velocity.py`は**ノイズを加えず**に実細胞の学習用Xをそのまま入力し、EMA checkpointのCellUNet生出力を `layers['velocity']` へ保存する。$-x$、epsilon/x_start変換、正規化、時間割り算は加えない。`k=49`はモデルへの拡散条件であり、上式のモデル時間$t$そのものではない。`time_direction='forward'`と`time_unit='model time (arbitrary unit)'`はこの仮説に従う宣言で、胚日への校正や時刻の推定を含まない。モデル時刻列は作らず、既存VeloEVのvelocity pseudotime fallbackを利用する。
 
-損失は発現の周辺分布に対するdenoisingを学び、時間付き遷移、splicing kinetics、unspliced dynamicsを学習しない。同じ周辺分布に異なる発生方向の過程が対応し得るため、`ds/dt`の方向・単位をこの損失だけから同定できない。scoreや拡散過程のdriftへの変換を導いても、その時間は人工的な拡散時間であり生物学的時間にはならない。
+Stage 1の学習損失がx_startのdenoising MSEであることと、評価用に出力を$ds/dt$と**定義して扱うこと**は別の記述である。VeloEVの指標はこの仮説で定めた場と既知の細胞遷移の整合性を数値化する。生物学的機構の証明を評価実行の条件にはしない。
 
-従って `layers['velocity']`、`uns['benchmark_velocity']`、latent/model timeは作らない。既存VeloEVが必要とする `definition='ds_dt'`、`time_direction='forward'` の宣言を偽って付けない。pseudotime fallbackは**適格なvelocityが存在する場合**の時刻補完であり、この欠落を解消しない。
+2026-10-09の初回実行で作成された `predictions/cellunet_field.h5ad`、`x_start.npy`、`displacement.npy` と `figures/{all,erythroid}/` は、旧式 $f_\theta(q(x,49),49)-x$ の成果物である。今回の修正版は `predictions/cellunet_direct_t49.h5ad` と `figures/{all,erythroid}_direct_t49/` に別保存し、旧ファイルを上書きしない。旧 `metrics/benchmark_status.json` の `not_applicable` はcheckpointや予測を検査せずに出した固定statusであり、新しいVeloEV結果ではない。
 
 ## データとID
 
@@ -79,7 +78,6 @@ python work/1009_newBenchmark/export_velocity.py --device cuda
 python work/1009_newBenchmark/visualize.py --scope all
 python work/1009_newBenchmark/visualize.py --scope erythroid
 python work/1009_newBenchmark/evaluate.py
-# 最後はexit 2: RNA velocity benchmarkはnot_applicable。失敗の握り潰しではない。
 ```
 
 CPUは `--device cpu`、自動選択は `--device auto`（CUDAがあればCUDA、それ以外CPU）。MPSは元のfloat64 noise条件に対応しないため選択肢に含めない。`sample.py` / `export_velocity.py`には `--checkpoint /absolute/path/model030000.pt` を指定できる。省略時は `runs/checkpoints/latest.json` を使用。各工程に `--config /absolute/path/config.json` を指定できる。
@@ -103,9 +101,18 @@ smoke生成後に3,000生成へ変える場合やcheckpointを変える場合は
 PYTHON_BIN=python STAGE1_DEVICE=cuda bash work/1009_newBenchmark/run_all.sh
 ```
 
-完了済みcheckpoint/同一生成物を再利用し、途中checkpointなら学習をresumeする。最後のbenchmark適格性判定でexit 2となり、全工程・定量評価に成功したとは報告しない。
+完了済みcheckpoint/同一生成物を再利用し、途中checkpointなら学習をresumeする。既存の学習・samplingを再実行せず、今回の直接場のexport、全細胞/Erythroidの図、VeloEVだけを個別に実行することもできる。
 
-remoteで `scdiffusion` 環境を明示的にactivateした後、次の一括コマンドで `origin/main` をfast-forward pullし、入力を確認してバックグラウンド実行できる。base環境のPythonには`anndata`等がない場合があるため、`RUN_PYTHON`はactivate後に取得する。実行中のPID、全ログ、最終exit codeをこのworkの`runs/logs/`に残す。`exit_code=2`はRNA velocity benchmarkの科学的適用不可を意味し、前工程の正常終了とは区別してログを確認する。
+```bash
+python work/1009_newBenchmark/export_velocity.py --device cuda
+python work/1009_newBenchmark/visualize.py --scope all
+python work/1009_newBenchmark/visualize.py --scope erythroid
+python work/1009_newBenchmark/evaluate.py
+```
+
+初回のVeloEV referenceがなければ`evaluate.py`が既存`benchmark/prepare.py`を呼ぶ。専用`.venv-eval`とVeloEV submoduleが未準備なら、既存benchmark READMEのセットアップを先に行う。評価が成功すればexit 0。失敗時はこのworkの新しいbenchmark log/statusと、既存benchmarkの`results/<method>/run.log`/`metadata.json`に原因を残す。失敗済みmethod名の結果は既存runnerの上書き拒否を尊重し、再試行時は`--method`に新しい名前を指定する。
+
+remoteで `scdiffusion` 環境を明示的にactivateした後、次の一括コマンドで `origin/main` をfast-forward pullし、入力を確認してバックグラウンド実行できる。base環境のPythonには`anndata`等がない場合があるため、`RUN_PYTHON`はactivate後に取得する。実行中のPID、全ログ、最終exit codeをこのworkの`runs/logs/`に残す。旧実行のexit code 2や`not_applicable`ファイルは今回の指標計算結果ではない。
 
 ```bash
 set -e
@@ -128,6 +135,27 @@ printf "%s\n" "$!" > work/1009_newBenchmark/runs/logs/remote_pipeline.pid
 
 状態確認: `cat work/1009_newBenchmark/runs/logs/remote_pipeline.pid`、`tail -f work/1009_newBenchmark/runs/logs/remote_pipeline.log`、終了後 `cat work/1009_newBenchmark/runs/logs/remote_exit_code.txt`。GPUがない場合は `STAGE1_DEVICE=cpu` とする。最初の学習開始時は30,000 updatesを実行する。
 
+すでに30,000-step checkpointとsamplingがあるremoteでは、次の3工程だけで修正版の結果を追加できる。初回の`remote_exit_code.txt`は旧判定の履歴なので、修正版は別ログに残す。
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github
+git pull --ff-only origin main
+source "$(conda info --base)/etc/profile.d/conda.sh"
+conda activate scdiffusion
+nohup bash -c '
+  python work/1009_newBenchmark/export_velocity.py --device cuda &&
+  python work/1009_newBenchmark/visualize.py --scope all &&
+  python work/1009_newBenchmark/visualize.py --scope erythroid &&
+  python work/1009_newBenchmark/evaluate.py
+  result=$?
+  printf "%s\n" "$result" > work/1009_newBenchmark/runs/logs/direct_t49_exit_code.txt
+  exit "$result"
+' > work/1009_newBenchmark/runs/logs/direct_t49_pipeline.log 2>&1 < /dev/null &
+printf "%s\n" "$!" > work/1009_newBenchmark/runs/logs/direct_t49_pipeline.pid
+```
+
+`tail -f work/1009_newBenchmark/runs/logs/direct_t49_pipeline.log`で進捗を確認する。VeloEV実行中の詳細ログはstatus JSON内に記録された既存benchmarkの`run.log`に保存される。専用`.venv-eval`やvendor submoduleがない場合は、`benchmark/README.md`に従って先にセットアップする。
+
 
 評価referenceだけ作る必要がある場合は既存専用venvを構築済みであることを確認して、次を実行できる。
 
@@ -135,13 +163,13 @@ printf "%s\n" "$!" > work/1009_newBenchmark/runs/logs/remote_pipeline.pid
 python work/1009_newBenchmark/evaluate.py --prepare-reference
 ```
 
-これは既存 `data_preparation/20261007/benchmark/prepare.py` をsubprocessで呼び、そこが専用 `.venv-eval/bin/python` へ移る。既存referenceの上書き拒否も維持し、失敗はlogとstatus=`failed`に記録する。referenceを作ってもCellUNet評価はnot_applicableのまま。既存 `run.py` はRNA velocityの根拠がないため呼ばない。専用venv/固定VeloEVのセットアップ仕様は既存benchmark READMEを参照。
+これは既存 `data_preparation/20261007/benchmark/prepare.py` をsubprocessで呼び、そこが専用 `.venv-eval/bin/python` へ移る。既存referenceの上書き拒否も維持する。通常の`evaluate.py`もreferenceがなければ自動準備し、`run.py`でVeloEVを実行する。専用venv/固定VeloEVのセットアップ仕様は既存benchmark READMEを参照。
 
 ## 可視化と成果物
 
 全細胞とErythroidはそれぞれ**独立に**PCA→近傍→UMAPを再計算する。学習と同じ線形Xをそのまま使い、旧UMAP・benchmark用geometryを再利用しない。HVG subset後の再正規化も行わない。実／生成比較は全89,267実細胞と3,000生成細胞のjoint UMAPで、生成細胞にcelltypeは与えない。実細胞celltype図も同じ座標で保存する。
 
-可視化は元helperの50 PCs、40 neighbor PCsを使い、近傍数はこのworkのconfigで30を明示する。細胞数/遺伝子数が小さいsyntheticでは元helperと同様に利用可能な数へ減らし、実効値をmetadataへ記録。scVelo graphは線形Xと再構成変位のcosine graph、全モデル遺伝子、既定のapproxなし・sqrt transformなし。velocity_embeddingの投影値は発現単位の変位量を忠実に保存するものではなく、方向を可視化する診断。plotタイトルにも `NOT RNA velocity` を表示する。細胞subsamplingやvelocity graphのapproxは使わない。UMAP用近傍探索は元のScanpy自動選択を継承し、大規模入力ではNN-descent近似探索になり得ることをmetadataに記録する（scVelo graphのapproxとは別）。n_jobsはconfigで変更可能。
+可視化は元helperの50 PCs、40 neighbor PCsを使い、近傍数はこのworkのconfigで30を明示する。細胞数/遺伝子数が小さいsyntheticでは元helperと同様に利用可能な数へ減らし、実効値をmetadataへ記録。scVelo graphは線形Xと**生のCellUNet出力**のcosine graph、全モデル遺伝子、既定のapproxなし・sqrt transformなし。scVeloのgraph/embeddingは内部でcosine相関やベクトル中心化を行うため、描画上のUMAP矢印の数値は生の1024次元出力そのものではない。生出力の正本は予測h5adの`velocity`層。細胞subsamplingやvelocity graphのapproxは使わない。UMAP用近傍探索は元のScanpy自動選択を継承し、大規模入力ではNN-descent近似探索になり得ることをmetadataに記録する（scVelo graphのapproxとは別）。n_jobsはconfigで変更可能。
 
 ```text
 work/1009_newBenchmark/
@@ -150,26 +178,26 @@ work/1009_newBenchmark/
   prepare_data.py            HVG学習データ
   train.py                  学習・resume・loss CSV/PNG
   sample.py                 3,000細胞ancestral sampling
-  export_velocity.py        x_startと再構成変位のexport（RNA velocityではない）
+  export_velocity.py        V(x)=CellUNet(x,t=49)の生出力をvelocityとしてexport
   visualize.py              samples/all/erythroidの独立再実行
-  evaluate.py               benchmark適格性gate、任意のreference準備連携
+  evaluate.py               既存VeloEVのreference準備・4指標実行
   run_all.sh
   tests/test_pipeline.py
   runs/
     data/{training.h5ad,gene_mapping.csv,gene_ids.txt,metadata.json}
     checkpoints/{modelXXXXXX.pt,latest.json}
     samples/{generated.h5ad,metadata.json}
-    predictions/{cellunet_field.h5ad,x_start.npy,displacement.npy,metadata.json}
+    predictions/{cellunet_direct_t49.h5ad,cellunet_direct_t49.npy,cellunet_direct_t49_metadata.json}
     figures/loss.png
     figures/samples/{real_vs_generated.png,real_celltype.png,embedding.h5ad,completed.json}
-    figures/{all,erythroid}/{celltype.png,stage.png,field_stream.png,field_arrow.png,field_grid.png,embedding.h5ad,completed.json}
-    metrics/{benchmark_status.json,applicability.csv}
-    logs/{loss_*.csv,benchmark.log,failure_*.log,tests.log,...}
+    figures/{all,erythroid}_direct_t49/{celltype.png,stage.png,field_stream.png,field_arrow.png,field_grid.png,embedding.h5ad,completed.json}
+    metrics/{cellunet_direct_t49_benchmark_status.json,cellunet_direct_t49_metrics.csv}
+    logs/{loss_*.csv,cellunet_direct_t49_benchmark.log,failure_*.log,tests_direct.log,...}
 ```
 
-`applicability.csv`は4指標の値を空欄、statusをnot_applicableとして記録する。成功スコアの `metrics.csv` は作らない。benchmark既定保存先・専用Python・reference・run.pyへの参照も `benchmark_status.json` に記録する。
+VeloEVの正本は既存の`data_preparation/20261007/data/benchmark/results/<method>/`へ保存される。work内の`metrics/cellunet_direct_t49_metrics.csv`は同じCSVのコピーで、status JSONに正本・入力・checkpointへの参照を残す。benchmark専用UMAPは既存referenceのgeometryを使い、このworkの可視化UMAPと混同しない。モデル時刻を渡さないので、既存benchmark側のvelocity pseudotime fallbackを使う。
 
-メモリ: HVG準備時は元のsparse AnnDataと一時XコピーがRAMに必要。学習はミニバッチだけdense化。field exportはfloat32のmemmapを2枚利用（1枚約366 MB）し、h5adにも保存する。scVeloは全89,267×1,024の発現/変位を内部dense化し複数コピーを持つため、可視化は数GB以上のRAMを要する。全細胞での時間・ピークRAMは未測定。十分なメモリのあるリモート環境で実行する。
+メモリ: HVG準備時は元のsparse AnnDataと一時XコピーがRAMに必要。学習はミニバッチだけdense化。field exportはfloat32のmemmapを1枚利用（約366 MB）し、h5adにも保存する。scVeloは全89,267×1,024の発現/velocityを内部dense化し複数コピーを持つため、可視化は数GB以上のRAMを要する。全細胞での時間・ピークRAMはローカルで未測定。十分なメモリのあるリモート環境で実行する。
 
 ## 検証
 
@@ -178,6 +206,6 @@ OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MPLBACKEND=Agg \
   python -m unittest discover -s work/1009_newBenchmark/tests -v
 ```
 
-syntheticは80細胞×64遺伝子、うちErythroid60細胞、32 HVG。テスト内のみhidden幅を縮小し、実際のCell_Unet・START_X loss・1,000 diffusion stepsを使う。線形XとID保持、source未変更、preprocess拒否、optimizer/EMA/RNG resume、sampler、field export、3種UMAP・stream/arrow/grid、ID不一致拒否、偽RNA velocity評価の阻止を検証する。テスト成果物は `runs/logs/synthetic_*/` に保持する。
+syntheticは80細胞×64遺伝子、うちErythroid60細胞、32 HVG。テスト内のみhidden幅を縮小し、実際のCell_Unet・START_X loss・1,000 diffusion stepsを使う。線形XとID保持、source未変更、preprocess拒否、optimizer/EMA/RNG resume、sampler、生出力の一致、3種UMAP・stream/arrow/grid、ID不一致拒否、既存benchmark CLIへの連携と結果再利用を検証する。VeloEV公式4指標の**実計算**はsynthetic mockの範囲外であり、リモートのreference/専用venvで実行する。テスト成果物は `runs/logs/synthetic_*/` に保持する。
 
 実行結果と未実行範囲は `VALIDATION.md` に記録する。

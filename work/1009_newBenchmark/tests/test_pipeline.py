@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from common import *
@@ -106,13 +107,19 @@ class PipelineTests(unittest.TestCase):
         self.assertEqual(g.shape, (4, 32)); self.assertNotIn('celltype', g.obs)
         self.assertTrue(np.isfinite(g.X).all())
         self.assertEqual(sample(self.c, checkpoint=self.ck, count=4), path)
-        path = export(self.c, checkpoint=self.ck)
+        path = export(self.c)
         f = ad.read_h5ad(path); a, _ = read_data(self.c)
-        self.assertNotIn('velocity', f.layers); self.assertNotIn('benchmark_velocity', f.uns)
-        np.testing.assert_allclose(f.layers['reconstruction_displacement'],
-                                   f.layers['cellunet_x_start'] - a.X.toarray())
+        self.assertIn('velocity', f.layers)
+        self.assertEqual(f.uns['benchmark_velocity']['definition'], 'ds_dt')
+        self.assertEqual(list(f.layers), ['velocity'])
+        model, _, _, _ = load_checkpoint(self.c)
+        with torch.no_grad():
+            direct = model(torch.from_numpy(a.X.toarray()),
+                           torch.full((a.n_obs, 1), self.c['field_timestep'], dtype=torch.long))
+        np.testing.assert_allclose(f.layers['velocity'], direct.numpy(), rtol=1e-6, atol=1e-5)
+        self.assertFalse((paths(self.c) / 'predictions/cellunet_field.h5ad').exists())
         self.assertEqual(ids(f.obs_names), ids(a.obs_names))
-        self.assertEqual(export(self.c, checkpoint=self.ck), path)
+        self.assertEqual(export(self.c), path)
 
     def test_05_id_and_checkpoint_rejection(self):
         ck = torch.load(self.ck, weights_only=False)
@@ -127,23 +134,53 @@ class PipelineTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             ids(['a', 'a'])
 
-    def test_06_benchmark_never_launches_for_cellunet(self):
-        with patch('subprocess.run', side_effect=AssertionError('benchmark launched')):
-            self.assertEqual(evaluate(self.c), 2)
-        report = json.loads((paths(self.c) / 'metrics/benchmark_status.json').read_text())
-        self.assertEqual(report['status'], 'not_applicable')
-        self.assertTrue(all(v is None for v in report['metrics'].values()))
-        self.assertFalse((paths(self.c) / 'metrics/metrics.csv').exists())
+    def test_06_benchmark_invokes_existing_entrypoint_with_direct_field(self):
+        export(self.c)
+        bench = Path(self.tmp.name) / 'benchmark'
+        bench.mkdir(exist_ok=True)
+        reference = bench / 'erythroid.h5ad'
+        prediction = paths(self.c) / 'predictions/cellunet_direct_t49.h5ad'
+        called = []
+
+        def fake_run(command, **kwargs):
+            called.append(command)
+            if command[1] == str(BENCH.HERE / 'prepare.py'):
+                reference.write_bytes(b'synthetic reference placeholder')
+                return SimpleNamespace(returncode=0)
+            self.assertEqual(command[1], str(BENCH.HERE / 'run.py'))
+            self.assertEqual(command[command.index('--prediction') + 1], str(prediction))
+            self.assertEqual(command[command.index('--genes') + 1],
+                             str(paths(self.c) / 'data/gene_ids.txt'))
+            method = command[command.index('--method') + 1]
+            result = bench / 'results' / method
+            result.mkdir(parents=True)
+            (result / 'metadata.json').write_text(json.dumps(dict(status='complete', inputs={
+                'prediction': {'sha256': sha256(prediction)},
+                'reference': {'sha256': sha256(reference)}})))
+            (result / 'metrics.csv').write_text('method,cbdir,icvcoh,cto,tsc\n'
+                                                f'{method},0.1,0.2,0.3,0.4\n')
+            return SimpleNamespace(returncode=0)
+
+        with patch.object(BENCH, 'DATA', bench), patch('subprocess.run', side_effect=fake_run):
+            self.assertEqual(evaluate(self.c), 0)
+            self.assertEqual(evaluate(self.c), 0)  # matching completed result is reused
+        self.assertEqual(len(called), 2)
+        self.assertEqual(called[0][1], str(BENCH.HERE / 'prepare.py'))
+        report = json.loads((paths(self.c) / 'metrics/cellunet_direct_t49_benchmark_status.json').read_text())
+        self.assertEqual(report['status'], 'complete')
+        self.assertEqual(report['metrics']['cbdir'], '0.1')
 
     def test_07_visualization_scopes(self):
-        sample(self.c, checkpoint=self.ck, count=4); export(self.c, checkpoint=self.ck)
+        sample(self.c, checkpoint=self.ck, count=4); export(self.c)
         for scope in ('samples', 'all', 'erythroid'):
             path = visualize(self.c, scope)
             self.assertTrue((path / 'completed.json').exists())
             self.assertEqual(visualize(self.c, scope), path)
-        full = ad.read_h5ad(paths(self.c) / 'figures/all/embedding.h5ad')
-        ery = ad.read_h5ad(paths(self.c) / 'figures/erythroid/embedding.h5ad')
+        full = ad.read_h5ad(paths(self.c) / 'figures/all_direct_t49/embedding.h5ad')
+        ery = ad.read_h5ad(paths(self.c) / 'figures/erythroid_direct_t49/embedding.h5ad')
         self.assertEqual(full.n_obs, 80); self.assertEqual(ery.n_obs, 60)
+        self.assertIn('velocity_umap', full.obsm)
+        self.assertIn('velocity_umap', ery.obsm)
         self.assertFalse(np.array_equal(full.obsm['X_umap'][:60], ery.obsm['X_umap']))
 
     def test_08_bad_preprocessing_rejected(self):

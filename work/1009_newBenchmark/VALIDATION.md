@@ -2,7 +2,7 @@
 
 実行日: **2026-10-09 JST**。ローカルmacOS、既存 `scdiffusion` 環境（Python 3.9 / Torch 2.5.1 / Scanpy 1.9.3 / scVelo 0.2.5）、CPU。環境へのinstall/updateはなし。
 
-## 結果
+## 初回の再構成変位実装の検証（履歴）
 
 - **8 tests成功、7.390秒**。ログ: `runs/logs/tests.log`。
 - 80細胞×64遺伝子→32 HVG。Erythroid60細胞。学習用Xは元の線形値と完全一致し、cell/gene IDs・元列対応・入力ファイルhashを保持。
@@ -24,4 +24,10 @@ Scanpy/Matplotlib/scVeloの旧APIに由来するdeprecation warningとOpenMPのn
 
 `data_preparation/20261007/data/MouseGastrulation.h5ad` はこの環境に存在しない。実データ準備、production幅での本学習、実3,000細胞生成、全89,267/Erythroid9,815細胞可視化、CUDA実行、全体のピークRAM/実行時間は未検証。本学習を自動開始していない。
 
-benchmark referenceの再作成・専用venvへの変更は行っていない。CellUNet Stage 1から生物学的ds/dtを定義できないため、VeloEVのCBDir/ICVCoh/CTO/TSC実計算は意図的に実行しない。結果は `runs/metrics/benchmark_status.json` と `applicability.csv` に `not_applicable` として記録した。
+初回の`not_applicable`はcheckpointや予測を見ない固定statusだった。`runs/metrics/benchmark_status.json` と `applicability.csv` は旧実装の履歴であり、VeloEV結果ではない。
+
+## 直接場・VeloEV連携への修正
+
+ユーザー指定の計算上の仮定 $ds/dt:=CellUNet(x,t=49)$ を採用。新しい`cellunet_direct_t49`成果物には、正規化済み線形Xを直接入力したEMA CellUNetの生出力を保存し、ノイズ付加と`-x`を行わない。従来のcheckpoint・sample・変位成果物は変更しない。
+
+ローカルsynthetic 8テスト成功（7.474秒、ログ: `runs/logs/tests_direct.log`）。保存したvelocityがCellUNetの直接forwardと一致し、全細胞/ErythroidのscVelo stream/arrow/gridが作成できることを確認。benchmark wrapperがreferenceを既存`benchmark/prepare.py`で作り、`run.py`へpredictionとgene manifestを渡し、4指標入りCSVを受けて結果を再利用する経路はsubprocess mockで検証。synthetic stream図は開いてタイトルと凡例を確認。**VeloEV公式4指標の実計算はmockしており、リモート実データ上では未確認**。実データと専用benchmark venvはローカルに存在しないため、実行ログとmetricsをリモートで確認する必要がある。
