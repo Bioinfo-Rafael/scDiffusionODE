@@ -169,7 +169,7 @@ python work/1009_newBenchmark/evaluate.py --prepare-reference
 
 全細胞とErythroidはそれぞれ**独立に**PCA→近傍→UMAPを再計算する。学習と同じ線形Xをそのまま使い、旧UMAP・benchmark用geometryを再利用しない。HVG subset後の再正規化も行わない。実／生成比較は全89,267実細胞と3,000生成細胞のjoint UMAPで、生成細胞にcelltypeは与えない。実細胞celltype図も同じ座標で保存する。
 
-可視化は元helperの50 PCs、40 neighbor PCsを使い、近傍数はこのworkのconfigで30を明示する。細胞数/遺伝子数が小さいsyntheticでは元helperと同様に利用可能な数へ減らし、実効値をmetadataへ記録。scVelo graphは線形Xと**生のCellUNet出力**のcosine graph、全モデル遺伝子、既定のapproxなし・sqrt transformなし。scVeloのgraph/embeddingは内部でcosine相関やベクトル中心化を行うため、描画上のUMAP矢印の数値は生の1024次元出力そのものではない。生出力の正本は予測h5adの`velocity`層。細胞subsamplingやvelocity graphのapproxは使わない。UMAP用近傍探索は元のScanpy自動選択を継承し、大規模入力ではNN-descent近似探索になり得ることをmetadataに記録する（scVelo graphのapproxとは別）。n_jobsはconfigで変更可能。
+可視化は元helperの50 PCs、40 neighbor PCsを使い、近傍数はこのworkのconfigで30を明示する。細胞数/遺伝子数が小さいsyntheticでは元helperと同様に利用可能な数へ減らし、実効値をmetadataへ記録。scVelo graphは線形Xと**生のCellUNet出力**のcosine graph、全モデル遺伝子、既定のapproxなし・sqrt transformなし。scVeloのgraph/embeddingは内部でcosine相関やベクトル中心化を行うため、描画上のUMAP矢印の数値は生の1024次元出力そのものではない。生出力の正本は予測h5adの`velocity`層。細胞subsamplingやvelocity graphのapproxは使わない。UMAP用近傍探索は元のScanpy自動選択を継承し、大規模入力ではNN-descent近似探索になり得ることをmetadataに記録する（scVelo graphのapproxとは別）。scVelo velocity graphの`n_jobs`はconfigで変更可能で、既定は32。32並列ではRAM使用量も増えるため、リモートの空きメモリを確認する。
 
 ```text
 work/1009_newBenchmark/
