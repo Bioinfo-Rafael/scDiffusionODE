@@ -1,0 +1,15 @@
+{
+  "input": "data_preparation/20261007/data/MouseGastrulation.h5ad",
+  "runs": "work/1009_newBenchmark/runs",
+  "expected_cells": 89267,
+  "expected_genes": 53801,
+  "expected_erythroid": 9815,
+  "n_hvg": 1024,
+  "field_timestep": 49,
+  "inference_batch_size": 128,
+  "n_jobs": 1,
+  "pca_components": 50,
+  "neighbors": 30,
+  "neighbor_pcs": 40,
+  "training_source": "work/20260915_x0predict Stage 1 (30000 steps, START_X)"
+}
