@@ -112,6 +112,17 @@ python work/1009_newBenchmark/evaluate.py
 
 初回のVeloEV referenceがなければ`evaluate.py`が既存`benchmark/prepare.py`を呼ぶ。専用`.venv-eval`とVeloEV submoduleが未準備なら、既存benchmark READMEのセットアップを先に行う。評価が成功すればexit 0。失敗時はこのworkの新しいbenchmark log/statusと、既存benchmarkの`results/<method>/run.log`/`metadata.json`に原因を残す。失敗済みmethod名の結果は既存runnerの上書き拒否を尊重し、再試行時は`--method`に新しい名前を指定する。
 
+`uv python install 3.12.14` が `No download found` で止まる場合は、まず `uv --version` を確認する。CPython 3.12.14の配布情報はuv 0.12.5以降に含まれる。古いuvを使っている場合、[uv公式インストーラー](https://docs.astral.sh/uv/getting-started/installation/)で新しい実行ファイルをユーザー領域へ入れ、絶対パスで呼ぶ。`setup_env.sh`は評価専用Python 3.12.14を必須とするため、空の`PYTHON_BIN`を渡してもscdiffusionのPython 3.9では代用できない。
+
+```bash
+curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
+"$HOME/.local/bin/uv" python install 3.12.14
+PYTHON_BIN="$("$HOME/.local/bin/uv" python find 3.12.14)" bash data_preparation/20261007/benchmark/setup_env.sh
+python work/1009_newBenchmark/evaluate.py
+```
+
+この再実行は既存の予測h5adと可視化を再生成せず、未作成のreferenceとVeloEV評価のみ進める。失敗の詳細は`runs/logs/cellunet_direct_t49_benchmark.log`を見る。
+
 remoteで `scdiffusion` 環境を明示的にactivateした後、次の一括コマンドで `origin/main` をfast-forward pullし、入力を確認してバックグラウンド実行できる。base環境のPythonには`anndata`等がない場合があるため、`RUN_PYTHON`はactivate後に取得する。実行中のPID、全ログ、最終exit codeをこのworkの`runs/logs/`に残す。旧実行のexit code 2や`not_applicable`ファイルは今回の指標計算結果ではない。
 
 ```bash
