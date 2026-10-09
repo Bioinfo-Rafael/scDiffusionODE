@@ -82,8 +82,11 @@ def compare_inputs(raw, existing):
             details.update(shared_raw_max_abs_difference=max_raw,
                            shared_raw_normalized_1e4_max_abs_difference=max_normalized)
         result['layers'][key] = details
+    result['annotation_comparison_status'] = (
+        'compared_on_exact_shared_cells' if len(cells) else 'no_exact_shared_cells')
     result['annotation_matches'] = {
-        key: bool(raw.obs.loc[cells, key].astype(str).equals(existing.obs.loc[cells, key].astype(str)))
+        key: (bool(raw.obs.loc[cells, key].astype(str).equals(existing.obs.loc[cells, key].astype(str)))
+              if len(cells) else None)
         for key in ('celltype', 'stage')}
     result['paper_artifact_equivalence'] = 'not_verified; downloaded raw is not a paper fold manifest'
     return result

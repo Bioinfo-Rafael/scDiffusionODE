@@ -51,7 +51,8 @@ loader自身が`var_names_make_unique()`を呼ぶため、ダウンロード原�
 - 正確な共通ID上のS/U差、およびrawを全raw遺伝子分母で1e4にした場合の差。celltype/stageの一致。
 
 比較だけは共通ID上で行い、その範囲を記録します。gene集合が違えばrawの分母も異なる可能性があります。
-差が小さくても同一原本の証明にはしません。比較結果は`input_comparison.json`です。
+差が小さくても同一原本の証明にはしません。共通cell IDが0件ならannotation比較は`null`とし、
+`annotation_comparison_status=no_exact_shared_cells`を記録します。比較結果は`input_comparison.json`です。
 入力が一致しなくても、公式rawを正本として別条件の再現実験を続行します。
 元の正規化データをrawと偽って再正規化しません。raw X/S/Uの非負整数検証に失敗した場合は停止します。
 

@@ -317,6 +317,16 @@ def test_input_comparison_is_id_based():
     assert all(result['annotation_matches'].values())
 
 
+def test_input_comparison_does_not_claim_annotations_match_without_shared_cells():
+    source, _ = source_and_prediction()
+    raw = source[:N_ERY].copy()
+    raw.obs_names = [f'other_{cell}' for cell in raw.obs_names]
+    result = reproduction.compare_inputs(raw, source)
+    assert result['shared_cells'] == 0
+    assert result['annotation_comparison_status'] == 'no_exact_shared_cells'
+    assert result['annotation_matches'] == {'celltype': None, 'stage': None}
+
+
 def test_four_official_metrics_on_small_precomputed_fixture(tmp_path):
     """Real official metric calls only; no scVelo inference, graph or geometry computation."""
     import pickle
