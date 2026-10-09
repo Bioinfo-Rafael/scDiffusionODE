@@ -29,6 +29,12 @@ N_NEIGHBORS = 30
 N_HVG = 2000
 EXPRESSION_SCALE = 'spliced_independent_normalize_total_1e4'
 PROTOCOL = 'mouse_gastrulation_normalized_full_train_ery_eval_v1'
+FOLD_PROTOCOL = 'mouse_gastrulation_3fold_v2'
+N_FOLDS = 3
+SPLIT_SEED = 42
+STD_DDOF = 0  # population SD of the three observed fold scores
+REFERENCE = DATA / 'references' / 'normalized-3fold'
+RAW_EXPRESSION_SCALE = 'official_scvelo_filter_and_normalize_per_fold'
 
 
 def subprocess_env():

@@ -92,9 +92,19 @@ def build_geometry(ref):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--input', type=Path, default=C.SOURCE)
-    parser.add_argument('--output', type=Path, default=C.DATA / 'erythroid.h5ad')
+    parser.add_argument('--output', type=Path)
+    parser.add_argument('--evaluation', choices=['3fold', 'full'], default='3fold')
+    parser.add_argument('--profile', choices=['normalized', 'official-raw'], default='normalized')
     args = parser.parse_args()
     check_environment()
+    if args.evaluation == '3fold':
+        from folds import prepare_folds
+        output = args.output or C.REFERENCE
+        prepare_folds(args.input, output, args.profile)
+        print(f'Saved three independent references: {output}')
+        return
+    require(args.profile == 'normalized', 'legacy full mode only supports normalized input')
+    args.output = args.output or C.DATA / 'erythroid.h5ad'
     require(not args.output.exists(), f'refusing to overwrite {args.output}')
     source_hash = sha256(args.input)
     source = ad.read_h5ad(args.input)

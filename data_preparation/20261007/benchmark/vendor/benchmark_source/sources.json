@@ -1,0 +1,21 @@
+{
+  "commit": "b8bc1312e8dc54ab5347159f447707bc06404ad2",
+  "files": {
+    "utils.py": {
+      "upstream_path": "preprocessing/general/utils.py",
+      "sha256": "19c8606a24e249313003bc551b9cd6c347f9d00048c36151780d1734b051fd9b"
+    },
+    "preprocessing_general.ipynb": {
+      "upstream_path": "preprocessing/general/preprocessing_general.ipynb",
+      "sha256": "1cdab4bd2198e0c1c01940a20b1e24ff57b177ce6b0f4216394eb2599436d603"
+    },
+    "03_run_scvelo_stc.py": {
+      "upstream_path": "methods/RNA-only/03_run_scvelo_stc.py",
+      "sha256": "b0796c0f7e407002e0a282e403c4c363b9abcad83bfa4ca6edf4058562b694b8"
+    },
+    "LICENSE": {
+      "upstream_path": "LICENSE",
+      "sha256": "9c4804512ce33e08306a9523fcd966def1ab20dcd9e8bb56dea83202a5effba1"
+    }
+  }
+}

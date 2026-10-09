@@ -45,10 +45,22 @@ def source_and_prediction():
     return source, pred
 
 
+def fake_geometry(ref):
+    """Only a shape-correct test fixture; never used by production preparation."""
+    ref.obsm['X_pca'] = np.zeros((ref.n_obs, C.N_PCS))
+    ref.obsm['X_umap'] = np.zeros((ref.n_obs, 2))
+    ref.obsp['distances'] = sparse.eye(ref.n_obs, format='csr')
+    ref.obsp['connectivities'] = sparse.eye(ref.n_obs, format='csr')
+    ref.uns['neighbors'] = {'params': {'n_neighbors': 30, 'n_pcs': 30}}
+    ref.var['benchmark_geometry_hvg'] = True
+    return ref
+
+
 @pytest.fixture(scope='module')
-def reference():
+def reference(request):
     source, _ = source_and_prediction()
-    return prepare.build_geometry(prepare.make_reference(source, expected_full=N_FULL, expected_ery=N_ERY))
+    ref = prepare.make_reference(source, expected_full=N_FULL, expected_ery=N_ERY)
+    return prepare.build_geometry(ref) if request.config.getoption('--run-integration') else fake_geometry(ref)
 
 
 def align(ref, pred, genes=None, time_key=None):
@@ -148,6 +160,7 @@ def test_invalid_source(case):
 
 
 @pytest.mark.parametrize('model_time', [True, False])
+@pytest.mark.integration
 def test_real_official_four_metrics(reference, tmp_path, model_time):
     _, pred = source_and_prediction()
     if not model_time: del pred.obs['latent_time']
@@ -174,6 +187,7 @@ def test_missing_explicit_time(reference):
         align(reference, pred, time_key='not_there')
 
 
+@pytest.mark.integration
 def test_main_outputs_and_no_overwrite(reference, tmp_path, monkeypatch):
     import functools
     import json
@@ -184,7 +198,7 @@ def test_main_outputs_and_no_overwrite(reference, tmp_path, monkeypatch):
     monkeypatch.setattr(C, 'DATA', tmp_path)
     monkeypatch.setattr(run, 'align_prediction', functools.partial(
         run.align_prediction, expected_full=N_FULL, expected_ery=N_ERY))
-    monkeypatch.setattr(sys, 'argv', ['run.py', '--_worker', '--method', 'synthetic',
+    monkeypatch.setattr(sys, 'argv', ['run.py', '--_worker', '--evaluation', 'full', '--method', 'synthetic',
                                     '--prediction', str(tmp_path / 'input.h5ad'),
                                     '--reference', str(tmp_path / 'reference.h5ad')])
     run.main()
@@ -207,6 +221,7 @@ def test_shape_rejected_by_anndata():
         pred.layers['velocity'] = np.ones((pred.n_obs, pred.n_vars - 1))
 
 
+@pytest.mark.integration
 def test_pseudotime_reproducible(reference, tmp_path):
     _, pred = source_and_prediction()
     del pred.obs['latent_time']
@@ -227,7 +242,7 @@ def test_failure_record(reference, tmp_path, monkeypatch):
     pred.write_h5ad(tmp_path / 'input.h5ad')
     reference.write_h5ad(tmp_path / 'reference.h5ad')
     monkeypatch.setattr(C, 'DATA', tmp_path)
-    monkeypatch.setattr(sys, 'argv', ['run.py', '--_worker', '--method', 'bad_count',
+    monkeypatch.setattr(sys, 'argv', ['run.py', '--_worker', '--evaluation', 'full', '--method', 'bad_count',
                                     '--prediction', str(tmp_path / 'input.h5ad'),
                                     '--reference', str(tmp_path / 'reference.h5ad')])
     # Production CLI must reject synthetic cell counts; no weakening of the CLI guard.

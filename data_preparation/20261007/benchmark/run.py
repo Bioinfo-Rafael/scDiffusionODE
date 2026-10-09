@@ -27,12 +27,14 @@ from common import (annotations, check_environment, check_vendor, digest_ids, en
 
 
 def align_prediction(ref, pred, genes, velocity_key, time_key=None, *,
-                     expected_full=C.FULL_CELLS, expected_ery=C.ERYTHROID_CELLS):
+                     expected_full=C.FULL_CELLS, expected_ery=C.ERYTHROID_CELLS,
+                     inference_protocol='full-trained', time_kind=None):
     require(ref.n_obs == expected_ery, f'evaluation must contain {expected_ery} cells')
     annotations(ref)
     meta = ref.uns.get('benchmark', {})
-    require(meta.get('protocol') == C.PROTOCOL, 'wrong/missing prepared reference protocol')
-    require(meta.get('expression_scale') == C.EXPRESSION_SCALE, 'reference expression scale mismatch')
+    require(meta.get('protocol') in (C.PROTOCOL, C.FOLD_PROTOCOL), 'wrong/missing prepared reference protocol')
+    scale = meta.get('expression_scale')
+    require(scale in (C.EXPRESSION_SCALE, C.RAW_EXPRESSION_SCALE), 'reference expression scale mismatch')
     for key, value in [('seed', C.SEED), ('n_pcs', C.N_PCS), ('n_neighbors', C.N_NEIGHBORS)]:
         require(meta.get(key) == value, f'reference {key} differs from fixed protocol')
     source_ids = pd.Index(meta.get('source_cell_ids', []))
@@ -41,7 +43,9 @@ def align_prediction(ref, pred, genes, velocity_key, time_key=None, *,
     require(set(ref.obs_names) <= set(source_ids), 'reference cells absent from source manifest')
     require(digest_ids(ref.var_names) == meta.get('source_gene_ids_sha256'), 'reference gene manifest changed')
     ids(pred.obs_names, 'prediction cell'); ids(pred.var_names, 'prediction gene'); ids(genes, 'expected gene')
-    require(set(pred.obs_names) in (set(ref.obs_names), set(source_ids)),
+    allowed_cells = [set(ref.obs_names)] if inference_protocol == 'per-fold' else [
+        set(source_ids), set(meta.get('erythroid_cell_ids', ref.obs_names))]
+    require(set(pred.obs_names) in allowed_cells,
             'prediction cell IDs must exactly match full source or complete erythroid reference')
     require(set(genes) <= set(ref.var_names), 'gene manifest contains unknown reference genes')
     require(set(pred.var_names) == set(genes), 'prediction gene IDs differ from expected gene manifest')
@@ -50,9 +54,11 @@ def align_prediction(ref, pred, genes, velocity_key, time_key=None, *,
     require(pred.layers[velocity_key].shape == pred.shape, 'velocity shape mismatch')
     contract = dict(pred.uns.get('benchmark_velocity', {}))
     require(contract.get('definition') == 'ds_dt', 'velocity contract must declare ds_dt; denoiser x0 is not ds_dt')
-    require(contract.get('expression_scale') == C.EXPRESSION_SCALE, 'unsupported velocity expression scale')
+    require(contract.get('expression_scale') == scale, 'unsupported velocity expression scale')
     require(contract.get('time_direction') == 'forward', 'velocity time direction must be forward')
-    require(contract.get('training_n_cells') == expected_full, 'model must be trained on full cells')
+    training_cells = expected_ery if inference_protocol == 'per-fold' else expected_full
+    require(contract.get('training_n_cells') == training_cells,
+            'model must be trained on full cells' if inference_protocol == 'full-trained' else 'per-fold training cell count mismatch')
     for key in ('time_unit', 'inference_description', 'checkpoint'):
         require(isinstance(contract.get(key), str) and contract[key].strip(), f'velocity contract needs {key}')
     if time_key is None:
@@ -93,11 +99,24 @@ def align_prediction(ref, pred, genes, velocity_key, time_key=None, *,
         out.obsp[key] = ref.obsp[key].copy()
     require('neighbors' in ref.uns, 'reference neighbors: missing')
     out.uns['neighbors'] = dict(ref.uns['neighbors'])
-    out.uns['neighbors'].pop('indices', None)  # always let VeloEV compute official metric neighbors
+    if scale == C.RAW_EXPRESSION_SCALE:
+        # Retain official precomputed moments and velocity gene mask. No second moments call.
+        for key in ('Ms', 'Mu'):
+            require(key in ref.layers, f'official reference {key}: missing')
+            finite(ref.layers[key], key)
+            out.layers[key] = ref[:, genes].layers[key].copy()
+        mask_key = velocity_key + '_genes'
+        if mask_key in matched.var:
+            require(pd.api.types.is_bool_dtype(matched.var[mask_key]), 'velocity gene mask must be boolean')
+            out.var['candidate_velocity_genes'] = matched.var[mask_key].to_numpy()
+    else:
+        out.uns['neighbors'].pop('indices', None)
     if time_key is not None:
         out.obs['candidate_time'] = matched.obs[time_key].to_numpy(dtype=float)
         require(out.obs.candidate_time.nunique() > 1, 'constant model time: TSC undefined')
-    return out, {'time_kind': 'model_latent_time' if time_key else 'velocity_pseudotime',
+    require(time_kind in (None, 'model_latent_time', 'precomputed_velocity_pseudotime'), 'invalid time kind')
+    require(time_kind is None or time_key is not None, '--time-kind requires a time column')
+    return out, {'time_kind': (time_kind or 'model_latent_time') if time_key else 'velocity_pseudotime',
                  'input_time_key': time_key, 'velocity_contract': contract,
                  'prediction_n_cells': pred.n_obs, 'evaluation_n_cells': out.n_obs,
                  'evaluation_n_genes': out.n_vars, 'gene_ids_sha256': digest_ids(genes),
@@ -110,10 +129,11 @@ def official_evaluation(adata, result_path):
     from veloev.evaluation.evaluation import single_metric, calculate_cbdir
     reproducible()
     # Guard against scVelo's heuristic triggering a second library normalization.
-    from scvelo.preprocessing.utils import not_yet_normalized
-    require(not any(not_yet_normalized(adata.layers[k]) for k in ('spliced', 'unspliced')),
-            'scVelo moments would renormalize this input; refusing to change velocity scale')
-    scv.pp.moments(adata, n_neighbors=C.N_NEIGHBORS, n_pcs=C.N_PCS)
+    if 'Ms' not in adata.layers:
+        from scvelo.preprocessing.utils import not_yet_normalized
+        require(not any(not_yet_normalized(adata.layers[k]) for k in ('spliced', 'unspliced')),
+                'scVelo moments would renormalize this input; refusing to change velocity scale')
+        scv.pp.moments(adata, n_neighbors=C.N_NEIGHBORS, n_pcs=C.N_PCS)
     finite(adata.layers['Ms'], 'Ms')
     # Only Ms and spliced are used downstream; avoid unnecessary dense Mu/U copies.
     del adata.layers['Mu']; del adata.layers['unspliced']
@@ -162,6 +182,9 @@ postprocess(methods=['candidate'], task='directional_temporal', k_fold=0,
             'official time missing or misaligned')
     finite(chosen_time.to_numpy(), 'official inferred time')
     require(chosen_time.nunique() > 1, 'constant inferred time: TSC undefined')
+    if 'candidate_time' in adata.obs:
+        require(np.array_equal(chosen_time.to_numpy(), adata.obs.candidate_time.to_numpy()),
+                'official postprocess changed supplied time')
     times = sorted(adata.obs.stage_day.unique().tolist())
     time_transitions = list(zip(times[:-1], times[1:]))
     # Record scores for each transition by invoking the same official function separately.
@@ -190,7 +213,7 @@ postprocess(methods=['candidate'], task='directional_temporal', k_fold=0,
     return scores, time_transitions
 
 
-def main():
+def legacy_main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--_worker', action='store_true', help=argparse.SUPPRESS)
     parser.add_argument('--prediction', required=True, type=Path)
@@ -268,6 +291,23 @@ def main():
                 traceback.print_exc()
                 raise
     print(f'Saved evaluation: {result / "metrics.csv"}')
+
+
+def main():
+    # Keep the former single-reference path only behind an explicit option.
+    selector = argparse.ArgumentParser(add_help=False)
+    selector.add_argument('--evaluation', choices=['3fold', 'full'], default='3fold')
+    selected, remaining = selector.parse_known_args()
+    if selected.evaluation == 'full':
+        previous = sys.argv
+        try:
+            sys.argv = [sys.argv[0], *remaining]
+            legacy_main()
+        finally:
+            sys.argv = previous
+    else:
+        from folds import evaluation_main
+        evaluation_main(remaining)
 
 
 if __name__ == '__main__':

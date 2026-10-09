@@ -1,6 +1,6 @@
 {
   "input": "data_preparation/20261007/data/MouseGastrulation.h5ad",
-  "runs": "work/1009_newBenchmark/runs",
+  "runs": "work/20261007/runs",
   "expected_cells": 89267,
   "expected_genes": 53801,
   "expected_erythroid": 9815,

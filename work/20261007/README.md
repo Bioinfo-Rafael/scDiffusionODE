@@ -1,5 +1,10 @@
 # Mouse Gastrulation: CellUNet単独 Stage 1
 
+旧`work/1009_newBenchmark`を`work/20261007`へ移動しました。既存ファイル・生成結果を保持しています。
+このworkの`evaluate.py`は従来の一括評価を維持するため、共通入口に`--evaluation full`を明示します。
+共通benchmark自体の既定値は3-foldです。既存予測を3-foldで評価する場合は
+[`benchmark/README.md`](../../data_preparation/20261007/benchmark/README.md)の手順で別名の結果を作成してください。
+
 `work/20260915_x0predict` の **START_X予測のStage 1** を、新しいMouseGastrulationの全89,267細胞・1,024 HVGで学習する。Stage 2、ODE、Hybrid、GRN/TSV、soft constraintは使わない。長時間の本学習は自動実行していない。
 
 この実験では**計算上の仮定**として、CellUNetの生出力を $ds/dt$ と定義する。全細胞/Erythroidでその場を可視化し、既存VeloEVのCBDir・ICVCoh・CTO・TSCを計算する。出力の予測対象がx_startであることは、この評価を止める条件にしない。他の実験ではHybridやODEのみから別の $V(x)$ を定めてもよく、各実験が実際の計算式・入力・時間条件を明記する。
@@ -70,27 +75,27 @@ HVGは全細胞のXの**一時コピー**にだけlog1pし、既存benchmarkと�
 ```bash
 cd /home/suzuki/Projects/scDiffusion-github
 # 使用する既存学習環境をactivateしてから実行
-python work/1009_newBenchmark/prepare_data.py
-python work/1009_newBenchmark/train.py --device cuda
-python work/1009_newBenchmark/sample.py --device cuda
-python work/1009_newBenchmark/visualize.py --scope samples
-python work/1009_newBenchmark/export_velocity.py --device cuda
-python work/1009_newBenchmark/visualize.py --scope all
-python work/1009_newBenchmark/visualize.py --scope erythroid
-python work/1009_newBenchmark/evaluate.py
+python work/20261007/prepare_data.py
+python work/20261007/train.py --device cuda
+python work/20261007/sample.py --device cuda
+python work/20261007/visualize.py --scope samples
+python work/20261007/export_velocity.py --device cuda
+python work/20261007/visualize.py --scope all
+python work/20261007/visualize.py --scope erythroid
+python work/20261007/evaluate.py
 ```
 
 CPUは `--device cpu`、自動選択は `--device auto`（CUDAがあればCUDA、それ以外CPU）。MPSは元のfloat64 noise条件に対応しないため選択肢に含めない。`sample.py` / `export_velocity.py`には `--checkpoint /absolute/path/model030000.pt` を指定できる。省略時は `runs/checkpoints/latest.json` を使用。各工程に `--config /absolute/path/config.json` を指定できる。
 
 ```bash
 # 短い実データsmoke: 同じarchitecture/loss/diffusionで2更新だけ
-python work/1009_newBenchmark/train.py --device cpu --steps 2
+python work/20261007/train.py --device cpu --steps 2
 # そこから30,000更新へ継続（--stepsは追加数でなく絶対到達step）
-python work/1009_newBenchmark/train.py --device cuda --resume
+python work/20261007/train.py --device cuda --resume
 # 特定checkpointから継続する場合
-python work/1009_newBenchmark/train.py --device cuda --resume /absolute/path/model002000.pt
+python work/20261007/train.py --device cuda --resume /absolute/path/model002000.pt
 # 生成smoke（1000 diffusion stepsは維持）
-python work/1009_newBenchmark/sample.py --device cpu --count 4
+python work/20261007/sample.py --device cpu --count 4
 ```
 
 smoke生成後に3,000生成へ変える場合やcheckpointを変える場合は、既存samples/fieldを上書きしないため、以前の成果物を別途退避するか、別の `runs` を使う。入力・checkpoint・設定・IDの一致を検証できる同じ成果物だけ再利用する。不完全な生成物は成功扱いしない。異なるresume branchを同じrunsへ書く場合、既存stepのcheckpointは上書き拒否するので、別runsを使う。checkpointは信頼できるこのworkflowの出力だけを指定する。
@@ -98,16 +103,16 @@ smoke生成後に3,000生成へ変える場合やcheckpointを変える場合は
 一括実行は次の通り。**未学習なら本学習を開始するコマンド**なので、実行時間を確保した上で使う。
 
 ```bash
-PYTHON_BIN=python STAGE1_DEVICE=cuda bash work/1009_newBenchmark/run_all.sh
+PYTHON_BIN=python STAGE1_DEVICE=cuda bash work/20261007/run_all.sh
 ```
 
 完了済みcheckpoint/同一生成物を再利用し、途中checkpointなら学習をresumeする。既存の学習・samplingを再実行せず、今回の直接場のexport、全細胞/Erythroidの図、VeloEVだけを個別に実行することもできる。
 
 ```bash
-python work/1009_newBenchmark/export_velocity.py --device cuda
-python work/1009_newBenchmark/visualize.py --scope all
-python work/1009_newBenchmark/visualize.py --scope erythroid
-python work/1009_newBenchmark/evaluate.py
+python work/20261007/export_velocity.py --device cuda
+python work/20261007/visualize.py --scope all
+python work/20261007/visualize.py --scope erythroid
+python work/20261007/evaluate.py
 ```
 
 初回のVeloEV referenceがなければ`evaluate.py`が既存`benchmark/prepare.py`を呼ぶ。専用`.venv-eval`とVeloEV submoduleが未準備なら、既存benchmark READMEのセットアップを先に行う。評価が成功すればexit 0。失敗時はこのworkの新しいbenchmark log/statusと、既存benchmarkの`results/<method>/run.log`/`metadata.json`に原因を残す。失敗済みmethod名の結果は既存runnerの上書き拒否を尊重し、再試行時は`--method`に新しい名前を指定する。
@@ -118,7 +123,7 @@ python work/1009_newBenchmark/evaluate.py
 curl --proto '=https' --tlsv1.2 -LsSf https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh
 "$HOME/.local/bin/uv" python install 3.12.14
 PYTHON_BIN="$("$HOME/.local/bin/uv" python find 3.12.14)" bash data_preparation/20261007/benchmark/setup_env.sh
-python work/1009_newBenchmark/evaluate.py
+python work/20261007/evaluate.py
 ```
 
 この再実行は既存の予測h5adと可視化を再生成せず、未作成のreferenceとVeloEV評価のみ進める。失敗の詳細は`runs/logs/cellunet_direct_t49_benchmark.log`を見る。
@@ -134,17 +139,17 @@ git pull --ff-only origin main
 test -f data_preparation/20261007/data/MouseGastrulation.h5ad
 RUN_PYTHON="$(command -v python)"
 test -n "$RUN_PYTHON"
-mkdir -p work/1009_newBenchmark/runs/logs
+mkdir -p work/20261007/runs/logs
 nohup env PYTHON_BIN="$RUN_PYTHON" STAGE1_DEVICE=cuda bash -c '
-  bash work/1009_newBenchmark/run_all.sh
+  bash work/20261007/run_all.sh
   result=$?
-  printf "%s\n" "$result" > work/1009_newBenchmark/runs/logs/remote_exit_code.txt
+  printf "%s\n" "$result" > work/20261007/runs/logs/remote_exit_code.txt
   exit "$result"
-' > work/1009_newBenchmark/runs/logs/remote_pipeline.log 2>&1 < /dev/null &
-printf "%s\n" "$!" > work/1009_newBenchmark/runs/logs/remote_pipeline.pid
+' > work/20261007/runs/logs/remote_pipeline.log 2>&1 < /dev/null &
+printf "%s\n" "$!" > work/20261007/runs/logs/remote_pipeline.pid
 ```
 
-状態確認: `cat work/1009_newBenchmark/runs/logs/remote_pipeline.pid`、`tail -f work/1009_newBenchmark/runs/logs/remote_pipeline.log`、終了後 `cat work/1009_newBenchmark/runs/logs/remote_exit_code.txt`。GPUがない場合は `STAGE1_DEVICE=cpu` とする。最初の学習開始時は30,000 updatesを実行する。
+状態確認: `cat work/20261007/runs/logs/remote_pipeline.pid`、`tail -f work/20261007/runs/logs/remote_pipeline.log`、終了後 `cat work/20261007/runs/logs/remote_exit_code.txt`。GPUがない場合は `STAGE1_DEVICE=cpu` とする。最初の学習開始時は30,000 updatesを実行する。
 
 すでに30,000-step checkpointとsamplingがあるremoteでは、次の3工程だけで修正版の結果を追加できる。初回の`remote_exit_code.txt`は旧判定の履歴なので、修正版は別ログに残す。
 
@@ -154,24 +159,24 @@ git pull --ff-only origin main
 source "$(conda info --base)/etc/profile.d/conda.sh"
 conda activate scdiffusion
 nohup bash -c '
-  python work/1009_newBenchmark/export_velocity.py --device cuda &&
-  python work/1009_newBenchmark/visualize.py --scope all &&
-  python work/1009_newBenchmark/visualize.py --scope erythroid &&
-  python work/1009_newBenchmark/evaluate.py
+  python work/20261007/export_velocity.py --device cuda &&
+  python work/20261007/visualize.py --scope all &&
+  python work/20261007/visualize.py --scope erythroid &&
+  python work/20261007/evaluate.py
   result=$?
-  printf "%s\n" "$result" > work/1009_newBenchmark/runs/logs/direct_t49_exit_code.txt
+  printf "%s\n" "$result" > work/20261007/runs/logs/direct_t49_exit_code.txt
   exit "$result"
-' > work/1009_newBenchmark/runs/logs/direct_t49_pipeline.log 2>&1 < /dev/null &
-printf "%s\n" "$!" > work/1009_newBenchmark/runs/logs/direct_t49_pipeline.pid
+' > work/20261007/runs/logs/direct_t49_pipeline.log 2>&1 < /dev/null &
+printf "%s\n" "$!" > work/20261007/runs/logs/direct_t49_pipeline.pid
 ```
 
-`tail -f work/1009_newBenchmark/runs/logs/direct_t49_pipeline.log`で進捗を確認する。VeloEV実行中の詳細ログはstatus JSON内に記録された既存benchmarkの`run.log`に保存される。専用`.venv-eval`やvendor submoduleがない場合は、`benchmark/README.md`に従って先にセットアップする。
+`tail -f work/20261007/runs/logs/direct_t49_pipeline.log`で進捗を確認する。VeloEV実行中の詳細ログはstatus JSON内に記録された既存benchmarkの`run.log`に保存される。専用`.venv-eval`やvendor submoduleがない場合は、`benchmark/README.md`に従って先にセットアップする。
 
 
 評価referenceだけ作る必要がある場合は既存専用venvを構築済みであることを確認して、次を実行できる。
 
 ```bash
-python work/1009_newBenchmark/evaluate.py --prepare-reference
+python work/20261007/evaluate.py --prepare-reference
 ```
 
 これは既存 `data_preparation/20261007/benchmark/prepare.py` をsubprocessで呼び、そこが専用 `.venv-eval/bin/python` へ移る。既存referenceの上書き拒否も維持する。通常の`evaluate.py`もreferenceがなければ自動準備し、`run.py`でVeloEVを実行する。専用venv/固定VeloEVのセットアップ仕様は既存benchmark READMEを参照。
@@ -183,7 +188,7 @@ python work/1009_newBenchmark/evaluate.py --prepare-reference
 可視化は元helperの50 PCs、40 neighbor PCsを使い、近傍数はこのworkのconfigで30を明示する。細胞数/遺伝子数が小さいsyntheticでは元helperと同様に利用可能な数へ減らし、実効値をmetadataへ記録。scVelo graphは線形Xと**生のCellUNet出力**のcosine graph、全モデル遺伝子、既定のapproxなし・sqrt transformなし。scVeloのgraph/embeddingは内部でcosine相関やベクトル中心化を行うため、描画上のUMAP矢印の数値は生の1024次元出力そのものではない。生出力の正本は予測h5adの`velocity`層。細胞subsamplingやvelocity graphのapproxは使わない。UMAP用近傍探索は元のScanpy自動選択を継承し、大規模入力ではNN-descent近似探索になり得ることをmetadataに記録する（scVelo graphのapproxとは別）。scVelo velocity graphの`n_jobs`はconfigで変更可能で、既定は32。32並列ではRAM使用量も増えるため、リモートの空きメモリを確認する。
 
 ```text
-work/1009_newBenchmark/
+work/20261007/
   common.py                 元Stage 1 adapter、設定・ID・checkpoint検証
   config.json               データ/可視化条件（学習条件は元Stage 1から取得）
   prepare_data.py            HVG学習データ
@@ -214,7 +219,7 @@ VeloEVの正本は既存の`data_preparation/20261007/data/benchmark/results/<me
 
 ```bash
 OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 NUMBA_NUM_THREADS=1 MPLBACKEND=Agg \
-  python -m unittest discover -s work/1009_newBenchmark/tests -v
+  python -m unittest discover -s work/20261007/tests -v
 ```
 
 syntheticは80細胞×64遺伝子、うちErythroid60細胞、32 HVG。テスト内のみhidden幅を縮小し、実際のCell_Unet・START_X loss・1,000 diffusion stepsを使う。線形XとID保持、source未変更、preprocess拒否、optimizer/EMA/RNG resume、sampler、生出力の一致、3種UMAP・stream/arrow/grid、ID不一致拒否、既存benchmark CLIへの連携と結果再利用を検証する。VeloEV公式4指標の**実計算**はsynthetic mockの範囲外であり、リモートのreference/専用venvで実行する。テスト成果物は `runs/logs/synthetic_*/` に保持する。

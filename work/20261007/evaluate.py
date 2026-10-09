@@ -47,7 +47,7 @@ def evaluate(c, *, method=None, prepare_reference=False):
         if not reference.is_file():
             require(not reference.exists(), 'benchmark reference already exists; do not overwrite')
             with log_path.open('a') as log:
-                subprocess.run([sys.executable, str(BENCH.HERE / 'prepare.py')],
+                subprocess.run([sys.executable, str(BENCH.HERE / 'prepare.py'), '--evaluation', 'full'],
                                stdout=log, stderr=subprocess.STDOUT, check=True)
         require(reference.is_file(), 'benchmark reference was not created')
         if result.exists():
@@ -59,6 +59,7 @@ def evaluate(c, *, method=None, prepare_reference=False):
             require((result / 'metrics.csv').is_file(), 'completed benchmark has no metrics.csv')
         else:
             command = [sys.executable, str(BENCH.HERE / 'run.py'),
+                       '--evaluation', 'full',
                        '--prediction', str(prediction), '--genes', str(genes), '--method', method]
             with log_path.open('a') as log:
                 subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, check=True)
