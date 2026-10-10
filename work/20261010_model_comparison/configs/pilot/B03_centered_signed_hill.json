@@ -1,0 +1,5 @@
+{
+  "condition": "B03_centered_signed_hill",
+  "family": "ode_only",
+  "ode": "centered_signed_hill"
+}

@@ -1,0 +1,8 @@
+{
+  "condition": "E03_simple_softplus_additive",
+  "family": "two_step",
+  "ode": "simple_softplus",
+  "hybrid": "additive",
+  "freeze_cellunet": true,
+  "total_steps": 10000
+}

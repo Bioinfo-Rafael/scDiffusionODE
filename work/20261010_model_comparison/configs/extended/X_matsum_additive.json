@@ -1,0 +1,7 @@
+{
+  "condition": "X_matsum_additive",
+  "family": "joint",
+  "ode": "matsum",
+  "hybrid": "additive",
+  "soft_weighting": "external_5"
+}

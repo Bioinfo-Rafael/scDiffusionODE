@@ -1,0 +1,20 @@
+................................................................         [100%]
+=============================== warnings summary ===============================
+work/20261010_model_comparison/tests/test_pipeline.py::test_generative_and_training_visualization
+  /Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/analysis/sliced_wasserstein.py:32: RuntimeWarning: divide by zero encountered in matmul
+    delta = np.sort(x @ directions, axis=0) - np.sort(y @ directions, axis=0)
+
+work/20261010_model_comparison/tests/test_pipeline.py::test_generative_and_training_visualization
+  /Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/analysis/sliced_wasserstein.py:32: RuntimeWarning: overflow encountered in matmul
+    delta = np.sort(x @ directions, axis=0) - np.sort(y @ directions, axis=0)
+
+work/20261010_model_comparison/tests/test_pipeline.py::test_generative_and_training_visualization
+  /Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/analysis/sliced_wasserstein.py:32: RuntimeWarning: invalid value encountered in matmul
+    delta = np.sort(x @ directions, axis=0) - np.sort(y @ directions, axis=0)
+
+work/20261010_model_comparison/tests/test_pipeline.py::test_generative_and_training_visualization
+  /Users/cls-lab/miniconda3/envs/cxr-curv/lib/python3.11/functools.py:909: ImplicitModificationWarning: Transforming to str index.
+    return dispatch(args[0].__class__)(*args, **kw)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+64 passed, 4 warnings in 18.82s

@@ -1,0 +1,10 @@
+{
+  "condition": "X_racipe_lincomb8",
+  "family": "joint",
+  "ode": "racipe",
+  "hybrid": "blend",
+  "field_kwargs": {
+    "is_lincomb": true,
+    "num_components": 8
+  }
+}

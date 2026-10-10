@@ -1,0 +1,6 @@
+{
+  "condition": "X_direct_message_additive",
+  "family": "joint",
+  "ode": "direct_message",
+  "hybrid": "additive"
+}

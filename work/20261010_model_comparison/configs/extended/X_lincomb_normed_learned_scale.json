@@ -1,0 +1,7 @@
+{
+  "condition": "X_lincomb_normed_learned_scale",
+  "family": "joint",
+  "ode": "lincomb",
+  "hybrid": "normed_learned_scale",
+  "soft_weighting": "external_5"
+}

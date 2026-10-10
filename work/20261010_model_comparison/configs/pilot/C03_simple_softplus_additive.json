@@ -1,0 +1,8 @@
+{
+  "condition": "C03_simple_softplus_additive",
+  "family": "joint",
+  "ode": "simple_softplus",
+  "hybrid": "additive",
+  "freeze_cellunet": false,
+  "total_steps": 30000
+}

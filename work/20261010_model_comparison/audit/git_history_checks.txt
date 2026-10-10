@@ -1,0 +1,14 @@
+HEAD and fetched origin/main: 0	0
+
+work/20260817_singleODE
+ed376ec Add 20260817 direct Hill single ODE experiments
+
+work/20260903_learnable_forward
+733877a Add erythropoietic-only posthoc analysis
+05eee22 Grid the epsilon/model/drift MSE and correlation comparisons
+05f97d5 Rename diagnostic metrics/files to a consistent model/epsilon/drift vocabulary
+60f0886 Split mismatched-scale metrics into small-multiples plots
+6cdc0ae Fix loss-analysis reconstruction tolerance mismatch
+f06784b Allow sequential training to continue after model failures
+a3e2f1d Document auxiliary Model A rationale and remote A/B training workflow
+a9dc521 Reparameterize Model A with exact auxiliary stationary Q/D

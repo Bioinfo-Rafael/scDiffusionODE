@@ -1,0 +1,20 @@
+{
+  "protected_file_count": 1030,
+  "protected_changed": [],
+  "pilot_conditions": 17,
+  "extended_conditions": 26,
+  "source_commit": "cddb2dc52f187f4f990d06737b2755e1e96d8450",
+  "source_input_exists": false,
+  "legacy_training_exists": false,
+  "benchmark_python_exists": true,
+  "normalized_reference_exists": false,
+  "dependencies": {
+    "torch": true,
+    "anndata": true,
+    "scanpy": true,
+    "blobfile": true,
+    "pandas": true,
+    "pytest": true
+  },
+  "training_started": false
+}

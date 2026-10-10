@@ -1,0 +1,8 @@
+{
+  "condition": "C04_hill_after_linear_additive",
+  "family": "joint",
+  "ode": "hill_after_linear",
+  "hybrid": "additive",
+  "freeze_cellunet": false,
+  "total_steps": 30000
+}

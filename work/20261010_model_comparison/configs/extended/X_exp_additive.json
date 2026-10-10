@@ -1,0 +1,9 @@
+{
+  "condition": "X_exp_additive",
+  "family": "joint",
+  "ode": "exp",
+  "hybrid": "additive",
+  "field_kwargs": {
+    "is_lincomb": false
+  }
+}

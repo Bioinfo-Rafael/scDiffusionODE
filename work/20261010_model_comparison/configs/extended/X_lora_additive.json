@@ -1,0 +1,7 @@
+{
+  "condition": "X_lora_additive",
+  "family": "joint",
+  "ode": "lora",
+  "hybrid": "additive",
+  "soft_weighting": "external_5"
+}

@@ -1,0 +1,8 @@
+{
+  "condition": "X_stage1_hill_additive_freeze_false",
+  "family": "two_step",
+  "ode": "hill_after_linear",
+  "hybrid": "additive",
+  "freeze_cellunet": false,
+  "total_steps": 10000
+}

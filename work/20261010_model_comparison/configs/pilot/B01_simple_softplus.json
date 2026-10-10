@@ -1,0 +1,5 @@
+{
+  "condition": "B01_simple_softplus",
+  "family": "ode_only",
+  "ode": "simple_softplus"
+}

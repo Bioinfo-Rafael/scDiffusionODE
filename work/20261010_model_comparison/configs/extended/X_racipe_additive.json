@@ -1,0 +1,9 @@
+{
+  "condition": "X_racipe_additive",
+  "family": "joint",
+  "ode": "racipe",
+  "hybrid": "additive",
+  "field_kwargs": {
+    "is_lincomb": false
+  }
+}

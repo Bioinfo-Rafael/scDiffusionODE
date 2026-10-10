@@ -1,0 +1,6 @@
+{
+  "condition": "X_multihop_graph_filter_additive",
+  "family": "joint",
+  "ode": "multihop_graph_filter",
+  "hybrid": "additive"
+}

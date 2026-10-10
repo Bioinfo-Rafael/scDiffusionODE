@@ -1,0 +1,7 @@
+{
+  "condition": "X_lincomb_scale_model",
+  "family": "joint",
+  "ode": "lincomb",
+  "hybrid": "scale_model",
+  "soft_weighting": "external_5"
+}

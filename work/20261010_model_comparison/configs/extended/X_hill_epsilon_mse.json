@@ -1,0 +1,6 @@
+{
+  "condition": "X_hill_epsilon_mse",
+  "family": "ode_only",
+  "ode": "hill_after_linear",
+  "prediction": "EPSILON"
+}

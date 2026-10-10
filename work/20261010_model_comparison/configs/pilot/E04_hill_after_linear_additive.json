@@ -1,0 +1,8 @@
+{
+  "condition": "E04_hill_after_linear_additive",
+  "family": "two_step",
+  "ode": "hill_after_linear",
+  "hybrid": "additive",
+  "freeze_cellunet": true,
+  "total_steps": 10000
+}

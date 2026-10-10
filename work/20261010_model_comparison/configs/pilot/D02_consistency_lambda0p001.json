@@ -1,0 +1,6 @@
+{
+  "condition": "D02_consistency_lambda0p001",
+  "family": "consistency",
+  "ode": "hill_after_linear",
+  "consistency_lambda": 0.001
+}

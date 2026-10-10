@@ -1,0 +1,10 @@
+{
+  "condition": "X_exp_lincomb8",
+  "family": "joint",
+  "ode": "exp",
+  "hybrid": "blend",
+  "field_kwargs": {
+    "is_lincomb": true,
+    "num_components": 8
+  }
+}

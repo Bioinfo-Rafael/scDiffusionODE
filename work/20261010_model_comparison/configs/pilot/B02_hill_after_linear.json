@@ -1,0 +1,5 @@
+{
+  "condition": "B02_hill_after_linear",
+  "family": "ode_only",
+  "ode": "hill_after_linear"
+}

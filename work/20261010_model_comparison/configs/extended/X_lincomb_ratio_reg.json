@@ -1,0 +1,8 @@
+{
+  "condition": "X_lincomb_ratio_reg",
+  "family": "joint",
+  "ode": "lincomb",
+  "hybrid": "ratio_reg",
+  "soft_weighting": "external_5",
+  "ratio_reg_weight": 1.0
+}

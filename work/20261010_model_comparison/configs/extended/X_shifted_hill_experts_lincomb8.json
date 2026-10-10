@@ -1,0 +1,10 @@
+{
+  "condition": "X_shifted_hill_experts_lincomb8",
+  "family": "joint",
+  "ode": "shifted_hill_experts",
+  "hybrid": "blend",
+  "field_kwargs": {
+    "is_lincomb": true,
+    "num_components": 8
+  }
+}

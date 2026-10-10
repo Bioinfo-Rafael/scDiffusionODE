@@ -1,0 +1,5 @@
+{
+  "condition": "B04_shifted_hill_rho",
+  "family": "ode_only",
+  "ode": "shifted_hill_rho"
+}

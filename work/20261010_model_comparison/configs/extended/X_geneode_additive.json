@@ -1,0 +1,7 @@
+{
+  "condition": "X_geneode_additive",
+  "family": "joint",
+  "ode": "geneode",
+  "hybrid": "additive",
+  "soft_weighting": "external_5"
+}

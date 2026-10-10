@@ -1,0 +1,7 @@
+{
+  "condition": "X_lincomb_additive",
+  "family": "joint",
+  "ode": "lincomb",
+  "hybrid": "additive",
+  "soft_weighting": "external_5"
+}

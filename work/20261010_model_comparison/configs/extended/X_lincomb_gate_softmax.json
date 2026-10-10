@@ -1,0 +1,10 @@
+{
+  "condition": "X_lincomb_gate_softmax",
+  "family": "joint",
+  "ode": "lincomb_configurable",
+  "hybrid": "blend",
+  "field_kwargs": {
+    "gate_mode": "softmax",
+    "entropy_lambda": 0.01
+  }
+}

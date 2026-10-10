@@ -1,0 +1,3830 @@
+[
+  {
+    "directory": "20260122_1_ReconstructUMAP",
+    "conclusion": "Sigmoid GeneODE + CellUNet; gene/dataset/sampling-UMAP settings.",
+    "python_files": [
+      "work/20260122_1_ReconstructUMAP/cell_sample_20251106_soft_hvg1024.py",
+      "work/20260122_1_ReconstructUMAP/cell_train_soft20251106_hvg1024.py",
+      "work/20260122_1_ReconstructUMAP/visualization_analysis.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260123_pancreas",
+    "conclusion": "Same 11/06 classes on pancreas; dataset variant.",
+    "python_files": [
+      "work/20260123_pancreas/cell_sample_20260123_soft_hvg1024.py",
+      "work/20260123_pancreas/cell_train_soft20260123_hvg1024.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260215_embryonic",
+    "conclusion": "Same 11/06 sigmoid GeneODE hybrid, EPSILON legacy TrainLoop, 2000 CLI-default anneal steps; embryonic data variant.",
+    "python_files": [
+      "work/20260215_embryonic/20260224_084326_Lamda5/File_Organization_For_Local.py",
+      "work/20260215_embryonic/20260224_084326_Lamda5/GenerateRandomParameters.py",
+      "work/20260215_embryonic/20260224_084326_Lamda5/PCA_velocity_superclass.py",
+      "work/20260215_embryonic/20260224_084326_Lamda5/RandomGene_velocity_superclass.py",
+      "work/20260215_embryonic/20260224_084326_Lamda5/velocity_by_Superclass.py",
+      "work/20260215_embryonic/20260330_Analyze-20260224Lamda5/compute_velocity_metrics.py",
+      "work/20260215_embryonic/20260330_Analyze-20260224Lamda5/embed_velocity.py",
+      "work/20260215_embryonic/20260330_noise-direction/analyze_hybrid.py",
+      "work/20260215_embryonic/20260330_noise-direction/replot_unweighted_hybrid_metrics.py",
+      "work/20260215_embryonic/20260410_CompareGammaSlope/analyze_gamma_slope_velocity.py",
+      "work/20260215_embryonic/cell_sample_20260123_soft_hvg1024.py",
+      "work/20260215_embryonic/cell_train_soft20260123_hvg1024.py",
+      "work/20260215_embryonic/visualization_analysis.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260215_embryonic/20260330_Analyze-20260224Lamda5/20260330_072038_velocity_compare/run_config.json",
+        "values": {
+          "adata_path": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "model_path1": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_100000.pt",
+          "model_path2": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_000000.pt",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/Mouse_tf_target_edges.tsv",
+          "target_superclass": "Erythropoietic",
+          "device_used": "cuda",
+          "batch_size": 1024,
+          "timesteps": 1000,
+          "n_obs_subset": 36639,
+          "n_vars_subset": 1024
+        }
+      },
+      {
+        "path": "work/20260215_embryonic/20260330_noise-direction/offline_hybrid_analysis/offline_hybrid_analysis_20260409_053413/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/Mouse_tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_100000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      },
+      {
+        "path": "work/20260215_embryonic/20260330_noise-direction/offline_hybrid_analysis/unweighted_branch_analysis_20260409_115137/run_config.json",
+        "values": {
+          "previous_out_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260330_noise-direction/offline_hybrid_analysis/offline_hybrid_analysis_20260409_053413",
+          "resolved_config": {
+            "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+            "batch_size": 128,
+            "SoftReg": true,
+            "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/Mouse_tf_target_edges.tsv",
+            "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+            "model_path": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/20260224_084326_Lamda5/20260224_084328_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_100000.pt",
+            "output_root": "./offline_hybrid_analysis",
+            "max_cells": 5000,
+            "num_t_points": 64,
+            "explicit_timesteps": "0,16,32,48,63,79,95,111,127,143,159,174,190,206,222,238,254,270,285,301,317,333,349,365,381,396,412,428,444,460,476,492,507,523,539,555,571,587,603,618,634,650,666,682,698,714,729,745,761,777,793,809,825,840,856,872,888,904,920,936,951,967,983,999",
+            "num_noise_draws": 20,
+            "seed": 1234,
+            "device": "",
+            "input_dim": 128,
+            "hidden_dim": [
+              512,
+              512,
+              256,
+              128
+            ],
+            "dropout": 0.0,
+            "learn_sigma": false,
+            "diffusion_steps": 1000,
+            "noise_schedule": "linear",
+            "timestep_respacing": "",
+            "use_kl": false,
+            "predict_xstart": false,
+            "rescale_timesteps": false,
+            "rescale_learned_sigmas": false,
+            "class_cond": false
+          }
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260413_Normalized_Embryonic",
+    "conclusion": "Softplus GeneODE with positive decay; branch unit normalization.",
+    "python_files": [
+      "work/20260413_Normalized_Embryonic/20260413_111054_softplus/20260414_noise-direction/analyze_hybrid.py",
+      "work/20260413_Normalized_Embryonic/20260415_041240_softplus/20260415_045235_noise-direction/analyze_hybrid.py",
+      "work/20260413_Normalized_Embryonic/20260415_041240_softplus/20260415_045236_Velocity/velocity_by_Superclass.py",
+      "work/20260413_Normalized_Embryonic/cell_sample_20260123_soft_hvg1024.py",
+      "work/20260413_Normalized_Embryonic/cell_train_soft20260123_hvg1024.py",
+      "work/20260413_Normalized_Embryonic/visualization_analysis.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260413_Normalized_Embryonic/20260413_111054_softplus/20260414_noise-direction/offline_hybrid_analysis/offline_hybrid_analysis_20260414_123749/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260413_Normalized_Embryonic/20260413_111054_softplus/20260413_111056_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_050000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      },
+      {
+        "path": "work/20260413_Normalized_Embryonic/20260413_111054_softplus/20260414_noise-direction/offline_hybrid_analysis/offline_hybrid_analysis_20260415_024049/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260413_Normalized_Embryonic/20260413_111054_softplus/20260413_111056_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_050000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      },
+      {
+        "path": "work/20260413_Normalized_Embryonic/20260415_041240_softplus/20260415_045235_noise-direction/offline_hybrid_analysis/offline_hybrid_analysis_20260415_054108/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260413_Normalized_Embryonic/20260415_041240_softplus/20260415_041242_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_050000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260416_Transformer",
+    "conclusion": "FactorMLP low-rank state-conditioned field, not attention.",
+    "python_files": [
+      "work/20260416_Transformer/cell_sample_20260416.py",
+      "work/20260416_Transformer/cell_train_20260416.py",
+      "work/20260416_Transformer/visualization_analysis.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260420_Normalized_LearnScale",
+    "conclusion": "4/13 GeneODE + detached-summary SmallScaleNet; learned global branch magnitude.",
+    "python_files": [
+      "work/20260420_Normalized_LearnScale/20260420_121522_Lamda10/analyze_hybrid.py",
+      "work/20260420_Normalized_LearnScale/20260421_061005_linear/analyze_hybrid.py",
+      "work/20260420_Normalized_LearnScale/cell_sample_20260420.py",
+      "work/20260420_Normalized_LearnScale/cell_train_20260420.py",
+      "work/20260420_Normalized_LearnScale/visualization_analysis.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260420_Normalized_LearnScale/20260420_121522_Lamda10/offline_hybrid_analysis/offline_hybrid_analysis_20260420_125706/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260420_Normalized_LearnScale/20260420_121522_Lamda10/20260420_121525_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_030000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      },
+      {
+        "path": "work/20260420_Normalized_LearnScale/20260420_121522_Lamda10/offline_hybrid_analysis/offline_hybrid_analysis_20260422_040722/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260420_Normalized_LearnScale/20260420_121522_Lamda10/20260420_121525_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_030000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "scale_hidden_dim": 32,
+          "scale_min": 0.5,
+          "scale_max": 8.0,
+          "init_scale": 3.0,
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      },
+      {
+        "path": "work/20260420_Normalized_LearnScale/20260421_061005_linear/offline_hybrid_analysis/offline_hybrid_analysis_20260421_095044/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260420_Normalized_LearnScale/20260421_061005_linear/20260421_061007_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_030000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      },
+      {
+        "path": "work/20260420_Normalized_LearnScale/20260421_061005_linear/offline_hybrid_analysis/offline_hybrid_analysis_20260422_040905/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260420_Normalized_LearnScale/20260421_061005_linear/20260421_061007_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_030000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "scale_hidden_dim": 32,
+          "scale_min": 0.5,
+          "scale_max": 8.0,
+          "init_scale": 3.0,
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260420_TransformerTimeEmbedding",
+    "conclusion": "GeneODE_Time: time-conditioned input before FactorMLP.",
+    "python_files": [
+      "work/20260420_TransformerTimeEmbedding/cell_sample_20260416.py",
+      "work/20260420_TransformerTimeEmbedding/cell_train_20260416.py",
+      "work/20260420_TransformerTimeEmbedding/visualization_analysis.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260421_MoE",
+    "conclusion": "MixtureOfSoftplus / MatrixDictionary / LowRankResidualDictionary via AlphaNet.",
+    "python_files": [
+      "work/20260421_MoE/cell_sample_dynamic_selectable.py",
+      "work/20260421_MoE/cell_train_dynamic_selectable.py",
+      "work/20260421_MoE/visualization_analysis.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260421_RegODEMLratio",
+    "conclusion": "Scaled softplus GeneODE; log norm-ratio cached in off_mask_penalty.",
+    "python_files": [
+      "work/20260421_RegODEMLratio/20260421_120748_default/analyze_hybrid.py",
+      "work/20260421_RegODEMLratio/cell_sample_20260421.py",
+      "work/20260421_RegODEMLratio/cell_train_20260421.py",
+      "work/20260421_RegODEMLratio/visualization_analysis.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260421_RegODEMLratio/20260421_120748_default/offline_hybrid_analysis/offline_hybrid_analysis_20260421_134052/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260421_RegODEMLratio/20260421_120748_default/20260421_120750_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_030000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      },
+      {
+        "path": "work/20260421_RegODEMLratio/20260421_120748_default/offline_hybrid_analysis/offline_hybrid_analysis_20260422_042723/analysis_config.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "batch_size": 128,
+          "SoftReg": true,
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "scdiffusion_root": "/home/suzuki/Projects/scDiffusion",
+          "model_path": "/home/suzuki/Projects/scDiffusion/work/20260421_RegODEMLratio/20260421_120748_default/20260421_120750_train/checkpoints/pbmc68k_soft_20251127_hvg1024/ema_0.9999_030000.pt",
+          "output_root": "./offline_hybrid_analysis",
+          "max_cells": 5000,
+          "num_t_points": 64,
+          "explicit_timesteps": "",
+          "num_noise_draws": 20,
+          "seed": 1234,
+          "device": "",
+          "ratio_reg_weight": 1.0,
+          "ratio_reg_target": 1.0,
+          "input_dim": 128,
+          "hidden_dim": [
+            512,
+            512,
+            256,
+            128
+          ],
+          "dropout": 0.0,
+          "learn_sigma": false,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260609_Hybrid5x3",
+    "conclusion": "Unified Hybrid across five fields \u00d7 normalization modes; 30k default; scale-model extension.",
+    "python_files": [
+      "work/20260609_Hybrid5x3/cell_sample_5x3.py",
+      "work/20260609_Hybrid5x3/cell_train_5x3.py",
+      "work/20260609_Hybrid5x3/integrated_analysis/integrated_umap_utils.py",
+      "work/20260609_Hybrid5x3/integrated_analysis/run_integrated_umap.py",
+      "work/20260609_Hybrid5x3/integrated_analysis/run_recompute_scale_eval_io.py",
+      "work/20260609_Hybrid5x3/run_experiments_5x3.py",
+      "work/20260609_Hybrid5x3/run_paths.py",
+      "work/20260609_Hybrid5x3/run_pipeline_5x3.py",
+      "work/20260609_Hybrid5x3/smoke_test_5x3.py",
+      "work/20260609_Hybrid5x3/test_scale_model_forward.py",
+      "work/20260609_Hybrid5x3/viz/_restore.py",
+      "work/20260609_Hybrid5x3/viz/eval_model_io.py",
+      "work/20260609_Hybrid5x3/viz/model_introspection.py",
+      "work/20260609_Hybrid5x3/viz/plot_lincomb_a_embedding.py",
+      "work/20260609_Hybrid5x3/viz/plot_lincomb_component_velocity_paga.py",
+      "work/20260609_Hybrid5x3/viz/plot_lincomb_component_velocity_umap.py",
+      "work/20260609_Hybrid5x3/viz/plot_lincomb_superclass_coefficients.py",
+      "work/20260609_Hybrid5x3/viz/plot_loss.py",
+      "work/20260609_Hybrid5x3/viz/plot_params.py",
+      "work/20260609_Hybrid5x3/viz/plot_velocity_umap.py",
+      "work/20260609_Hybrid5x3/viz/run_all_viz.py",
+      "work/20260609_Hybrid5x3/viz/run_lincomb_component_velocity_times.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260609_HybridNormModes",
+    "conclusion": "ratio_reg / none / normed_learned_scale configurations, not three independent ODEs.",
+    "python_files": [
+      "work/20260609_HybridNormModes/cell_sample_20260609.py",
+      "work/20260609_HybridNormModes/cell_train_20260609.py",
+      "work/20260609_HybridNormModes/eval_model_io.py",
+      "work/20260609_HybridNormModes/plot_loss.py",
+      "work/20260609_HybridNormModes/plot_params.py",
+      "work/20260609_HybridNormModes/plot_velocity_umap.py",
+      "work/20260609_HybridNormModes/run_all_viz.py",
+      "work/20260609_HybridNormModes/run_pipeline_hybridnorm.py",
+      "work/20260609_HybridNormModes/smoke_test_20260609.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260609_MathMLPHybrid",
+    "conclusion": "Dynamic LowRank, raw LinComb, MatSum, LoRA; time features; static versus cached penalties.",
+    "python_files": [
+      "work/20260609_MathMLPHybrid/cell_sample_20260609.py",
+      "work/20260609_MathMLPHybrid/cell_train_20260609.py",
+      "work/20260609_MathMLPHybrid/eval_model_io.py",
+      "work/20260609_MathMLPHybrid/plot_loss.py",
+      "work/20260609_MathMLPHybrid/plot_params.py",
+      "work/20260609_MathMLPHybrid/plot_velocity_umap.py",
+      "work/20260609_MathMLPHybrid/run_all_viz.py",
+      "work/20260609_MathMLPHybrid/run_pipeline_mathmlp.py",
+      "work/20260609_MathMLPHybrid/smoke_test_20260609.py",
+      "work/20260609_MathMLPHybrid/visualize_W_20260609.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260707_lincomb",
+    "conclusion": "raw/softmax gating, sparse/entropy; TS spectral estimate and sigmoid regime scheduler; TrainLoop reuse.",
+    "python_files": [
+      "work/20260707_lincomb/integrated_analysis/run_all_models_facets_0707.py",
+      "work/20260707_lincomb/scripts/common.py",
+      "work/20260707_lincomb/scripts/run_matrix_0707.py",
+      "work/20260707_lincomb/scripts/run_pipeline_0707.py",
+      "work/20260707_lincomb/scripts/sample_0707.py",
+      "work/20260707_lincomb/scripts/summarize_results_0707.py",
+      "work/20260707_lincomb/scripts/train_0707.py",
+      "work/20260707_lincomb/tests/test_hybrid_regime_gate.py",
+      "work/20260707_lincomb/tests/test_lincomb_gate.py",
+      "work/20260707_lincomb/tests/test_regime_time.py",
+      "work/20260707_lincomb/utils/__init__.py",
+      "work/20260707_lincomb/utils/regime_time.py",
+      "work/20260707_lincomb/viz/plot_gate_diagnostics_0707.py",
+      "work/20260707_lincomb/viz/run_all_viz_0707.py",
+      "work/20260707_lincomb/viz/run_velocity_suite_0707.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260707_lincomb/configs/base.json",
+        "values": {
+          "schema_version": "20260707",
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "ode_branch": "lincomb",
+          "denoiser_mode": "lincomb_only",
+          "hybrid_norm_mode": "none",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "regime_gate_type": "sigmoid",
+          "t_s": null,
+          "gate_tau": 20.0,
+          "ts_layer": null,
+          "ts_n_cells": 200000,
+          "ts_seed": null,
+          "ts_cache_path": "",
+          "force_recompute_ts": false,
+          "K": 8,
+          "gate_mode": "raw",
+          "gate_temperature": 1.0,
+          "SoftReg": true,
+          "use_mask_reg": true,
+          "off_mask_lambda": 5.0,
+          "sparse_lambda": 0.0,
+          "entropy_lambda": 0.0,
+          "ratio_reg_weight": 0.0,
+          "ratio_reg_target": 1.0,
+          "time_dim": 64,
+          "field_hidden": 256,
+          "field_dropout": 0.0,
+          "use_decay": true,
+          "hybrid_scale_init": 1.0,
+          "hybrid_scale_eps": 1e-08,
+          "scale_model_type": "none",
+          "scale_input_source": "ml_emb",
+          "ode_input_source": "none",
+          "scale_hidden": 128,
+          "scale_eps": 1e-08,
+          "diffusion_steps": 1000,
+          "schedule_sampler": "uniform",
+          "lr": 0.0001,
+          "weight_decay": 0.0001,
+          "lr_anneal_steps": 100000,
+          "batch_size": 128,
+          "microbatch": -1,
+          "ema_rate": "0.9999",
+          "log_interval": 1000,
+          "save_interval": 5000,
+          "resume_checkpoint": "",
+          "use_fp16": false,
+          "fp16_scale_growth": 0.001,
+          "save_loss_details": true,
+          "model_name": "lincomb0707",
+          "seed": 1234,
+          "num_samples": 3000,
+          "sample_batch_size": 50,
+          "use_ddim": false,
+          "clip_denoised": false,
+          "diagnostic_max_cells": 50000,
+          "diagnostic_t_values": "0,499,999",
+          "active_share_threshold": 0.05,
+          "baseline_reference": {
+            "train_new_model": false,
+            "run_dir": "work/20260609_Hybrid5x3/runs/lincomb__none/20260617_180937",
+            "config_path": "work/20260609_Hybrid5x3/runs/lincomb__none/20260617_180937/train/20260617_180939_train/exp_config.json",
+            "checkpoint_path": "work/20260609_Hybrid5x3/runs/lincomb__none/20260617_180937/train/20260617_180939_train/checkpoints/hybrid5x3/ema_0.9999_000002.pt",
+            "sample_path": "work/20260609_Hybrid5x3/runs/lincomb__none/20260617_180937/sample/20260617_180945_sample/SampledData/samples.npz"
+          }
+        }
+      },
+      {
+        "path": "work/20260707_lincomb/configs/hybrid_reverse_lincomb.json",
+        "values": {
+          "experiment": "hybrid_reverse_lincomb",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "none",
+          "reverse_coef": true,
+          "regime_gate_mode": "none",
+          "gate_mode": "raw"
+        }
+      },
+      {
+        "path": "work/20260707_lincomb/configs/hybrid_ts_soft_lincomb.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_lincomb",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "none",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 20.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "gate_mode": "raw"
+        }
+      },
+      {
+        "path": "work/20260707_lincomb/configs/lincomb_entropy_reg.json",
+        "values": {
+          "experiment": "lincomb_entropy_reg",
+          "denoiser_mode": "lincomb_only",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "entropy_lambda": 0.01
+        }
+      },
+      {
+        "path": "work/20260707_lincomb/configs/lincomb_only_raw.json",
+        "values": {
+          "experiment": "lincomb_only_raw",
+          "denoiser_mode": "lincomb_only",
+          "gate_mode": "raw"
+        }
+      },
+      {
+        "path": "work/20260707_lincomb/configs/lincomb_softmax_gate.json",
+        "values": {
+          "experiment": "lincomb_softmax_gate",
+          "denoiser_mode": "lincomb_only",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0
+        }
+      },
+      {
+        "path": "work/20260707_lincomb/configs/lincomb_sparse_reg.json",
+        "values": {
+          "experiment": "lincomb_sparse_reg",
+          "denoiser_mode": "lincomb_only",
+          "gate_mode": "raw",
+          "sparse_lambda": 0.01
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260801",
+    "conclusion": "Launcher/settings for 7/07 TS/reversed coefficients; integrated UMAP and weight-curve analysis.",
+    "python_files": [
+      "work/20260801/hybrid_ts_soft_weight_curve/plot_hybrid_ts_soft_weight.py",
+      "work/20260801/integrated_analysis/run_integrated_umap_20260801.py",
+      "work/20260801/scripts/run_experiments_20260801.py",
+      "work/20260801/scripts/run_pipeline_20260801.py",
+      "work/20260801/scripts/summarize_results_20260801.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260801/configs/hybrid_softmax_gate.json",
+        "values": {
+          "experiment": "hybrid_softmax_gate",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "none",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0
+        }
+      },
+      {
+        "path": "work/20260801/configs/hybrid_ts_soft_gentle_tau80_softmax_gate.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_gentle_tau80_softmax_gate",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "none",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "regime_gate_note": "Gentler TS_soft: gate_tau is increased from 20.0 to 80.0, widening the sigmoid transition."
+        }
+      },
+      {
+        "path": "work/20260801/configs/hybrid_ts_soft_softmax_gate.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_softmax_gate",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "none",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 20.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260802",
+    "conclusion": "Normalization-mode launcher reusing 7/07 implementations; no new field equation.",
+    "python_files": [
+      "work/20260802/integrated_analysis/run_integrated_umap_20260802.py",
+      "work/20260802/scripts/run_experiments_20260802.py",
+      "work/20260802/tests/test_norm_modes_20260802.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260802/configs/hybrid_softmax_gate_normed_learned_scale.json",
+        "values": {
+          "experiment": "hybrid_softmax_gate_normed_learned_scale",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "normed_learned_scale",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "hybrid_scale_init": 1.0,
+          "hybrid_scale_eps": 1e-08
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_softmax_gate_ratio_reg.json",
+        "values": {
+          "experiment": "hybrid_softmax_gate_ratio_reg",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "ratio_reg",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "ratio_reg_weight": 5.0,
+          "ratio_reg_target": 1.0
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_softmax_gate_scale_model_ml_emb.json",
+        "values": {
+          "experiment": "hybrid_softmax_gate_scale_model_ml_emb",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "scale_model",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "scale_model_type": "simple",
+          "scale_input_source": "ml_emb",
+          "ode_input_source": "none",
+          "scale_hidden": 128,
+          "scale_eps": 1e-08
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_softmax_gate_scale_model_x.json",
+        "values": {
+          "experiment": "hybrid_softmax_gate_scale_model_x",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "scale_model",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "scale_model_type": "simple",
+          "scale_input_source": "x",
+          "ode_input_source": "none",
+          "scale_hidden": 128,
+          "scale_eps": 1e-08
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_ts_soft_gentle_tau80_softmax_gate_normed_learned_scale.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_gentle_tau80_softmax_gate_normed_learned_scale",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "normed_learned_scale",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "hybrid_scale_init": 1.0,
+          "hybrid_scale_eps": 1e-08
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_ts_soft_gentle_tau80_softmax_gate_ratio_reg.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_gentle_tau80_softmax_gate_ratio_reg",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "ratio_reg",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "ratio_reg_weight": 5.0,
+          "ratio_reg_target": 1.0
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_ts_soft_gentle_tau80_softmax_gate_scale_model_ml_emb.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_gentle_tau80_softmax_gate_scale_model_ml_emb",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "scale_model",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "scale_model_type": "simple",
+          "scale_input_source": "ml_emb",
+          "ode_input_source": "none",
+          "scale_hidden": 128,
+          "scale_eps": 1e-08
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_ts_soft_gentle_tau80_softmax_gate_scale_model_x.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_gentle_tau80_softmax_gate_scale_model_x",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "scale_model",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "scale_model_type": "simple",
+          "scale_input_source": "x",
+          "ode_input_source": "none",
+          "scale_hidden": 128,
+          "scale_eps": 1e-08
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_ts_soft_softmax_gate_normed_learned_scale.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_softmax_gate_normed_learned_scale",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "normed_learned_scale",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 20.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "hybrid_scale_init": 1.0,
+          "hybrid_scale_eps": 1e-08
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_ts_soft_softmax_gate_ratio_reg.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_softmax_gate_ratio_reg",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "ratio_reg",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 20.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "ratio_reg_weight": 5.0,
+          "ratio_reg_target": 1.0
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_ts_soft_softmax_gate_scale_model_ml_emb.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_softmax_gate_scale_model_ml_emb",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "scale_model",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 20.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "scale_model_type": "simple",
+          "scale_input_source": "ml_emb",
+          "ode_input_source": "none",
+          "scale_hidden": 128,
+          "scale_eps": 1e-08
+        }
+      },
+      {
+        "path": "work/20260802/configs/hybrid_ts_soft_softmax_gate_scale_model_x.json",
+        "values": {
+          "experiment": "hybrid_ts_soft_softmax_gate_scale_model_x",
+          "denoiser_mode": "hybrid",
+          "hybrid_norm_mode": "scale_model",
+          "reverse_coef": false,
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 20.0,
+          "ts_n_cells": 200000,
+          "ts_layer": null,
+          "ts_cache_path": "work/20260802/cache/ts_softmax_gate.json",
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "scale_model_type": "simple",
+          "scale_input_source": "x",
+          "ode_input_source": "none",
+          "scale_hidden": 128,
+          "scale_eps": 1e-08
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260803_ODE_hill_exp",
+    "conclusion": "Single/gated Hill-after-linear, RACIPE, clipped exp; factory and legacy train/sample.",
+    "python_files": [
+      "work/20260803_ODE_hill_exp/models/__init__.py",
+      "work/20260803_ODE_hill_exp/models/factory.py",
+      "work/20260803_ODE_hill_exp/models/ode_fields.py",
+      "work/20260803_ODE_hill_exp/scripts/__init__.py",
+      "work/20260803_ODE_hill_exp/scripts/analyze.py",
+      "work/20260803_ODE_hill_exp/scripts/analyze_hill_branch_diagnostics.py",
+      "work/20260803_ODE_hill_exp/scripts/analyze_hill_corr_norm_grid.py",
+      "work/20260803_ODE_hill_exp/scripts/common.py",
+      "work/20260803_ODE_hill_exp/scripts/launch.py",
+      "work/20260803_ODE_hill_exp/scripts/resume_after_analysis_failure.py",
+      "work/20260803_ODE_hill_exp/scripts/sample.py",
+      "work/20260803_ODE_hill_exp/scripts/train.py",
+      "work/20260803_ODE_hill_exp/scripts/verify_config_sources.py",
+      "work/20260803_ODE_hill_exp/scripts/verify_protected.py",
+      "work/20260803_ODE_hill_exp/tests/smoke.py",
+      "work/20260803_ODE_hill_exp/tests/test_analysis_metrics.py",
+      "work/20260803_ODE_hill_exp/tests/test_models.py",
+      "work/20260803_ODE_hill_exp/viz/__init__.py",
+      "work/20260803_ODE_hill_exp/viz/analysis_helpers.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/base.json",
+        "values": {
+          "schema_version": "20260803_ode_hill_exp_v1",
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "model_family": null,
+          "ode_type": null,
+          "K": 8,
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "time_dim": 64,
+          "field_hidden": 256,
+          "field_dropout": 0.0,
+          "cell_unet_hidden_num": [
+            2000,
+            1000,
+            500,
+            500
+          ],
+          "use_decay": true,
+          "SoftReg": true,
+          "use_mask_reg": true,
+          "mask_orientation": "target_source_from_transposed_existing_src_tgt_mask",
+          "off_mask_lambda": 5.0,
+          "ode_reg_lambda": 1.0,
+          "ode_reg_norm": "l1",
+          "sparse_lambda": 0.0,
+          "entropy_lambda": 0.0,
+          "ratio_reg_weight": 0.0,
+          "ratio_reg_target": 1.0,
+          "hybrid_norm_mode": "none",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "regime_gate_type": "sigmoid",
+          "t_s": null,
+          "gate_tau": 80.0,
+          "ts_layer": null,
+          "ts_n_cells": 200000,
+          "ts_seed": null,
+          "ts_cache_path": "work/20260803_ODE_hill_exp/cache/ts_softmax_gate.json",
+          "force_recompute_ts": false,
+          "hill_n": 2.0,
+          "hill_K_init": 1.0,
+          "hill_V_init": 1.0,
+          "racipe_n": 2.0,
+          "racipe_input_scale": 1.0,
+          "racipe_K_init": 1.0,
+          "racipe_G_init": 1.0,
+          "racipe_target_chunk_size": 16,
+          "racipe_log_production_min": -30.0,
+          "racipe_log_production_max": 20.0,
+          "exp_preactivation_min": -20.0,
+          "exp_preactivation_max": 20.0,
+          "positive_epsilon": 1e-06,
+          "raw_delta_init": 0.1,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "learn_sigma": false,
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false,
+          "schedule_sampler": "uniform",
+          "lr": 0.0001,
+          "weight_decay": 0.0001,
+          "lr_anneal_steps": 30000,
+          "total_steps": 30000,
+          "batch_size": 128,
+          "microbatch": -1,
+          "ema_rate": "0.9999",
+          "log_interval": 1000,
+          "save_interval": 5000,
+          "resume_checkpoint": "",
+          "use_fp16": false,
+          "fp16_scale_growth": 0.001,
+          "save_loss_details": true,
+          "seed": 1234,
+          "device": "auto",
+          "num_samples": 3000,
+          "sample_batch_size": 50,
+          "use_ddim": false,
+          "clip_denoised": false,
+          "analysis_max_cells": 50000,
+          "analysis_batch_size": 128,
+          "analysis_t_values": "0,249,499,616,749,999",
+          "active_share_threshold": 0.05,
+          "reference_sources": {
+            "training_defaults": "work/20260707_lincomb/configs/base.json (inherited by work/20260802)",
+            "standard_hybrid": "work/20260801/configs/hybrid_softmax_gate.json",
+            "ts_soft_tau80": "work/20260801/configs/hybrid_ts_soft_gentle_tau80_softmax_gate.json",
+            "lincomb_and_penalty": "ODE/ode_20260707_lincomb.py and ODE/ode_20260609_mathmlp.py",
+            "hybrid_class": "ODE/ode_20260609_hybrid5x3.py::UnifiedODEMLHybrid",
+            "cell_unet": "guided_diffusion/cell_model.py::Cell_Unet"
+          }
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/ode_only_lincomb__exp.json",
+        "values": {
+          "experiment": "ode_only_lincomb__exp",
+          "model_family": "ode_only_lincomb",
+          "ode_type": "exp"
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/ode_only_lincomb__hill_after_linear.json",
+        "values": {
+          "experiment": "ode_only_lincomb__hill_after_linear",
+          "model_family": "ode_only_lincomb",
+          "ode_type": "hill_after_linear"
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/ode_only_lincomb__racipe.json",
+        "values": {
+          "experiment": "ode_only_lincomb__racipe",
+          "model_family": "ode_only_lincomb",
+          "ode_type": "racipe"
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/reference_ts_20260802.json",
+        "values": {
+          "source": "work/20260801/hybrid_ts_soft_weight_curve/ts_estimate_and_weight_summary.json",
+          "data_shape": [
+            156726,
+            1024
+          ],
+          "lambda_max": 47.37206891051204,
+          "t_s": 616,
+          "diffusion_steps": 1000,
+          "gate_tau": 80.0,
+          "w_ode_at_t0": 0.9995473777766684,
+          "w_ode_at_ts": 0.5,
+          "w_ode_at_tmax": 0.008264400239886662
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/source_comparison.json",
+        "values": {
+          "comparison_status": "matched_except_required_training_budget",
+          "source_base": "work/20260707_lincomb/configs/base.json (the base inherited by 20260801 and 20260802)",
+          "source_standard": "work/20260801/configs/hybrid_softmax_gate.json",
+          "source_tau80": "work/20260801/configs/hybrid_ts_soft_gentle_tau80_softmax_gate.json",
+          "values": [
+            {
+              "key": "data_dir",
+              "source": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+              "current": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+              "status": "match"
+            },
+            {
+              "key": "edge_tsv_path",
+              "source": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+              "current": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+              "status": "match"
+            },
+            {
+              "key": "K",
+              "source": 8,
+              "current": 8,
+              "status": "match"
+            },
+            {
+              "key": "gate_mode",
+              "source": "softmax (20260801/02 individual configs)",
+              "current": "softmax",
+              "status": "match"
+            },
+            {
+              "key": "gate_temperature",
+              "source": 1.0,
+              "current": 1.0,
+              "status": "match"
+            },
+            {
+              "key": "time_dim",
+              "source": 64,
+              "current": 64,
+              "status": "match"
+            },
+            {
+              "key": "field_hidden",
+              "source": 256,
+              "current": 256,
+              "status": "match"
+            },
+            {
+              "key": "field_dropout",
+              "source": 0.0,
+              "current": 0.0,
+              "status": "match"
+            },
+            {
+              "key": "off_mask_lambda",
+              "source": 5.0,
+              "current": 5.0,
+              "status": "match"
+            },
+            {
+              "key": "sparse_lambda",
+              "source": 0.0,
+              "current": 0.0,
+              "status": "match"
+            },
+            {
+              "key": "entropy_lambda",
+              "source": 0.0,
+              "current": 0.0,
+              "status": "match"
+            },
+            {
+              "key": "ratio_reg_weight",
+              "source": 0.0,
+              "current": 0.0,
+              "status": "match_standard_none"
+            },
+            {
+              "key": "diffusion_steps",
+              "source": 1000,
+              "current": 1000,
+              "status": "match"
+            },
+            {
+              "key": "noise_schedule",
+              "source": "linear",
+              "current": "linear",
+              "status": "match"
+            },
+            {
+              "key": "schedule_sampler",
+              "source": "uniform",
+              "current": "uniform",
+              "status": "match"
+            },
+            {
+              "key": "lr",
+              "source": 0.0001,
+              "current": 0.0001,
+              "status": "match"
+            },
+            {
+              "key": "weight_decay",
+              "source": 0.0001,
+              "current": 0.0001,
+              "status": "match"
+            },
+            {
+              "key": "batch_size",
+              "source": 128,
+              "current": 128,
+              "status": "match"
+            },
+            {
+              "key": "microbatch",
+              "source": -1,
+              "current": -1,
+              "status": "match"
+            },
+            {
+              "key": "ema_rate",
+              "source": "0.9999",
+              "current": "0.9999",
+              "status": "match"
+            },
+            {
+              "key": "log_interval",
+              "source": 1000,
+              "current": 1000,
+              "status": "match"
+            },
+            {
+              "key": "save_interval",
+              "source": 5000,
+              "current": 5000,
+              "status": "match"
+            },
+            {
+              "key": "seed",
+              "source": 1234,
+              "current": 1234,
+              "status": "match"
+            },
+            {
+              "key": "num_samples",
+              "source": 3000,
+              "current": 3000,
+              "status": "match"
+            },
+            {
+              "key": "sample_batch_size",
+              "source": 50,
+              "current": 50,
+              "status": "match"
+            },
+            {
+              "key": "use_ddim",
+              "source": false,
+              "current": false,
+              "status": "match"
+            },
+            {
+              "key": "clip_denoised",
+              "source": false,
+              "current": false,
+              "status": "match"
+            },
+            {
+              "key": "hybrid_norm_mode",
+              "source": "none (20260801 baseline reused by 20260802)",
+              "current": "none",
+              "status": "match"
+            },
+            {
+              "key": "reverse_coef",
+              "source": false,
+              "current": false,
+              "status": "match"
+            },
+            {
+              "key": "gate_tau",
+              "source": 80.0,
+              "current": 80.0,
+              "status": "match_tau80"
+            },
+            {
+              "key": "lr_anneal_steps",
+              "source": 100000,
+              "current": 30000,
+              "status": "required_change_training_step_30000"
+            },
+            {
+              "key": "total_steps",
+              "source": 100000,
+              "current": 30000,
+              "status": "required_change_training_step_30000"
+            }
+          ]
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/standard_hybrid_lincomb__exp.json",
+        "values": {
+          "experiment": "standard_hybrid_lincomb__exp",
+          "model_family": "standard_hybrid_lincomb",
+          "ode_type": "exp"
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/standard_hybrid_lincomb__hill_after_linear.json",
+        "values": {
+          "experiment": "standard_hybrid_lincomb__hill_after_linear",
+          "model_family": "standard_hybrid_lincomb",
+          "ode_type": "hill_after_linear"
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/standard_hybrid_lincomb__racipe.json",
+        "values": {
+          "experiment": "standard_hybrid_lincomb__racipe",
+          "model_family": "standard_hybrid_lincomb",
+          "ode_type": "racipe"
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/standard_hybrid_single__exp.json",
+        "values": {
+          "experiment": "standard_hybrid_single__exp",
+          "model_family": "standard_hybrid_single",
+          "ode_type": "exp"
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/standard_hybrid_single__hill_after_linear.json",
+        "values": {
+          "experiment": "standard_hybrid_single__hill_after_linear",
+          "model_family": "standard_hybrid_single",
+          "ode_type": "hill_after_linear"
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/standard_hybrid_single__racipe.json",
+        "values": {
+          "experiment": "standard_hybrid_single__racipe",
+          "model_family": "standard_hybrid_single",
+          "ode_type": "racipe"
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/ts_soft_tau80_hybrid_lincomb__exp.json",
+        "values": {
+          "experiment": "ts_soft_tau80_hybrid_lincomb__exp",
+          "model_family": "ts_soft_tau80_hybrid_lincomb",
+          "ode_type": "exp",
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/ts_soft_tau80_hybrid_lincomb__hill_after_linear.json",
+        "values": {
+          "experiment": "ts_soft_tau80_hybrid_lincomb__hill_after_linear",
+          "model_family": "ts_soft_tau80_hybrid_lincomb",
+          "ode_type": "hill_after_linear",
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0
+        }
+      },
+      {
+        "path": "work/20260803_ODE_hill_exp/configs/ts_soft_tau80_hybrid_lincomb__racipe.json",
+        "values": {
+          "experiment": "ts_soft_tau80_hybrid_lincomb__racipe",
+          "model_family": "ts_soft_tau80_hybrid_lincomb",
+          "ode_type": "racipe",
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260803_distribution",
+    "conclusion": "Distribution analysis and protection verifier; no trainable model.",
+    "python_files": [
+      "work/20260803_distribution/analyze_distribution.py",
+      "work/20260803_distribution/tests/test_distribution.py",
+      "work/20260803_distribution/verify_protected.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260804_raw_count_lincomb",
+    "conclusion": "Raw-input variants of softplus/Hill/exp K8; imports 8/03 trainer/factory; distinct data protocol.",
+    "python_files": [
+      "work/20260804_raw_count_lincomb/integrated_analysis/run_all_models_facets.py",
+      "work/20260804_raw_count_lincomb/models/__init__.py",
+      "work/20260804_raw_count_lincomb/models/factory.py",
+      "work/20260804_raw_count_lincomb/scripts/common.py",
+      "work/20260804_raw_count_lincomb/scripts/create_raw_count_data.py",
+      "work/20260804_raw_count_lincomb/scripts/launch.py",
+      "work/20260804_raw_count_lincomb/scripts/sample.py",
+      "work/20260804_raw_count_lincomb/scripts/train.py",
+      "work/20260804_raw_count_lincomb/scripts/umap.py",
+      "work/20260804_raw_count_lincomb/scripts/verify_protected.py",
+      "work/20260804_raw_count_lincomb/tests/smoke.py",
+      "work/20260804_raw_count_lincomb/tests/test_raw_count_suite.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260804_raw_count_lincomb/configs/base.json",
+        "values": {
+          "schema_version": "20260804_raw_count_lincomb_v1",
+          "data_dir": "work/20260804_raw_count_lincomb/data/Embryonic_raw_count.h5ad",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "model_family": null,
+          "ode_type": null,
+          "K": 8,
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "time_dim": 64,
+          "field_hidden": 256,
+          "field_dropout": 0.0,
+          "cell_unet_hidden_num": [
+            2000,
+            1000,
+            500,
+            500
+          ],
+          "use_decay": true,
+          "SoftReg": true,
+          "use_mask_reg": true,
+          "off_mask_lambda": 5.0,
+          "ode_reg_lambda": 1.0,
+          "ode_reg_norm": "l1",
+          "sparse_lambda": 0.0,
+          "entropy_lambda": 0.0,
+          "ratio_reg_weight": 0.0,
+          "ratio_reg_target": 1.0,
+          "hybrid_norm_mode": "none",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "regime_gate_type": "sigmoid",
+          "t_s": null,
+          "gate_tau": 80.0,
+          "ts_layer": null,
+          "hill_n": 2.0,
+          "hill_K_init": 1.0,
+          "hill_V_init": 1.0,
+          "exp_preactivation_min": -20.0,
+          "exp_preactivation_max": 20.0,
+          "positive_epsilon": 1e-06,
+          "raw_delta_init": 0.1,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "learn_sigma": false,
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false,
+          "schedule_sampler": "uniform",
+          "lr": 0.0001,
+          "weight_decay": 0.0001,
+          "lr_anneal_steps": 30000,
+          "total_steps": 30000,
+          "batch_size": 128,
+          "microbatch": -1,
+          "ema_rate": "0.9999",
+          "log_interval": 1000,
+          "save_interval": 5000,
+          "resume_checkpoint": "",
+          "use_fp16": false,
+          "fp16_scale_growth": 0.001,
+          "save_loss_details": true,
+          "seed": 1234,
+          "device": "auto",
+          "num_samples": 3000,
+          "sample_batch_size": 50,
+          "use_ddim": false,
+          "clip_denoised": false,
+          "umap_real_cells": 3000,
+          "umap_n_neighbors": 15,
+          "umap_n_pcs": 40,
+          "umap_seed": 1234,
+          "umap_visualization_transform": "none_raw_count_space"
+        }
+      },
+      {
+        "path": "work/20260804_raw_count_lincomb/configs/ode_only_lincomb_softmax__exp.json",
+        "values": {
+          "experiment": "ode_only_lincomb_softmax__exp",
+          "model_family": "ode_only_lincomb_softmax",
+          "ode_type": "exp"
+        }
+      },
+      {
+        "path": "work/20260804_raw_count_lincomb/configs/ode_only_lincomb_softmax__hill_after_softplus.json",
+        "values": {
+          "experiment": "ode_only_lincomb_softmax__hill_after_softplus",
+          "model_family": "ode_only_lincomb_softmax",
+          "ode_type": "hill_after_softplus"
+        }
+      },
+      {
+        "path": "work/20260804_raw_count_lincomb/configs/ode_only_lincomb_softmax__softplus.json",
+        "values": {
+          "experiment": "ode_only_lincomb_softmax__softplus",
+          "model_family": "ode_only_lincomb_softmax",
+          "ode_type": "softplus"
+        }
+      },
+      {
+        "path": "work/20260804_raw_count_lincomb/configs/standard_hybrid_lincomb_softmax__exp.json",
+        "values": {
+          "experiment": "standard_hybrid_lincomb_softmax__exp",
+          "model_family": "standard_hybrid_lincomb_softmax",
+          "ode_type": "exp"
+        }
+      },
+      {
+        "path": "work/20260804_raw_count_lincomb/configs/standard_hybrid_lincomb_softmax__hill_after_softplus.json",
+        "values": {
+          "experiment": "standard_hybrid_lincomb_softmax__hill_after_softplus",
+          "model_family": "standard_hybrid_lincomb_softmax",
+          "ode_type": "hill_after_softplus"
+        }
+      },
+      {
+        "path": "work/20260804_raw_count_lincomb/configs/standard_hybrid_lincomb_softmax__softplus.json",
+        "values": {
+          "experiment": "standard_hybrid_lincomb_softmax__softplus",
+          "model_family": "standard_hybrid_lincomb_softmax",
+          "ode_type": "softplus"
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260816",
+    "conclusion": "K8 centered/shifted direct Hill, softmax experts and target/source masks.",
+    "python_files": [
+      "work/20260816/models/__init__.py",
+      "work/20260816/models/factory.py",
+      "work/20260816/models/ode_fields.py",
+      "work/20260816/scripts/__init__.py",
+      "work/20260816/scripts/analyze.py",
+      "work/20260816/scripts/analyze_corr_norm_grid.py",
+      "work/20260816/scripts/common.py",
+      "work/20260816/scripts/launch.py",
+      "work/20260816/scripts/sample.py",
+      "work/20260816/scripts/train.py",
+      "work/20260816/tests/smoke.py",
+      "work/20260816/tests/test_models.py",
+      "work/20260816/viz/__init__.py",
+      "work/20260816/viz/analysis_helpers.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260816/configs/base.json",
+        "values": {
+          "schema_version": "20260816_direct_hill_v1",
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "model_family": null,
+          "ode_type": null,
+          "K": 8,
+          "gate_mode": "softmax",
+          "gate_temperature": 1.0,
+          "time_dim": 64,
+          "field_hidden": 256,
+          "field_dropout": 0.0,
+          "cell_unet_hidden_num": [
+            2000,
+            1000,
+            500,
+            500
+          ],
+          "use_decay": true,
+          "SoftReg": true,
+          "use_mask_reg": true,
+          "mask_orientation": "target_source_from_transposed_existing_src_tgt_mask",
+          "off_mask_lambda": 5.0,
+          "ode_reg_lambda": 1.0,
+          "ode_reg_norm": "l1",
+          "sparse_lambda": 0.0,
+          "entropy_lambda": 0.0,
+          "ratio_reg_weight": 0.0,
+          "ratio_reg_target": 1.0,
+          "hybrid_norm_mode": "none",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "regime_gate_type": "sigmoid",
+          "t_s": null,
+          "gate_tau": 80.0,
+          "ts_layer": null,
+          "ts_n_cells": 200000,
+          "ts_seed": null,
+          "ts_cache_path": "work/20260816/cache/ts_softmax_gate.json",
+          "force_recompute_ts": false,
+          "hill_n": 2.0,
+          "theta_init": 1.0,
+          "regulation_A_init": 1.0,
+          "alpha_init_std": null,
+          "rho_init_std": null,
+          "target_chunk_size": 16,
+          "positive_epsilon": 1e-06,
+          "raw_delta_init": 0.1,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "learn_sigma": false,
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false,
+          "schedule_sampler": "uniform",
+          "lr": 0.0001,
+          "weight_decay": 0.0001,
+          "lr_anneal_steps": 30000,
+          "total_steps": 30000,
+          "batch_size": 128,
+          "microbatch": -1,
+          "ema_rate": "0.9999",
+          "log_interval": 1000,
+          "save_interval": 5000,
+          "resume_checkpoint": "",
+          "use_fp16": false,
+          "fp16_scale_growth": 0.001,
+          "save_loss_details": true,
+          "seed": 1234,
+          "device": "auto",
+          "num_samples": 3000,
+          "sample_batch_size": 50,
+          "use_ddim": false,
+          "clip_denoised": false,
+          "analysis_max_cells": 50000,
+          "analysis_batch_size": 128,
+          "analysis_t_values": "0,249,499,616,749,999",
+          "active_share_threshold": 0.05,
+          "reference_sources": {
+            "training_defaults": "work/20260803_ODE_hill_exp/configs/base.json",
+            "standard_hybrid": "work/20260803_ODE_hill_exp/configs/standard_hybrid_lincomb__hill_after_linear.json",
+            "ts_soft_tau80": "work/20260803_ODE_hill_exp/configs/ts_soft_tau80_hybrid_lincomb__hill_after_linear.json and work/20260801/configs/hybrid_ts_soft_gentle_tau80_softmax_gate.json",
+            "lincomb_and_penalty": "ODE/ode_20260707_lincomb.py and ODE/ode_20260609_mathmlp.py",
+            "hybrid_class": "ODE/ode_20260609_hybrid5x3.py::UnifiedODEMLHybrid",
+            "cell_unet": "guided_diffusion/cell_model.py::Cell_Unet"
+          }
+        }
+      },
+      {
+        "path": "work/20260816/configs/linear_centered_signed_hill.json",
+        "values": {
+          "experiment": "linear_centered_signed_hill",
+          "model_family": "linear_hybrid_lincomb",
+          "ode_type": "centered_signed_hill"
+        }
+      },
+      {
+        "path": "work/20260816/configs/linear_shifted_hill_rho.json",
+        "values": {
+          "experiment": "linear_shifted_hill_rho",
+          "model_family": "linear_hybrid_lincomb",
+          "ode_type": "shifted_hill_rho"
+        }
+      },
+      {
+        "path": "work/20260816/configs/ts_soft_tau80_centered_signed_hill.json",
+        "values": {
+          "experiment": "ts_soft_tau80_centered_signed_hill",
+          "model_family": "ts_soft_tau80_hybrid_lincomb",
+          "ode_type": "centered_signed_hill",
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0
+        }
+      },
+      {
+        "path": "work/20260816/configs/ts_soft_tau80_shifted_hill_rho.json",
+        "values": {
+          "experiment": "ts_soft_tau80_shifted_hill_rho",
+          "model_family": "ts_soft_tau80_hybrid_lincomb",
+          "ode_type": "shifted_hill_rho",
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260817_singleODE",
+    "conclusion": "K1 direct Hill; no MLP or expert gate; source present in main and history.",
+    "python_files": [
+      "work/20260817_singleODE/models/__init__.py",
+      "work/20260817_singleODE/models/factory.py",
+      "work/20260817_singleODE/models/ode_fields.py",
+      "work/20260817_singleODE/scripts/__init__.py",
+      "work/20260817_singleODE/scripts/analyze.py",
+      "work/20260817_singleODE/scripts/analyze_corr_norm_grid.py",
+      "work/20260817_singleODE/scripts/common.py",
+      "work/20260817_singleODE/scripts/launch.py",
+      "work/20260817_singleODE/scripts/sample.py",
+      "work/20260817_singleODE/scripts/train.py",
+      "work/20260817_singleODE/tests/smoke.py",
+      "work/20260817_singleODE/tests/test_models.py",
+      "work/20260817_singleODE/viz/__init__.py",
+      "work/20260817_singleODE/viz/analysis_helpers.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260817_singleODE/configs/base.json",
+        "values": {
+          "schema_version": "20260817_single_ode_direct_hill_v1",
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "model_family": null,
+          "ode_type": null,
+          "K": 1,
+          "gate_mode": "none",
+          "gate_temperature": 1.0,
+          "time_dim": 64,
+          "field_hidden": 256,
+          "field_dropout": 0.0,
+          "cell_unet_hidden_num": [
+            2000,
+            1000,
+            500,
+            500
+          ],
+          "use_decay": true,
+          "SoftReg": true,
+          "use_mask_reg": true,
+          "mask_orientation": "target_source_from_transposed_existing_src_tgt_mask",
+          "off_mask_lambda": 5.0,
+          "ode_reg_lambda": 1.0,
+          "ode_reg_norm": "l1",
+          "sparse_lambda": 0.0,
+          "entropy_lambda": 0.0,
+          "ratio_reg_weight": 0.0,
+          "ratio_reg_target": 1.0,
+          "hybrid_norm_mode": "none",
+          "reverse_coef": false,
+          "regime_gate_mode": "none",
+          "regime_gate_type": "sigmoid",
+          "t_s": null,
+          "gate_tau": 80.0,
+          "ts_layer": null,
+          "ts_n_cells": 200000,
+          "ts_seed": null,
+          "ts_cache_path": "work/20260817_singleODE/cache/ts_single_ode.json",
+          "force_recompute_ts": false,
+          "hill_n": 2.0,
+          "theta_init": 1.0,
+          "regulation_A_init": 1.0,
+          "alpha_init_std": null,
+          "rho_init_std": null,
+          "target_chunk_size": 16,
+          "positive_epsilon": 1e-06,
+          "raw_delta_init": 0.1,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "learn_sigma": false,
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false,
+          "schedule_sampler": "uniform",
+          "lr": 0.0001,
+          "weight_decay": 0.0001,
+          "lr_anneal_steps": 30000,
+          "total_steps": 30000,
+          "batch_size": 128,
+          "microbatch": -1,
+          "ema_rate": "0.9999",
+          "log_interval": 1000,
+          "save_interval": 5000,
+          "resume_checkpoint": "",
+          "use_fp16": false,
+          "fp16_scale_growth": 0.001,
+          "save_loss_details": true,
+          "seed": 1234,
+          "device": "auto",
+          "num_samples": 3000,
+          "sample_batch_size": 50,
+          "use_ddim": false,
+          "clip_denoised": false,
+          "analysis_max_cells": 50000,
+          "analysis_batch_size": 128,
+          "analysis_t_values": "0,249,499,616,749,999",
+          "active_share_threshold": 0.05,
+          "reference_sources": {
+            "training_defaults": "work/20260803_ODE_hill_exp/configs/base.json",
+            "standard_hybrid_single": "work/20260803_ODE_hill_exp/configs/standard_hybrid_single__hill_after_linear.json",
+            "ts_soft_tau80": "work/20260803_ODE_hill_exp/configs/ts_soft_tau80_hybrid_lincomb__hill_after_linear.json and work/20260801/configs/hybrid_ts_soft_gentle_tau80_softmax_gate.json",
+            "lincomb_and_penalty": "ODE/ode_20260707_lincomb.py and ODE/ode_20260609_mathmlp.py",
+            "hybrid_class": "ODE/ode_20260609_hybrid5x3.py::UnifiedODEMLHybrid",
+            "cell_unet": "guided_diffusion/cell_model.py::Cell_Unet"
+          }
+        }
+      },
+      {
+        "path": "work/20260817_singleODE/configs/linear_singleODE_centered_signed_hill.json",
+        "values": {
+          "experiment": "linear_singleODE_centered_signed_hill",
+          "model_family": "linear_hybrid_single_ode",
+          "ode_type": "centered_signed_hill"
+        }
+      },
+      {
+        "path": "work/20260817_singleODE/configs/linear_singleODE_shifted_hill_rho.json",
+        "values": {
+          "experiment": "linear_singleODE_shifted_hill_rho",
+          "model_family": "linear_hybrid_single_ode",
+          "ode_type": "shifted_hill_rho"
+        }
+      },
+      {
+        "path": "work/20260817_singleODE/configs/ts_soft_tau80_singleODE_centered_signed_hill.json",
+        "values": {
+          "experiment": "ts_soft_tau80_singleODE_centered_signed_hill",
+          "model_family": "ts_soft_tau80_hybrid_single_ode",
+          "ode_type": "centered_signed_hill",
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0
+        }
+      },
+      {
+        "path": "work/20260817_singleODE/configs/ts_soft_tau80_singleODE_shifted_hill_rho.json",
+        "values": {
+          "experiment": "ts_soft_tau80_singleODE_shifted_hill_rho",
+          "model_family": "ts_soft_tau80_hybrid_single_ode",
+          "ode_type": "shifted_hill_rho",
+          "regime_gate_mode": "Ts_I_vs_II_III",
+          "regime_gate_type": "sigmoid",
+          "t_s": "auto",
+          "gate_tau": 80.0
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260817_vector_field_analysis",
+    "conclusion": "Existing vector-field adapters, Dynamo reconstruction and erythroid UMAP; analysis only.",
+    "python_files": [
+      "work/20260817_vector_field_analysis/analyze_vector_field.py",
+      "work/20260817_vector_field_analysis/dynamo_analysis.py",
+      "work/20260817_vector_field_analysis/erythropoietic_umap.py",
+      "work/20260817_vector_field_analysis/tests/smoke.py",
+      "work/20260817_vector_field_analysis/tests/test_vector_field.py",
+      "work/20260817_vector_field_analysis/vector_field_adapter.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260821_noeqThermo",
+    "conclusion": "Landscapes and probability-current analysis for existing fields; no denoiser training.",
+    "python_files": [
+      "work/20260821_noeqThermo/scripts/run_analysis.py",
+      "work/20260821_noeqThermo/src/noeqthermo/__init__.py",
+      "work/20260821_noeqThermo/src/noeqthermo/config.py",
+      "work/20260821_noeqThermo/src/noeqthermo/dynamo_bridge.py",
+      "work/20260821_noeqThermo/src/noeqthermo/landscape.py",
+      "work/20260821_noeqThermo/src/noeqthermo/pipeline.py",
+      "work/20260821_noeqThermo/src/noeqthermo/plotting.py",
+      "work/20260821_noeqThermo/tests/smoke_model_pipeline.py",
+      "work/20260821_noeqThermo/tests/smoke_synthetic.py",
+      "work/20260821_noeqThermo/tests/test_landscape.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260821_noeqThermo/configs/full.json",
+        "values": {
+          "mode": "full",
+          "seed": 1234,
+          "max_cells": 0,
+          "selection": {
+            "obs_key": "Superclass",
+            "value": "Erythropoietic",
+            "celltype_key": "celltype"
+          },
+          "umap": {
+            "n_components": 50,
+            "n_neighbors": 15,
+            "n_pcs": 40,
+            "min_dist": 0.5,
+            "n_jobs": 32
+          },
+          "dynamo": {
+            "version": "1.4.1",
+            "M": 1000,
+            "grid_num": 100,
+            "topography_samples": 250,
+            "restart_num": 5,
+            "restart_seeds": [
+              0,
+              100,
+              200,
+              300,
+              400
+            ],
+            "min_velocity_correlation": 0.6,
+            "cores": 8
+          },
+          "sde": {
+            "parameterization": "umap_calibrated",
+            "paper_literal_reference": {
+              "dt": [
+                0.1,
+                0.2,
+                0.5
+              ],
+              "D": [
+                0.05,
+                0.1,
+                0.2
+              ]
+            },
+            "dt": null,
+            "D": null,
+            "drift_step_fraction": 0.05,
+            "noise_step_fraction": 0.15,
+            "dt_min": 0.0001,
+            "dt_max": 1.0,
+            "trajectories": 400,
+            "steps": 1000000,
+            "burn_in": 100000,
+            "grid_size": 100,
+            "bounds_quantile": 0.005,
+            "bounds_margin": 0.1,
+            "checkpoint_every": 10000,
+            "resume": true,
+            "potential_cap_above_max": 2.0
+          },
+          "lap": {
+            "enabled": true,
+            "minimum_cells_per_state": 20,
+            "max_states": 4,
+            "max_pairs": 12,
+            "n_points": 25,
+            "D_scale": 1.0,
+            "minimize_time": false,
+            "EM_steps": 2,
+            "endpoint_labels": []
+          },
+          "plot": {
+            "dpi": 300,
+            "quiver_stride": 5,
+            "cell_size": 12,
+            "alpha": 0.7
+          }
+        }
+      },
+      {
+        "path": "work/20260821_noeqThermo/configs/smoke.json",
+        "values": {
+          "mode": "smoke",
+          "seed": 1234,
+          "max_cells": 300,
+          "selection": {
+            "obs_key": "Superclass",
+            "value": "Erythropoietic",
+            "celltype_key": "celltype"
+          },
+          "umap": {
+            "n_components": 50,
+            "n_neighbors": 15,
+            "n_pcs": 40,
+            "min_dist": 0.5,
+            "n_jobs": 1
+          },
+          "dynamo": {
+            "version": "1.4.1",
+            "M": 40,
+            "grid_num": 32,
+            "topography_samples": 30,
+            "restart_num": 1,
+            "restart_seeds": [
+              0
+            ],
+            "min_velocity_correlation": 0.0,
+            "cores": 1
+          },
+          "sde": {
+            "parameterization": "umap_calibrated",
+            "paper_literal_reference": {
+              "dt": [
+                0.1,
+                0.2,
+                0.5
+              ],
+              "D": [
+                0.05,
+                0.1,
+                0.2
+              ]
+            },
+            "dt": null,
+            "D": null,
+            "drift_step_fraction": 0.05,
+            "noise_step_fraction": 0.15,
+            "dt_min": 0.0001,
+            "dt_max": 1.0,
+            "trajectories": 16,
+            "steps": 600,
+            "burn_in": 100,
+            "grid_size": 32,
+            "bounds_quantile": 0.0,
+            "bounds_margin": 0.1,
+            "checkpoint_every": 200,
+            "resume": true,
+            "potential_cap_above_max": 2.0
+          },
+          "lap": {
+            "enabled": true,
+            "minimum_cells_per_state": 5,
+            "max_states": 3,
+            "max_pairs": 2,
+            "n_points": 15,
+            "D_scale": 1.0,
+            "minimize_time": false,
+            "EM_steps": 1,
+            "endpoint_labels": []
+          },
+          "plot": {
+            "dpi": 160,
+            "quiver_stride": 4,
+            "cell_size": 9,
+            "alpha": 0.65
+          }
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260830",
+    "conclusion": "K1 four-field factory, CellUNet-only output + consistency; EPSILON, 100k; detailed loss/grad/UMAP analysis.",
+    "python_files": [
+      "work/20260830/__init__.py",
+      "work/20260830/analysis/__init__.py",
+      "work/20260830/analysis/gradients.py",
+      "work/20260830/analysis/loss_history.py",
+      "work/20260830/analysis/metrics.py",
+      "work/20260830/analysis/plotting.py",
+      "work/20260830/analysis/runner.py",
+      "work/20260830/hematopoietic_viz/__init__.py",
+      "work/20260830/hematopoietic_viz/cli.py",
+      "work/20260830/hematopoietic_viz/core.py",
+      "work/20260830/hematopoietic_viz/palette.py",
+      "work/20260830/hematopoietic_viz/plotting.py",
+      "work/20260830/hematopoietic_viz/runner.py",
+      "work/20260830/models/__init__.py",
+      "work/20260830/models/cellunet_ode_regularized_20260830.py",
+      "work/20260830/models/factory.py",
+      "work/20260830/models/ode_fields_20260830.py",
+      "work/20260830/scripts/__init__.py",
+      "work/20260830/scripts/analyze.py",
+      "work/20260830/scripts/common.py",
+      "work/20260830/scripts/hematopoietic_viz.py",
+      "work/20260830/scripts/hematopoietic_viz_all.py",
+      "work/20260830/scripts/launch.py",
+      "work/20260830/scripts/plot_hill_after_linear_parameters.py",
+      "work/20260830/scripts/plot_std_over_mean.py",
+      "work/20260830/scripts/sample.py",
+      "work/20260830/scripts/train.py",
+      "work/20260830/tests/__init__.py",
+      "work/20260830/tests/analysis_smoke.py",
+      "work/20260830/tests/hematopoietic_viz_smoke.py",
+      "work/20260830/tests/smoke.py",
+      "work/20260830/tests/test_analysis_20260830.py",
+      "work/20260830/tests/test_experiment_20260830.py",
+      "work/20260830/tests/test_hematopoietic_viz_20260830.py",
+      "work/20260830/training/__init__.py",
+      "work/20260830/training/train_loop_20260830.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260830/configs/base.json",
+        "values": {
+          "schema_version": "20260830_cell_ode_regularization_v1",
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "experiment": null,
+          "ode_type": null,
+          "K": 1,
+          "gate_mode": "none",
+          "cell_ode_reg_lambda_20260830": null,
+          "cell_ode_reg_schedule_20260830": "constant",
+          "cell_ode_reg_lambda_end_20260830": null,
+          "cell_ode_reg_schedule_steps_20260830": 100000,
+          "cell_unet_hidden_num": [
+            2000,
+            1000,
+            500,
+            500
+          ],
+          "cell_unet_dropout": 0.1,
+          "SoftReg": true,
+          "use_mask_reg": true,
+          "mask_orientation": "target_source_from_transposed_legacy_source_target_mask",
+          "off_mask_lambda": 5.0,
+          "ode_reg_lambda": 1.0,
+          "ode_reg_norm": "l1",
+          "hill_n": 2.0,
+          "theta_init": 1.0,
+          "regulation_A_init": 1.0,
+          "alpha_init_std": null,
+          "rho_init_std": null,
+          "target_chunk_size": 16,
+          "hill_K_init": 1.0,
+          "hill_V_init": 1.0,
+          "positive_epsilon": 1e-06,
+          "raw_delta_init": 0.1,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "learn_sigma": false,
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false,
+          "schedule_sampler": "uniform",
+          "lr": 0.0001,
+          "weight_decay": 0.0001,
+          "lr_anneal_steps": 100000,
+          "total_steps": 100000,
+          "batch_size": 128,
+          "microbatch": -1,
+          "ema_rate": "0.9999",
+          "log_interval": 1000,
+          "save_interval": 5000,
+          "use_fp16": false,
+          "fp16_scale_growth": 0.001,
+          "save_loss_details": true,
+          "detailed_loss_flush_interval": 100,
+          "seed": 1234,
+          "device": "auto",
+          "num_samples": 3000,
+          "sample_batch_size": 50,
+          "use_ddim": false,
+          "clip_denoised": false,
+          "reference_experiment": "work/20260817_singleODE (branch work/20260817-singleODE), configs/base.json",
+          "reference_training_defaults": "work/20260803_ODE_hill_exp/configs/base.json"
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/01_centered_signed_hill_lambda0p1.json",
+        "values": {
+          "experiment": "01_centered_signed_hill_lambda0p1",
+          "ode_type": "centered_signed_hill",
+          "cell_ode_reg_lambda_20260830": 0.1
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/02_centered_signed_hill_lambda1.json",
+        "values": {
+          "experiment": "02_centered_signed_hill_lambda1",
+          "ode_type": "centered_signed_hill",
+          "cell_ode_reg_lambda_20260830": 1.0
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/03_centered_signed_hill_lambda10.json",
+        "values": {
+          "experiment": "03_centered_signed_hill_lambda10",
+          "ode_type": "centered_signed_hill",
+          "cell_ode_reg_lambda_20260830": 10.0
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/04_shifted_hill_rho_lambda0p1.json",
+        "values": {
+          "experiment": "04_shifted_hill_rho_lambda0p1",
+          "ode_type": "shifted_hill_rho",
+          "cell_ode_reg_lambda_20260830": 0.1
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/05_shifted_hill_rho_lambda1.json",
+        "values": {
+          "experiment": "05_shifted_hill_rho_lambda1",
+          "ode_type": "shifted_hill_rho",
+          "cell_ode_reg_lambda_20260830": 1.0
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/06_shifted_hill_rho_lambda10.json",
+        "values": {
+          "experiment": "06_shifted_hill_rho_lambda10",
+          "ode_type": "shifted_hill_rho",
+          "cell_ode_reg_lambda_20260830": 10.0
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/07_hill_after_linear_lambda0p1.json",
+        "values": {
+          "experiment": "07_hill_after_linear_lambda0p1",
+          "ode_type": "hill_after_linear",
+          "cell_ode_reg_lambda_20260830": 0.1
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/08_hill_after_linear_lambda1.json",
+        "values": {
+          "experiment": "08_hill_after_linear_lambda1",
+          "ode_type": "hill_after_linear",
+          "cell_ode_reg_lambda_20260830": 1.0
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/09_hill_after_linear_lambda10.json",
+        "values": {
+          "experiment": "09_hill_after_linear_lambda10",
+          "ode_type": "hill_after_linear",
+          "cell_ode_reg_lambda_20260830": 10.0
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/10_simple_softplus_lambda0p1.json",
+        "values": {
+          "experiment": "10_simple_softplus_lambda0p1",
+          "ode_type": "simple_softplus",
+          "cell_ode_reg_lambda_20260830": 0.1
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/11_simple_softplus_lambda1.json",
+        "values": {
+          "experiment": "11_simple_softplus_lambda1",
+          "ode_type": "simple_softplus",
+          "cell_ode_reg_lambda_20260830": 1.0
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/12_simple_softplus_lambda10.json",
+        "values": {
+          "experiment": "12_simple_softplus_lambda10",
+          "ode_type": "simple_softplus",
+          "cell_ode_reg_lambda_20260830": 10.0
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/13_centered_signed_hill_lambda0p01.json",
+        "values": {
+          "experiment": "13_centered_signed_hill_lambda0p01",
+          "ode_type": "centered_signed_hill",
+          "cell_ode_reg_lambda_20260830": 0.01,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/14_centered_signed_hill_lambda0p001.json",
+        "values": {
+          "experiment": "14_centered_signed_hill_lambda0p001",
+          "ode_type": "centered_signed_hill",
+          "cell_ode_reg_lambda_20260830": 0.001,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/15_centered_signed_hill_lambda10_to_0p001.json",
+        "values": {
+          "experiment": "15_centered_signed_hill_lambda10_to_0p001",
+          "ode_type": "centered_signed_hill",
+          "cell_ode_reg_lambda_20260830": 10.0,
+          "cell_ode_reg_schedule_20260830": "log_linear",
+          "cell_ode_reg_lambda_end_20260830": 0.001,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/16_shifted_hill_rho_lambda0p01.json",
+        "values": {
+          "experiment": "16_shifted_hill_rho_lambda0p01",
+          "ode_type": "shifted_hill_rho",
+          "cell_ode_reg_lambda_20260830": 0.01,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/17_shifted_hill_rho_lambda0p001.json",
+        "values": {
+          "experiment": "17_shifted_hill_rho_lambda0p001",
+          "ode_type": "shifted_hill_rho",
+          "cell_ode_reg_lambda_20260830": 0.001,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/18_shifted_hill_rho_lambda10_to_0p001.json",
+        "values": {
+          "experiment": "18_shifted_hill_rho_lambda10_to_0p001",
+          "ode_type": "shifted_hill_rho",
+          "cell_ode_reg_lambda_20260830": 10.0,
+          "cell_ode_reg_schedule_20260830": "log_linear",
+          "cell_ode_reg_lambda_end_20260830": 0.001,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/19_hill_after_linear_lambda0p01.json",
+        "values": {
+          "experiment": "19_hill_after_linear_lambda0p01",
+          "ode_type": "hill_after_linear",
+          "cell_ode_reg_lambda_20260830": 0.01,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/20_hill_after_linear_lambda0p001.json",
+        "values": {
+          "experiment": "20_hill_after_linear_lambda0p001",
+          "ode_type": "hill_after_linear",
+          "cell_ode_reg_lambda_20260830": 0.001,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/21_hill_after_linear_lambda10_to_0p001.json",
+        "values": {
+          "experiment": "21_hill_after_linear_lambda10_to_0p001",
+          "ode_type": "hill_after_linear",
+          "cell_ode_reg_lambda_20260830": 10.0,
+          "cell_ode_reg_schedule_20260830": "log_linear",
+          "cell_ode_reg_lambda_end_20260830": 0.001,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/22_simple_softplus_lambda0p01.json",
+        "values": {
+          "experiment": "22_simple_softplus_lambda0p01",
+          "ode_type": "simple_softplus",
+          "cell_ode_reg_lambda_20260830": 0.01,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/23_simple_softplus_lambda0p001.json",
+        "values": {
+          "experiment": "23_simple_softplus_lambda0p001",
+          "ode_type": "simple_softplus",
+          "cell_ode_reg_lambda_20260830": 0.001,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      },
+      {
+        "path": "work/20260830/configs/experiments/24_simple_softplus_lambda10_to_0p001.json",
+        "values": {
+          "experiment": "24_simple_softplus_lambda10_to_0p001",
+          "ode_type": "simple_softplus",
+          "cell_ode_reg_lambda_20260830": 10.0,
+          "cell_ode_reg_schedule_20260830": "log_linear",
+          "cell_ode_reg_lambda_end_20260830": 0.001,
+          "total_steps": 30000,
+          "lr_anneal_steps": 30000,
+          "cell_ode_reg_schedule_steps_20260830": 30000
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260903_learnable_forward",
+    "conclusion": "FreeAffine / StationaryQD forward processes, ELBO or epsilon surrogate, custom reverse sampler; separate family.",
+    "python_files": [
+      "work/20260903_learnable_forward/analysis/__init__.py",
+      "work/20260903_learnable_forward/analysis/common.py",
+      "work/20260903_learnable_forward/analysis/diffusion_diagnostics.py",
+      "work/20260903_learnable_forward/analysis/hematopoietic.py",
+      "work/20260903_learnable_forward/analysis/loss_analysis.py",
+      "work/20260903_learnable_forward/analysis/parameter_evolution.py",
+      "work/20260903_learnable_forward/diffusion/__init__.py",
+      "work/20260903_learnable_forward/diffusion/free_affine.py",
+      "work/20260903_learnable_forward/diffusion/grn.py",
+      "work/20260903_learnable_forward/diffusion/objectives.py",
+      "work/20260903_learnable_forward/diffusion/stationary_qd.py",
+      "work/20260903_learnable_forward/diffusion/time_mapping.py",
+      "work/20260903_learnable_forward/diffusion/timestep_sampler.py",
+      "work/20260903_learnable_forward/diffusion/training_diffusion.py",
+      "work/20260903_learnable_forward/models/__init__.py",
+      "work/20260903_learnable_forward/models/factory.py",
+      "work/20260903_learnable_forward/models/wrapper.py",
+      "work/20260903_learnable_forward/sampling/__init__.py",
+      "work/20260903_learnable_forward/sampling/artifacts.py",
+      "work/20260903_learnable_forward/sampling/reverse_sde.py",
+      "work/20260903_learnable_forward/scripts/__init__.py",
+      "work/20260903_learnable_forward/scripts/analyze.py",
+      "work/20260903_learnable_forward/scripts/benchmark_dense.py",
+      "work/20260903_learnable_forward/scripts/common.py",
+      "work/20260903_learnable_forward/scripts/launch.py",
+      "work/20260903_learnable_forward/scripts/run_full_pipeline.py",
+      "work/20260903_learnable_forward/scripts/sample.py",
+      "work/20260903_learnable_forward/scripts/train.py",
+      "work/20260903_learnable_forward/scripts/verify_protected.py",
+      "work/20260903_learnable_forward/tests/__init__.py",
+      "work/20260903_learnable_forward/tests/test_free_affine.py",
+      "work/20260903_learnable_forward/tests/test_launch.py",
+      "work/20260903_learnable_forward/tests/test_normalization_grn_logging.py",
+      "work/20260903_learnable_forward/tests/test_objective_equivalence.py",
+      "work/20260903_learnable_forward/tests/test_objective_primitives.py",
+      "work/20260903_learnable_forward/tests/test_posthoc_pipeline.py",
+      "work/20260903_learnable_forward/tests/test_reverse_sampling.py",
+      "work/20260903_learnable_forward/tests/test_stationary_qd.py",
+      "work/20260903_learnable_forward/tests/test_time_mapping.py",
+      "work/20260903_learnable_forward/tests/test_training_integration.py",
+      "work/20260903_learnable_forward/training/__init__.py",
+      "work/20260903_learnable_forward/training/loss_logging.py",
+      "work/20260903_learnable_forward/training/train_loop.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260903_learnable_forward/configs/base.json",
+        "values": {
+          "schema_version": "20260903_learnable_forward_dense_v1",
+          "experiment": null,
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "forward_model": null,
+          "forward_dtype": "float32",
+          "loss_mode": "paper_elbo",
+          "normalize_elbo_by_dimension": true,
+          "surrogate_terminal_kl_weight": 1.0,
+          "covariance_jitter": 0.0,
+          "hidden_dim": [
+            2000,
+            1000,
+            500,
+            500
+          ],
+          "dropout": 0.1,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "schedule_sampler": "batch_shared_physical_uniform",
+          "learn_sigma": false,
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false,
+          "lr": 0.0001,
+          "weight_decay": 0.0,
+          "lr_anneal_steps": 30000,
+          "total_steps": 30000,
+          "batch_size": 128,
+          "microbatch": -1,
+          "ema_rate": "0.9999",
+          "log_interval": 1000,
+          "save_interval": 5000,
+          "loss_log_flush_interval": 100,
+          "resume_checkpoint": "",
+          "use_fp16": false,
+          "fp16_scale_growth": 0.001,
+          "save_loss_details": false,
+          "ode_reg_lambda": 0.0,
+          "seed": 1234,
+          "device": "auto",
+          "training_only": false,
+          "sample_count": 2000,
+          "sample_batch_size": 128,
+          "sampling_seed": 1234,
+          "decoder_sampling_mode": "sample",
+          "reverse_stride": 1,
+          "analysis_timestep_step": 20,
+          "analysis_max_cells": 2000,
+          "analysis_batch_size": 128,
+          "loss_rolling_window": 100,
+          "velocity_n_jobs": 32,
+          "hematopoietic_max_cells": 0,
+          "celltype_column": "celltype"
+        }
+      },
+      {
+        "path": "work/20260903_learnable_forward/configs/model_a_stationary_qd_aux.json",
+        "values": {
+          "experiment": "model_a_stationary_qd_aux",
+          "forward_model": "stationary_qd",
+          "covariance_jitter": 0.0,
+          "use_grn_mask": true,
+          "mask_orientation": "target_source_from_transposed_existing_src_tgt_mask",
+          "allow_self_edges": true,
+          "grn_penalty_weight": 5.0,
+          "grn_penalty_norm": "l1",
+          "schema_version": "20260905_stationary_qd_aux_v2",
+          "model_schema_version": 2,
+          "model_a_parameterization": "auxiliary_shared_subspace",
+          "aux_dim": 64,
+          "learn_isotropic_d": true,
+          "isotropic_d_init": 0.5,
+          "isotropic_d_floor": 1e-06,
+          "auxiliary_b_init_scale": 0.01
+        }
+      },
+      {
+        "path": "work/20260903_learnable_forward/configs/model_b_free_affine_dense.json",
+        "values": {
+          "experiment": "model_b_free_affine_dense",
+          "forward_model": "free_affine",
+          "covariance_jitter": 0.0,
+          "use_grn_mask": true,
+          "mask_orientation": "target_source_from_transposed_existing_src_tgt_mask",
+          "allow_self_edges": true,
+          "grn_penalty_weight": 5.0,
+          "grn_penalty_norm": "l1"
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260911",
+    "conclusion": "Posthoc trajectories/breakpoints and independent/joint UMAP for existing checkpoints; no new model.",
+    "python_files": [
+      "work/20260911/results/devtools/ruff/__init__.py",
+      "work/20260911/results/devtools/ruff/__main__.py",
+      "work/20260911/results/devtools/ruff/_find_ruff.py",
+      "work/20260911/scripts/_bootstrap.py",
+      "work/20260911/scripts/analyze_breakpoint.py",
+      "work/20260911/scripts/discover_runs.py",
+      "work/20260911/scripts/plot_independent_umaps.py",
+      "work/20260911/scripts/plot_selected_joint_umap.py",
+      "work/20260911/scripts/run_all.py",
+      "work/20260911/scripts/run_one_model.py",
+      "work/20260911/src/__init__.py",
+      "work/20260911/src/artifacts.py",
+      "work/20260911/src/breakpoint.py",
+      "work/20260911/src/model_runs.py",
+      "work/20260911/src/settings.py",
+      "work/20260911/src/source_imports.py",
+      "work/20260911/src/trajectory.py",
+      "work/20260911/src/umap_adapter.py",
+      "work/20260911/tests/restore_fixture.py",
+      "work/20260911/tests/smoke_pipeline.py",
+      "work/20260911/tests/test_cli.py",
+      "work/20260911/tests/test_posthoc.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260911/configs/models.json",
+        "values": {
+          "settings": {
+            "T": 1000,
+            "M": 20,
+            "S": 100,
+            "N": 20
+          },
+          "models": [
+            {
+              "suite": "20260803",
+              "experiment": "ode_only_lincomb__exp",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "ode_only_lincomb__hill_after_linear",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "ode_only_lincomb__racipe",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "standard_hybrid_lincomb__exp",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "standard_hybrid_lincomb__hill_after_linear",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "standard_hybrid_lincomb__racipe",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "standard_hybrid_single__exp",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "standard_hybrid_single__hill_after_linear",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "standard_hybrid_single__racipe",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "ts_soft_tau80_hybrid_lincomb__exp",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "ts_soft_tau80_hybrid_lincomb__hill_after_linear",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260803",
+              "experiment": "ts_soft_tau80_hybrid_lincomb__racipe",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260816",
+              "experiment": "linear_centered_signed_hill",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260816",
+              "experiment": "linear_shifted_hill_rho",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260816",
+              "experiment": "ts_soft_tau80_centered_signed_hill",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            },
+            {
+              "suite": "20260816",
+              "experiment": "ts_soft_tau80_shifted_hill_rho",
+              "enabled": true,
+              "run_dir": null,
+              "checkpoint": null
+            }
+          ]
+        }
+      },
+      {
+        "path": "work/20260911/configs/selected_models.json",
+        "values": {
+          "settings": {
+            "T": 1000,
+            "M": 20,
+            "S": 100,
+            "N": 20
+          },
+          "models": [
+            {
+              "suite": "20260803",
+              "experiment": "standard_hybrid_single__hill_after_linear",
+              "enabled": true,
+              "run_dir": "/home/suzuki/Projects/scDiffusion-github/work/20260803_ODE_hill_exp/runs/standard_hybrid_single__hill_after_linear/20260803_full_30000",
+              "checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260803_ODE_hill_exp/runs/standard_hybrid_single__hill_after_linear/20260803_full_30000/train/checkpoints/segment_000/ode_hill_20260803/ema_0.9999_030000.pt"
+            },
+            {
+              "suite": "20260816",
+              "experiment": "linear_centered_signed_hill",
+              "enabled": true,
+              "run_dir": "/home/suzuki/Projects/scDiffusion-github/work/20260816/runs/linear_centered_signed_hill/hill_variants_20260816",
+              "checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260816/runs/linear_centered_signed_hill/hill_variants_20260816/train/checkpoints/segment_000/direct_hill_20260816/ema_0.9999_030000.pt"
+            },
+            {
+              "suite": "20260816",
+              "experiment": "linear_shifted_hill_rho",
+              "enabled": true,
+              "run_dir": "/home/suzuki/Projects/scDiffusion-github/work/20260816/runs/linear_shifted_hill_rho/hill_variants_20260816",
+              "checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260816/runs/linear_shifted_hill_rho/hill_variants_20260816/train/checkpoints/segment_000/direct_hill_20260816/ema_0.9999_030000.pt"
+            }
+          ]
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260913_2step",
+    "conclusion": "EPSILON Stage1/Stage2, frozen CellUNet, reconstruction/Sinkhorn/trajectory occupation OT + Hybrid500.",
+    "python_files": [
+      "work/20260913_2step/.test_tmp/tooling/ruff/__init__.py",
+      "work/20260913_2step/.test_tmp/tooling/ruff/__main__.py",
+      "work/20260913_2step/__init__.py",
+      "work/20260913_2step/analysis/__init__.py",
+      "work/20260913_2step/analysis/diagnostics.py",
+      "work/20260913_2step/analysis/distributions.py",
+      "work/20260913_2step/analysis/evaluation_ot.py",
+      "work/20260913_2step/analysis/occupation.py",
+      "work/20260913_2step/analysis/occupation_plotting.py",
+      "work/20260913_2step/analysis/plotting.py",
+      "work/20260913_2step/analysis/runner.py",
+      "work/20260913_2step/analysis/sliced_wasserstein.py",
+      "work/20260913_2step/analysis/umaps.py",
+      "work/20260913_2step/cli.py",
+      "work/20260913_2step/common.py",
+      "work/20260913_2step/losses/__init__.py",
+      "work/20260913_2step/losses/sinkhorn.py",
+      "work/20260913_2step/models/__init__.py",
+      "work/20260913_2step/models/hybrid500.py",
+      "work/20260913_2step/sampling/__init__.py",
+      "work/20260913_2step/sampling/trajectory.py",
+      "work/20260913_2step/scripts/_bootstrap.py",
+      "work/20260913_2step/scripts/analyze.py",
+      "work/20260913_2step/scripts/audit_negative_correlation.py",
+      "work/20260913_2step/scripts/cache_x50.py",
+      "work/20260913_2step/scripts/embed.py",
+      "work/20260913_2step/scripts/occupation.py",
+      "work/20260913_2step/scripts/plot.py",
+      "work/20260913_2step/scripts/plot_occupation.py",
+      "work/20260913_2step/scripts/run_all.py",
+      "work/20260913_2step/scripts/sample.py",
+      "work/20260913_2step/scripts/six_ot.py",
+      "work/20260913_2step/scripts/train.py",
+      "work/20260913_2step/tests/test_evaluation_recovery.py",
+      "work/20260913_2step/tests/test_hybrid500.py",
+      "work/20260913_2step/tests/test_launcher.py",
+      "work/20260913_2step/tests/test_recovery.py",
+      "work/20260913_2step/tests/test_six_ot.py",
+      "work/20260913_2step/tests/test_suite.py",
+      "work/20260913_2step/tests/test_trajectory_ot.py",
+      "work/20260913_2step/training/__init__.py",
+      "work/20260913_2step/training/checkpoints.py",
+      "work/20260913_2step/training/direct_hill.py",
+      "work/20260913_2step/training/objectives.py",
+      "work/20260913_2step/training/recovery.py",
+      "work/20260913_2step/training/runner.py",
+      "work/20260913_2step/training/source_cache.py",
+      "work/20260913_2step/training/trajectory.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260913_2step/configs/base.json",
+        "values": {
+          "suite_version": "20260913_2step_v1",
+          "ot": {
+            "epsilon": 0.1,
+            "max_iterations": 2000,
+            "tolerance": 1e-05,
+            "cost": "mean_squared_gene_distance",
+            "debias": true,
+            "compute_dtype": "float64",
+            "batch_size": 128
+          },
+          "post_ode_steps": 100,
+          "post_ode_dt": 0.001,
+          "post_ode_integrator": "euler",
+          "max_state_norm": 1000000.0,
+          "analysis_cells": 2000,
+          "analysis_pairs": 100000,
+          "analysis_ot_cells": 128,
+          "division_epsilon": 1e-12
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/centered_signed_hill_ot_soft.json",
+        "values": {
+          "condition": "centered_signed_hill_ot_soft",
+          "objective": "ot",
+          "source_suite": "20260816",
+          "source_experiment": "linear_centered_signed_hill"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/centered_signed_hill_recon_soft.json",
+        "values": {
+          "condition": "centered_signed_hill_recon_soft",
+          "objective": "recon",
+          "source_suite": "20260816",
+          "source_experiment": "linear_centered_signed_hill"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/centered_signed_hill_trajectory_ot_soft.json",
+        "values": {
+          "condition": "centered_signed_hill_trajectory_ot_soft",
+          "objective": "trajectory_ot",
+          "source_suite": "20260816",
+          "source_experiment": "linear_centered_signed_hill",
+          "objective_schema_version": "trajectory_occupation_v1"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/hill_after_linear_ot_soft.json",
+        "values": {
+          "condition": "hill_after_linear_ot_soft",
+          "objective": "ot",
+          "source_suite": "20260803_ODE_hill_exp",
+          "source_experiment": "standard_hybrid_single__hill_after_linear"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/hill_after_linear_recon_soft.json",
+        "values": {
+          "condition": "hill_after_linear_recon_soft",
+          "objective": "recon",
+          "source_suite": "20260803_ODE_hill_exp",
+          "source_experiment": "standard_hybrid_single__hill_after_linear"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/hill_after_linear_trajectory_ot_soft.json",
+        "values": {
+          "condition": "hill_after_linear_trajectory_ot_soft",
+          "objective": "trajectory_ot",
+          "source_suite": "20260803_ODE_hill_exp",
+          "source_experiment": "standard_hybrid_single__hill_after_linear",
+          "objective_schema_version": "trajectory_occupation_v1"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/hybrid500_ot.json",
+        "values": {
+          "experiment_mode": "hybrid500_ot_v1",
+          "conditions": [
+            "hill_after_linear_ot_soft",
+            "centered_signed_hill_ot_soft",
+            "shifted_hill_rho_ot_soft",
+            "hill_after_linear_trajectory_ot_soft",
+            "centered_signed_hill_trajectory_ot_soft",
+            "shifted_hill_rho_trajectory_ot_soft"
+          ],
+          "hybrid_schedule": {
+            "name": "late_linear_v1",
+            "cutoff": 500,
+            "formula": "w_ode=max(0,1-t/500); w_cellunet=1-w_ode",
+            "timestep": "original_unscaled_diffusion_t",
+            "inactive_ode_raw": "evaluated only for explicit branch diagnostics; excluded from Hybrid forward"
+          },
+          "log_interval": 50,
+          "save_interval": 1000
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/shifted_hill_rho_ot_soft.json",
+        "values": {
+          "condition": "shifted_hill_rho_ot_soft",
+          "objective": "ot",
+          "source_suite": "20260816",
+          "source_experiment": "linear_shifted_hill_rho"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/shifted_hill_rho_recon_soft.json",
+        "values": {
+          "condition": "shifted_hill_rho_recon_soft",
+          "objective": "recon",
+          "source_suite": "20260816",
+          "source_experiment": "linear_shifted_hill_rho"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/shifted_hill_rho_trajectory_ot_soft.json",
+        "values": {
+          "condition": "shifted_hill_rho_trajectory_ot_soft",
+          "objective": "trajectory_ot",
+          "source_suite": "20260816",
+          "source_experiment": "linear_shifted_hill_rho",
+          "objective_schema_version": "trajectory_occupation_v1"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/stage1_cellunet.json",
+        "values": {
+          "condition": "stage1_cellunet",
+          "objective": "stage1",
+          "source_suite": "20260803_ODE_hill_exp",
+          "source_experiment": "standard_hybrid_single__hill_after_linear"
+        }
+      },
+      {
+        "path": "work/20260913_2step/configs/trajectory_defaults.json",
+        "values": {
+          "trajectory_ot": {
+            "start_diffusion_t": 50,
+            "source_cache_size": 8192,
+            "source_seed": 1235,
+            "trajectory_batch_size": 128,
+            "ode_steps": 100,
+            "ode_dt": 0.001,
+            "samples_per_trajectory": 4,
+            "temporal_bins": 4,
+            "temporal_sampling": "stratified",
+            "binning_rule": "floor_boundaries_last_inclusive",
+            "checkpoint_block": 10,
+            "real_target_points": 512,
+            "source_sampler_seed": 1236,
+            "target_sampler_seed": 1237,
+            "temporal_sampler_seed": 1238,
+            "gradient_diagnostic_interval": 100
+          },
+          "ot": {
+            "epsilon": 0.1,
+            "max_iterations": 2000,
+            "tolerance": 1e-05,
+            "cost": "mean_squared_gene_distance",
+            "debias": true,
+            "compute_dtype": "float64",
+            "batch_size": 512,
+            "epsilon_scaling": true,
+            "epsilon_scaling_start": 1.6,
+            "epsilon_scaling_factor": 0.5
+          },
+          "evaluation": {
+            "sliced_wasserstein_projections": 256,
+            "sliced_wasserstein_points": 2048,
+            "seed": 4321,
+            "source_cache_size": 2048,
+            "source_seed": 4322,
+            "num_trajectories": 512,
+            "ode_steps": 100,
+            "ode_dt": 0.001,
+            "samples_per_trajectory": 4,
+            "temporal_bins": 4,
+            "temporal_sampling": "stratified",
+            "binning_rule": "floor_boundaries_last_inclusive",
+            "checkpoint_block": 0,
+            "sinkhorn_points": 512
+          },
+          "trajectory_runtime": {
+            "field_backend": "shared_parameters_v1",
+            "log_interval": 50,
+            "save_interval": 1000
+          }
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260915_x0predict",
+    "conclusion": "START_X Stage1/Stage2, exact 8/30 K1 fields, Hybrid500; native DDPM; gene-space OT.",
+    "python_files": [
+      "work/20260915_x0predict/__init__.py",
+      "work/20260915_x0predict/analysis/__init__.py",
+      "work/20260915_x0predict/analysis/diagnostics.py",
+      "work/20260915_x0predict/analysis/distributions.py",
+      "work/20260915_x0predict/analysis/evaluation_ot.py",
+      "work/20260915_x0predict/analysis/plotting.py",
+      "work/20260915_x0predict/analysis/runner.py",
+      "work/20260915_x0predict/analysis/sliced_wasserstein.py",
+      "work/20260915_x0predict/analysis/umaps.py",
+      "work/20260915_x0predict/cli.py",
+      "work/20260915_x0predict/common.py",
+      "work/20260915_x0predict/losses/__init__.py",
+      "work/20260915_x0predict/losses/sinkhorn.py",
+      "work/20260915_x0predict/models/__init__.py",
+      "work/20260915_x0predict/sampling/__init__.py",
+      "work/20260915_x0predict/sampling/trajectory.py",
+      "work/20260915_x0predict/scripts/__init__.py",
+      "work/20260915_x0predict/scripts/run_all.py",
+      "work/20260915_x0predict/tests/__init__.py",
+      "work/20260915_x0predict/tests/test_suite.py",
+      "work/20260915_x0predict/training/__init__.py",
+      "work/20260915_x0predict/training/checkpoints.py",
+      "work/20260915_x0predict/training/objectives.py",
+      "work/20260915_x0predict/training/runner.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260915_x0predict/configs/base.json",
+        "values": {
+          "suite_version": "20260915_x0predict_v1",
+          "ot": {
+            "epsilon": 0.1,
+            "max_iterations": 2000,
+            "tolerance": 1e-05,
+            "cost": "mean_squared_gene_distance",
+            "debias": true,
+            "compute_dtype": "float64",
+            "batch_size": 128
+          },
+          "post_ode_steps": 100,
+          "post_ode_dt": 0.001,
+          "post_ode_integrator": "euler",
+          "max_state_norm": 1000000.0,
+          "analysis_cells": 2000,
+          "analysis_pairs": 100000,
+          "analysis_ot_cells": 128,
+          "division_epsilon": 1e-12,
+          "predict_xstart": true,
+          "log_interval": 50,
+          "save_interval": 1000,
+          "hybrid_schedule": {
+            "name": "late_linear_v1",
+            "cutoff": 500,
+            "formula": "w_ode=max(0,1-t/500); w_cellunet=1-w_ode",
+            "timestep": "original_unscaled_diffusion_t",
+            "inactive_ode_raw": "evaluated only for explicit branch diagnostics; excluded from Hybrid forward"
+          },
+          "evaluation": {
+            "sliced_wasserstein_projections": 256,
+            "sliced_wasserstein_points": 2048,
+            "seed": 4321
+          },
+          "prediction_semantics": "raw model output is x0; no epsilon conversion or Euler adapter",
+          "post_ode_semantics": "post-hoc dynamics analysis only; not a training objective",
+          "start_x_timesteps": "uniform 0..999; ODE data gradient is inactive at t>=500",
+          "ot_timesteps": "uniform 0..49"
+        }
+      },
+      {
+        "path": "work/20260915_x0predict/configs/centered_signed_hill_ot_soft.json",
+        "values": {
+          "condition": "centered_signed_hill_ot_soft",
+          "objective": "ot"
+        }
+      },
+      {
+        "path": "work/20260915_x0predict/configs/centered_signed_hill_start_x_soft.json",
+        "values": {
+          "condition": "centered_signed_hill_start_x_soft",
+          "objective": "start_x"
+        }
+      },
+      {
+        "path": "work/20260915_x0predict/configs/hill_after_linear_ot_soft.json",
+        "values": {
+          "condition": "hill_after_linear_ot_soft",
+          "objective": "ot"
+        }
+      },
+      {
+        "path": "work/20260915_x0predict/configs/hill_after_linear_start_x_soft.json",
+        "values": {
+          "condition": "hill_after_linear_start_x_soft",
+          "objective": "start_x"
+        }
+      },
+      {
+        "path": "work/20260915_x0predict/configs/shifted_hill_rho_ot_soft.json",
+        "values": {
+          "condition": "shifted_hill_rho_ot_soft",
+          "objective": "ot"
+        }
+      },
+      {
+        "path": "work/20260915_x0predict/configs/shifted_hill_rho_start_x_soft.json",
+        "values": {
+          "condition": "shifted_hill_rho_start_x_soft",
+          "objective": "start_x"
+        }
+      },
+      {
+        "path": "work/20260915_x0predict/configs/simple_softplus_ot_soft.json",
+        "values": {
+          "condition": "simple_softplus_ot_soft",
+          "objective": "ot"
+        }
+      },
+      {
+        "path": "work/20260915_x0predict/configs/simple_softplus_start_x_soft.json",
+        "values": {
+          "condition": "simple_softplus_start_x_soft",
+          "objective": "start_x"
+        }
+      },
+      {
+        "path": "work/20260915_x0predict/configs/stage1_cellunet.json",
+        "values": {
+          "condition": "stage1_cellunet",
+          "objective": "stage1"
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260916_x0predict_hybrid_additive",
+    "conclusion": "Additive wrapper, reconstruction or independent-target PCA OT, envelope gradient; 10k stop/30k anneal.",
+    "python_files": [
+      "work/20260916_x0predict_hybrid_additive/__init__.py",
+      "work/20260916_x0predict_hybrid_additive/analysis/__init__.py",
+      "work/20260916_x0predict_hybrid_additive/analysis/comparison.py",
+      "work/20260916_x0predict_hybrid_additive/analysis/diagnostics.py",
+      "work/20260916_x0predict_hybrid_additive/analysis/distributions.py",
+      "work/20260916_x0predict_hybrid_additive/analysis/evaluation_ot.py",
+      "work/20260916_x0predict_hybrid_additive/analysis/plotting.py",
+      "work/20260916_x0predict_hybrid_additive/analysis/runner.py",
+      "work/20260916_x0predict_hybrid_additive/analysis/sliced_wasserstein.py",
+      "work/20260916_x0predict_hybrid_additive/analysis/umaps.py",
+      "work/20260916_x0predict_hybrid_additive/cli.py",
+      "work/20260916_x0predict_hybrid_additive/common.py",
+      "work/20260916_x0predict_hybrid_additive/data.py",
+      "work/20260916_x0predict_hybrid_additive/launcher.py",
+      "work/20260916_x0predict_hybrid_additive/losses/__init__.py",
+      "work/20260916_x0predict_hybrid_additive/losses/sinkhorn.py",
+      "work/20260916_x0predict_hybrid_additive/models.py",
+      "work/20260916_x0predict_hybrid_additive/reuse.py",
+      "work/20260916_x0predict_hybrid_additive/sampling/__init__.py",
+      "work/20260916_x0predict_hybrid_additive/sampling/trajectory.py",
+      "work/20260916_x0predict_hybrid_additive/scripts/__init__.py",
+      "work/20260916_x0predict_hybrid_additive/scripts/benchmark_ot.py",
+      "work/20260916_x0predict_hybrid_additive/scripts/run_all.py",
+      "work/20260916_x0predict_hybrid_additive/scripts/stop_campaign.py",
+      "work/20260916_x0predict_hybrid_additive/tests/__init__.py",
+      "work/20260916_x0predict_hybrid_additive/tests/test_suite.py",
+      "work/20260916_x0predict_hybrid_additive/training/__init__.py",
+      "work/20260916_x0predict_hybrid_additive/training/checkpoints.py",
+      "work/20260916_x0predict_hybrid_additive/training/objectives.py",
+      "work/20260916_x0predict_hybrid_additive/training/runner.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260916_x0predict_hybrid_additive/configs/base.json",
+        "values": {
+          "suite_version": "20260916_x0predict_hybrid_additive_v1",
+          "hybrid_mode": "additive",
+          "stage2_training_steps": 10000,
+          "stage1_checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260915_x0predict/runs/x0predict_20260915T131558Z_6802c20b/stage1_cellunet/20260915T131601Z_1085706d/checkpoints/ema_0.9999_030000.pt",
+          "pca": {
+            "dimension": 50,
+            "batch_size": 4096,
+            "whiten": false
+          },
+          "target_size": 8192,
+          "target_refresh_interval": 10,
+          "source_seed": 1234,
+          "target_seed": 1235,
+          "pca_ot": {
+            "gradient_mode": "envelope",
+            "epsilon": 0.1,
+            "max_iterations": 200,
+            "tolerance": 1e-05,
+            "compute_dtype": "float64",
+            "cost": "mean_squared_pca_distance",
+            "objective": "sinkhorn_divergence_up_to_target_constant",
+            "target_self_term": "omitted_constant_zero_model_gradient"
+          },
+          "hybrid_schedule": {
+            "name": "additive_hybrid500",
+            "cutoff": 500,
+            "formula": "w_ode=max(0,1-t/500); w_cellunet=1",
+            "timestep": "original_unscaled_diffusion_t"
+          }
+        }
+      },
+      {
+        "path": "work/20260916_x0predict_hybrid_additive/configs/centered_hill_ot.json",
+        "values": {
+          "condition": "centered_hill_ot",
+          "ode_type": "centered_signed_hill",
+          "objective": "ot"
+        }
+      },
+      {
+        "path": "work/20260916_x0predict_hybrid_additive/configs/centered_hill_reconst.json",
+        "values": {
+          "condition": "centered_hill_reconst",
+          "ode_type": "centered_signed_hill",
+          "objective": "start_x"
+        }
+      },
+      {
+        "path": "work/20260916_x0predict_hybrid_additive/configs/hill_after_linear_ot.json",
+        "values": {
+          "condition": "hill_after_linear_ot",
+          "ode_type": "hill_after_linear",
+          "objective": "ot"
+        }
+      },
+      {
+        "path": "work/20260916_x0predict_hybrid_additive/configs/hill_after_linear_reconst.json",
+        "values": {
+          "condition": "hill_after_linear_reconst",
+          "ode_type": "hill_after_linear",
+          "objective": "start_x"
+        }
+      },
+      {
+        "path": "work/20260916_x0predict_hybrid_additive/configs/shifted_hill_ot.json",
+        "values": {
+          "condition": "shifted_hill_ot",
+          "ode_type": "shifted_hill_rho",
+          "objective": "ot"
+        }
+      },
+      {
+        "path": "work/20260916_x0predict_hybrid_additive/configs/shifted_hill_reconst.json",
+        "values": {
+          "condition": "shifted_hill_reconst",
+          "ode_type": "shifted_hill_rho",
+          "objective": "start_x"
+        }
+      },
+      {
+        "path": "work/20260916_x0predict_hybrid_additive/configs/softplus_ot.json",
+        "values": {
+          "condition": "softplus_ot",
+          "ode_type": "simple_softplus",
+          "objective": "ot"
+        }
+      },
+      {
+        "path": "work/20260916_x0predict_hybrid_additive/configs/softplus_reconst.json",
+        "values": {
+          "condition": "softplus_reconst",
+          "ode_type": "simple_softplus",
+          "objective": "start_x"
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260917",
+    "conclusion": "June LowRank/MatSum/LoRA + DirectMessage/MultiHop; reconstruction or replacing kNN loss; frozen additive branch.",
+    "python_files": [
+      "work/20260917/__init__.py",
+      "work/20260917/analysis/__init__.py",
+      "work/20260917/analysis/diagnostics.py",
+      "work/20260917/analysis/distributions.py",
+      "work/20260917/analysis/evaluation_ot.py",
+      "work/20260917/analysis/plotting.py",
+      "work/20260917/analysis/runner.py",
+      "work/20260917/analysis/sliced_wasserstein.py",
+      "work/20260917/analysis/umaps.py",
+      "work/20260917/cli.py",
+      "work/20260917/common.py",
+      "work/20260917/launcher.py",
+      "work/20260917/losses/__init__.py",
+      "work/20260917/losses/sinkhorn.py",
+      "work/20260917/models.py",
+      "work/20260917/reuse.py",
+      "work/20260917/sampling/__init__.py",
+      "work/20260917/sampling/run.py",
+      "work/20260917/sampling/trajectory.py",
+      "work/20260917/scripts/summarize.py",
+      "work/20260917/src/__init__.py",
+      "work/20260917/src/fields.py",
+      "work/20260917/src/grn.py",
+      "work/20260917/src/knn.py",
+      "work/20260917/src/progress.py",
+      "work/20260917/tests/__init__.py",
+      "work/20260917/tests/test_smoke.py",
+      "work/20260917/training/__init__.py",
+      "work/20260917/training/checkpoints.py",
+      "work/20260917/training/objectives.py",
+      "work/20260917/training/runner.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260917/configs/base.json",
+        "values": {
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "cell_unet_hidden_num": [
+            2000,
+            1000,
+            500,
+            500
+          ],
+          "time_dim": 64,
+          "field_hidden": 256,
+          "field_dropout": 0.0,
+          "use_decay": true,
+          "off_mask_lambda": 5.0,
+          "ode_reg_lambda": 1.0,
+          "ode_reg_norm": "l1",
+          "ratio_reg_weight": 0.0,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "learn_sigma": false,
+          "use_kl": false,
+          "predict_xstart": true,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false,
+          "schedule_sampler": "uniform",
+          "lr": 0.0001,
+          "weight_decay": 0.0001,
+          "lr_anneal_steps": 30000,
+          "total_steps": 10000,
+          "batch_size": 128,
+          "microbatch": -1,
+          "ema_rate": "0.9999",
+          "log_interval": 50,
+          "save_interval": 1000,
+          "seed": 1234,
+          "num_samples": 3000,
+          "sample_batch_size": 50,
+          "use_ddim": false,
+          "clip_denoised": false,
+          "analysis_batch_size": 128,
+          "ot": {
+            "epsilon": 0.1,
+            "max_iterations": 2000,
+            "tolerance": 1e-05,
+            "cost": "mean_squared_gene_distance",
+            "debias": true,
+            "compute_dtype": "float64",
+            "batch_size": 128
+          },
+          "post_ode_steps": 100,
+          "post_ode_dt": 0.001,
+          "post_ode_integrator": "euler",
+          "max_state_norm": 1000000.0,
+          "analysis_cells": 2000,
+          "analysis_pairs": 100000,
+          "analysis_ot_cells": 128,
+          "division_epsilon": 1e-12,
+          "evaluation": {
+            "sliced_wasserstein_projections": 256,
+            "sliced_wasserstein_points": 2048,
+            "seed": 4321
+          },
+          "ts_layer": null,
+          "source_seed": 1234,
+          "stage1_checkpoint": "/home/suzuki/Projects/scDiffusion-github/work/20260915_x0predict/runs/x0predict_20260915T131558Z_6802c20b/stage1_cellunet/20260915T131601Z_1085706d/checkpoints/ema_0.9999_030000.pt",
+          "suite_version": "20260917_v1",
+          "rank": 16,
+          "K": 8,
+          "lowrank_penalty_subsample": 8,
+          "graph_hidden": 64,
+          "edge_chunk_size": 4096,
+          "epochs": null,
+          "split": "all_cells_no_validation",
+          "hybrid_schedule": {
+            "formula": "p=clamp((500-t)/500,0,1); H=(1-p)*C+p*C+p*ODE=C+p*ODE",
+            "timestep": "original_unscaled_diffusion_t"
+          },
+          "knn": {
+            "k": 15,
+            "num_negatives": 5,
+            "delta_t": 0.001,
+            "lambda_knn": 1.0,
+            "lambda_neg": 1.0,
+            "a": 1.0,
+            "b": 1.0,
+            "epsilon": 1e-08,
+            "solver": "euler",
+            "integration_steps": 1,
+            "query_batch_size": 1024,
+            "edge_chunk_size": 1024,
+            "seed": 1236
+          }
+        }
+      },
+      {
+        "path": "work/20260917/configs/direct_message_knn.json",
+        "values": {
+          "model_type": "direct_message",
+          "aux_loss": "knn"
+        }
+      },
+      {
+        "path": "work/20260917/configs/direct_message_reconstruction.json",
+        "values": {
+          "model_type": "direct_message",
+          "aux_loss": "reconstruction"
+        }
+      },
+      {
+        "path": "work/20260917/configs/example_overrides.json",
+        "values": {
+          "knn": {
+            "k": 15,
+            "num_negatives": 5,
+            "delta_t": 0.001,
+            "lambda_knn": 1.0,
+            "lambda_neg": 1.0,
+            "a": 1.0,
+            "b": 1.0
+          }
+        }
+      },
+      {
+        "path": "work/20260917/configs/lora_knn.json",
+        "values": {
+          "model_type": "lora",
+          "aux_loss": "knn"
+        }
+      },
+      {
+        "path": "work/20260917/configs/lora_reconstruction.json",
+        "values": {
+          "model_type": "lora",
+          "aux_loss": "reconstruction"
+        }
+      },
+      {
+        "path": "work/20260917/configs/lowrank_knn.json",
+        "values": {
+          "model_type": "lowrank",
+          "aux_loss": "knn"
+        }
+      },
+      {
+        "path": "work/20260917/configs/lowrank_reconstruction.json",
+        "values": {
+          "model_type": "lowrank",
+          "aux_loss": "reconstruction"
+        }
+      },
+      {
+        "path": "work/20260917/configs/matsum_knn.json",
+        "values": {
+          "model_type": "matsum",
+          "aux_loss": "knn"
+        }
+      },
+      {
+        "path": "work/20260917/configs/matsum_reconstruction.json",
+        "values": {
+          "model_type": "matsum",
+          "aux_loss": "reconstruction"
+        }
+      },
+      {
+        "path": "work/20260917/configs/multihop_graph_filter_knn.json",
+        "values": {
+          "model_type": "multihop_graph_filter",
+          "aux_loss": "knn"
+        }
+      },
+      {
+        "path": "work/20260917/configs/multihop_graph_filter_reconstruction.json",
+        "values": {
+          "model_type": "multihop_graph_filter",
+          "aux_loss": "reconstruction"
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20260921",
+    "conclusion": "Projection and nearest-neighbor/geometric diagnostics of existing models; no new trainable field.",
+    "python_files": [
+      "work/20260921/analyze.py",
+      "work/20260921/diagnostics.py",
+      "work/20260921/geometry.py",
+      "work/20260921/model_io.py",
+      "work/20260921/tests/test_geometry.py"
+    ],
+    "configs": []
+  },
+  {
+    "directory": "20260929noneqThermo",
+    "conclusion": "Raw START_X CellUNet velocity adapter for no-equilibrium thermodynamic analysis.",
+    "python_files": [
+      "work/20260929noneqThermo/cellunet_adapter.py",
+      "work/20260929noneqThermo/scripts/run_analysis.py",
+      "work/20260929noneqThermo/tests/smoke_pipeline.py",
+      "work/20260929noneqThermo/tests/test_adapter.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20260929noneqThermo/configs/full.json",
+        "values": {
+          "mode": "full",
+          "analysis_config": "../20260821_noeqThermo/configs/full.json",
+          "timesteps": [
+            100,
+            900,
+            1000
+          ],
+          "batch_size": 128
+        }
+      },
+      {
+        "path": "work/20260929noneqThermo/configs/smoke.json",
+        "values": {
+          "mode": "smoke",
+          "analysis_config": "../20260821_noeqThermo/configs/smoke.json",
+          "timesteps": [
+            100,
+            900,
+            1000
+          ],
+          "batch_size": 128
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20261008_ode_optimizer",
+    "conclusion": "8/30 loss reused; CellUNet AdamW + ODE SGD; 4 lambdas; optional START_X support. Pilot changes both to AdamW.",
+    "python_files": [
+      "work/20261008_ode_optimizer/analysis/__init__.py",
+      "work/20261008_ode_optimizer/analysis/parameter_plots.py",
+      "work/20261008_ode_optimizer/scripts/analyze.py",
+      "work/20261008_ode_optimizer/scripts/common.py",
+      "work/20261008_ode_optimizer/scripts/launch.py",
+      "work/20261008_ode_optimizer/scripts/plot_comparison.py",
+      "work/20261008_ode_optimizer/scripts/plot_umap.py",
+      "work/20261008_ode_optimizer/scripts/replot_umaps.py",
+      "work/20261008_ode_optimizer/scripts/sample.py",
+      "work/20261008_ode_optimizer/scripts/train.py",
+      "work/20261008_ode_optimizer/scripts/verify_protected.py",
+      "work/20261008_ode_optimizer/tests/smoke.py",
+      "work/20261008_ode_optimizer/tests/test_suite.py",
+      "work/20261008_ode_optimizer/tests/test_umap_reference.py",
+      "work/20261008_ode_optimizer/tests/test_xstart.py",
+      "work/20261008_ode_optimizer/training/__init__.py",
+      "work/20261008_ode_optimizer/training/data.py",
+      "work/20261008_ode_optimizer/training/train_loop.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20261008_ode_optimizer/configs/base.json",
+        "values": {
+          "schema_version": "20261008_dual_optimizer_v1",
+          "data_dir": "/home/suzuki/Projects/scDiffusion/work/20260215_embryonic/data/Embryonic.h5ad",
+          "edge_tsv_path": "/home/suzuki/Projects/scDiffusion/external_data/tf_target_edges.tsv",
+          "experiment": null,
+          "ode_type": "hill_after_linear",
+          "K": 1,
+          "gate_mode": "none",
+          "cell_ode_reg_lambda_20260830": null,
+          "cell_ode_reg_schedule_20260830": "constant",
+          "cell_ode_reg_lambda_end_20260830": null,
+          "cell_ode_reg_schedule_steps_20260830": 30000,
+          "cell_unet_hidden_num": [
+            2000,
+            1000,
+            500,
+            500
+          ],
+          "cell_unet_dropout": 0.1,
+          "SoftReg": true,
+          "use_mask_reg": true,
+          "mask_orientation": "target_source_from_transposed_legacy_source_target_mask",
+          "off_mask_lambda": 5.0,
+          "ode_reg_lambda": 1.0,
+          "ode_reg_norm": "l1",
+          "hill_n": 2.0,
+          "theta_init": 1.0,
+          "regulation_A_init": 1.0,
+          "alpha_init_std": null,
+          "rho_init_std": null,
+          "target_chunk_size": 16,
+          "hill_K_init": 1.0,
+          "hill_V_init": 1.0,
+          "positive_epsilon": 1e-06,
+          "raw_delta_init": 0.1,
+          "diffusion_steps": 1000,
+          "noise_schedule": "linear",
+          "timestep_respacing": "",
+          "learn_sigma": false,
+          "use_kl": false,
+          "predict_xstart": false,
+          "rescale_timesteps": false,
+          "rescale_learned_sigmas": false,
+          "class_cond": false,
+          "schedule_sampler": "uniform",
+          "lr": 0.0001,
+          "weight_decay": 0.0001,
+          "lr_anneal_steps": 30000,
+          "total_steps": 30000,
+          "batch_size": 128,
+          "microbatch": -1,
+          "ema_rate": "0.9999",
+          "log_interval": 1000,
+          "save_interval": 5000,
+          "use_fp16": false,
+          "fp16_scale_growth": 0.001,
+          "save_loss_details": true,
+          "detailed_loss_flush_interval": 100,
+          "seed": 1234,
+          "device": "cuda",
+          "num_samples": 3000,
+          "sample_batch_size": 50,
+          "use_ddim": false,
+          "clip_denoised": false,
+          "reference_experiment": "work/20260817_singleODE (branch work/20260817-singleODE), configs/base.json",
+          "reference_training_defaults": "work/20260803_ODE_hill_exp/configs/base.json",
+          "ode_lr": 0.0001,
+          "ode_momentum": 0.0,
+          "ode_weight_decay": 0.0001,
+          "analysis_cells": 2048,
+          "gradient_cells": 32,
+          "analysis_batch_size": 128,
+          "analysis_timesteps": [
+            0,
+            249,
+            499,
+            616,
+            749,
+            999
+          ],
+          "umap_real_cells": 3000,
+          "pca_components": 50,
+          "neighbors": 15,
+          "neighbor_pcs": 40,
+          "sampling_seed": 1234
+        }
+      },
+      {
+        "path": "work/20261008_ode_optimizer/configs/lambda0.json",
+        "values": {
+          "experiment": "lambda0",
+          "cell_ode_reg_lambda_20260830": 0.0
+        }
+      },
+      {
+        "path": "work/20261008_ode_optimizer/configs/lambda0p001.json",
+        "values": {
+          "experiment": "lambda0p001",
+          "cell_ode_reg_lambda_20260830": 0.001
+        }
+      },
+      {
+        "path": "work/20261008_ode_optimizer/configs/lambda0p1.json",
+        "values": {
+          "experiment": "lambda0p1",
+          "cell_ode_reg_lambda_20260830": 0.1
+        }
+      },
+      {
+        "path": "work/20261008_ode_optimizer/configs/lambda1.json",
+        "values": {
+          "experiment": "lambda1",
+          "cell_ode_reg_lambda_20260830": 1.0
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20261009_newBenchmark",
+    "conclusion": "Full-population normalized linear HVG selection, sparse Stage1 START_X, native DDPM, clean-X t49 proxy; old full evaluation.",
+    "python_files": [
+      "work/20261009_newBenchmark/common.py",
+      "work/20261009_newBenchmark/evaluate.py",
+      "work/20261009_newBenchmark/export_velocity.py",
+      "work/20261009_newBenchmark/prepare_data.py",
+      "work/20261009_newBenchmark/sample.py",
+      "work/20261009_newBenchmark/tests/test_pipeline.py",
+      "work/20261009_newBenchmark/train.py",
+      "work/20261009_newBenchmark/visualize.py"
+    ],
+    "configs": [
+      {
+        "path": "work/20261009_newBenchmark/config.json",
+        "values": {
+          "input": "data_preparation/20261007/data/MouseGastrulation.h5ad",
+          "runs": "work/20261009_newBenchmark/runs",
+          "expected_cells": 89267,
+          "expected_genes": 53801,
+          "expected_erythroid": 9815,
+          "n_hvg": 1024,
+          "field_timestep": 49,
+          "inference_batch_size": 128,
+          "n_jobs": 32,
+          "pca_components": 50,
+          "neighbors": 30,
+          "neighbor_pcs": 40,
+          "training_source": "work/20260915_x0predict Stage 1 (30000 steps, START_X)"
+        }
+      }
+    ]
+  },
+  {
+    "directory": "20261009_reproduce",
+    "conclusion": "Official stochastic scVelo per raw erythroid fold, official-raw profile; not a full-trained normalized baseline.",
+    "python_files": [
+      "work/20261009_reproduce/reproduce.py"
+    ],
+    "configs": []
+  }
+]

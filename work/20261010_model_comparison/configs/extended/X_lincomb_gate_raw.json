@@ -1,0 +1,10 @@
+{
+  "condition": "X_lincomb_gate_raw",
+  "family": "joint",
+  "ode": "lincomb_configurable",
+  "hybrid": "blend",
+  "field_kwargs": {
+    "gate_mode": "raw",
+    "sparse_lambda": 0.01
+  }
+}

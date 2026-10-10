@@ -1,0 +1,8 @@
+{
+  "condition": "X_hill_start_x_ot",
+  "family": "joint",
+  "ode": "hill_after_linear",
+  "hybrid": "blend",
+  "objective": "ot",
+  "prediction": "START_X"
+}

@@ -1,0 +1,8 @@
+{
+  "condition": "C01_simple_softplus_blend",
+  "family": "joint",
+  "ode": "simple_softplus",
+  "hybrid": "blend",
+  "freeze_cellunet": false,
+  "total_steps": 30000
+}

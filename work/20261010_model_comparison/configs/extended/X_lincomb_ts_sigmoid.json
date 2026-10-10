@@ -1,0 +1,11 @@
+{
+  "condition": "X_lincomb_ts_sigmoid",
+  "family": "joint",
+  "ode": "lincomb",
+  "hybrid": "ts_sigmoid",
+  "soft_weighting": "external_5",
+  "hybrid_kwargs": {
+    "t_s": 500.0,
+    "gate_tau": 20.0
+  }
+}

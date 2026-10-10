@@ -1,0 +1,8 @@
+{
+  "condition": "C02_hill_after_linear_blend",
+  "family": "joint",
+  "ode": "hill_after_linear",
+  "hybrid": "blend",
+  "freeze_cellunet": false,
+  "total_steps": 30000
+}
