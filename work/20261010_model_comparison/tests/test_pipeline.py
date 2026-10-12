@@ -102,7 +102,8 @@ def test_reviewed_d_source_compatibility_rejects_unknown_changes():
     for path in ['guided_diffusion/cell_model.py',str((C.HERE/'adapters/objectives.py').relative_to(C.ROOT))]:
         tampered=dict(current);tampered[path]='unreviewed'
         with pytest.raises(ValueError,match='unreviewed'):compat.verify_sources(saved,c,tampered)
-    with pytest.raises(ValueError,match='source/config'):
+    # The reviewed SGD source envelope is not the original AdamW envelope.
+    with pytest.raises(ValueError,match='unreviewed'):
         compat.verify_sources(saved,C.config('D03_consistency_lambda0p1'),current)
 
 

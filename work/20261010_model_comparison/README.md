@@ -487,6 +487,12 @@ python work/20261010_model_comparison/scripts/diagnose_branches.py \
 作図を開始しません。checkpoint内容・hash・遺伝子順などは本実行時に既存loaderで検証します。
 保存された`effective_config.json`を使うため、SGDを誤ってAdamWとして解釈しません。
 
+初期AdamW版D01〜D04（`4d7187f`時点のsource hash）も読み込めます。
+`audit/d_adamw_source_compatibility.json`には、後から追加されたSGD・モデル拡張などの
+対象Dに影響しない差分だけを旧/現行hashの組で記録しています。未知の差分、config・data・GRN・
+遺伝子順の不一致は引き続き停止します。元checkpointは変更せず、適用した互換性情報を
+各runの`source_compatibility.json`に保存します。
+
 ### 指標・表示の定義
 
 - cosineとPearsonは細胞ごとに遺伝子軸で計算し、平均とQ25–Q75を表示。全細胞×遺伝子をflattenしたglobal Pearsonも別図・列に保存。

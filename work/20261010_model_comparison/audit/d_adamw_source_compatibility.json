@@ -1,0 +1,314 @@
+{
+  "scope": "D01-D04 hill_after_linear START_X consistency; CellUNet and ODE AdamW; internal GRN weighting",
+  "reviewed_commits": [
+    "4d7187f",
+    "2958c3c",
+    "ec76791",
+    "d7d2e48",
+    "4e844de",
+    "627e108",
+    "8e84b30"
+  ],
+  "rationale": [
+    "Reported checkpoint hashes exactly match 4d7187f; compare these bytes with 8e84b30.",
+    "HillAfterLinear and CellUNet numerical sources, diffusion, sampler, pilot configs and base config remain exact-hash protected.",
+    "Model/data/velocity additions are gated by exp_clip or other field types, unused by these four D conditions.",
+    "The internal off-mask loss takes the same penalty and base calls; external_5 support is inactive.",
+    "New optimizer code is used only when ode_optimizer is SGD. AdamW updates, EMA and LR schedule remain unchanged.",
+    "Training adds source-provenance archival and a no-gradient branch for frozen hybrids, not used by D.",
+    "CLI/summary additions concern other campaigns. Newly added expansion/SGD configs do not replace pilot configs.",
+    "Checkpoint/compatibility changes retain exact config, data, GRN, ID and state-dict checks.",
+    "Original checkpoint bytes and saved hashes are preserved; unknown saved or current hashes fail."
+  ],
+  "files": {
+    "work/20261010_model_comparison/adapters/checkpoint.py": {
+      "saved": [
+        "9a66e934f30618b8cd3f06f185d84d6377fecc4bdd5526b6df7265837a740da7"
+      ],
+      "current": "8726ab0e38798b730e8e7b5a47b424759688a2fc629cddb730ac63ef2767499a"
+    },
+    "work/20261010_model_comparison/adapters/data.py": {
+      "saved": [
+        "ac6b87aafa75a9d063122726c2147749f7aec5f065b8e05c0499b578bb0cb1d6"
+      ],
+      "current": "25dd66d37d038d204e9af1758b46c432d281d7682e5ec9ec11895a2febe2bfe0"
+    },
+    "work/20261010_model_comparison/adapters/exp_field.py": {
+      "saved": [
+        null
+      ],
+      "current": "e2e7b5ce91bf90c9bd6360941673c4c4acca82b17f7147984e1d846b99d27139"
+    },
+    "work/20261010_model_comparison/adapters/model.py": {
+      "saved": [
+        "e9ac0f8982e860025aaf6c28fa4dfc29473743e32987e71f963bf29e357853c4"
+      ],
+      "current": "f1de844822c2167c9cf3dd51f3daa977e5d5e0182537a17e9d56fb1ca852fecd"
+    },
+    "work/20261010_model_comparison/adapters/objectives.py": {
+      "saved": [
+        "2437d02adb69109d9977bb94d30ca548bfa597cbe6c33c28e17e83e461d88c6b"
+      ],
+      "current": "74dcf356c05a57eadc2b04cd87ec06808c7327caa452ea00c179f9e5439e427d"
+    },
+    "work/20261010_model_comparison/adapters/optimizers.py": {
+      "saved": [
+        null
+      ],
+      "current": "63b77632ae2cb866f0fa978c995f8ee98f3ab086073008f919b92ad2a331f194"
+    },
+    "work/20261010_model_comparison/adapters/source_compatibility.py": {
+      "saved": [
+        null,
+        "0636af81ed2101ad7d8b26c9e40854043fbc1edc915180faf7cfb431e26593fb"
+      ],
+      "current": "310b80028784cdf1c5bac35572fa0c078b014ae0614c04855fbd534d4f9c3af9"
+    },
+    "work/20261010_model_comparison/adapters/summary.py": {
+      "saved": [
+        "a9cdec4d4aa7b359e9b66c2a644d3b349dfbfb0d57f6841041d93db56ac9179f"
+      ],
+      "current": "90bb4def35d32536577c90824aeadf26972e27ca7bf8ed459cfc6ed3a3429e9e"
+    },
+    "work/20261010_model_comparison/adapters/training.py": {
+      "saved": [
+        "e2651650c8003a9a06e9b91e93ab4a6f32096728a9b866a94f5ac1c08cc1be34"
+      ],
+      "current": "0dcb451fd5120a980b03e4df42241a240228182dfbe5abfe05ad6ace3dcb35f8"
+    },
+    "work/20261010_model_comparison/adapters/velocity.py": {
+      "saved": [
+        "79ec9fe03a2ab3f61fc05e29e43198d43e804ad063115c9b2602406135fd7aa7"
+      ],
+      "current": "38d0211e80f4c3310c52d6e9e6c4c70eeab6fe11c6f80ac2d5b048b619addc84"
+    },
+    "work/20261010_model_comparison/cli.py": {
+      "saved": [
+        "1376cf38e563f0a362487d75b4d79b59b2b9bdd298d3f0d0e3b8d53c2a3f6670"
+      ],
+      "current": "0fe1549b3357f7812c5d38257e94cb4e6f6bb66b5ecd862d4f26657efb5183fc"
+    },
+    "work/20261010_model_comparison/common.py": {
+      "saved": [
+        "17da4957449008a6089e3ea8e2eec2e41dcd95f44f9ad9d20113ddc40d0b5fbc"
+      ],
+      "current": "3dea2771c594aaaa9845b2a7291d2d4269c66d22e4b4cca6129d337e72a11a7f"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/B05_exp.json": {
+      "saved": [
+        null
+      ],
+      "current": "48c0b9cd3f68e3e58d63ad8f8ec715e1897fc6e5a1f91e59638ba607cb2489af"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/B06_lowrank.json": {
+      "saved": [
+        null
+      ],
+      "current": "40c4ebe8c227be9ccdbc7450daee0a090b0d648692d65f92bd705a26307d294a"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/B07_matsum.json": {
+      "saved": [
+        null
+      ],
+      "current": "7ab25ccb984f070896bea61c1dce8a33d92cf54360275dc977b0b10efdfbcbf7"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/B08_lora.json": {
+      "saved": [
+        null
+      ],
+      "current": "99e6d9b3505999ecc52c3184059829153dc195448469379ec21babce2e68c5bb"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/C05_exp_additive.json": {
+      "saved": [
+        null
+      ],
+      "current": "b41799f3ef873679ea2c3b31830c42e2878e7e6690c8282147c288723e5ae657"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/C06_lowrank_additive.json": {
+      "saved": [
+        null
+      ],
+      "current": "f2c7c2af881487bcf92e2a9df3a426c88062a8dd63348bcc13ffc313701aa327"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/C07_matsum_additive.json": {
+      "saved": [
+        null
+      ],
+      "current": "19bd024808a17e64a871274a0eda5e3cfc9663d1a117bb51fb9deec9986a5873"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/C08_lora_additive.json": {
+      "saved": [
+        null
+      ],
+      "current": "0c281ee744e3ced5e571c85fa35bb2c0614c5b4461bf96802d3e0436b5dbc062"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D05_exp_consistency_lambda0.json": {
+      "saved": [
+        null
+      ],
+      "current": "1fe0a0a6f05852f5ef58b47221930efcf3a0c2b1e6c66b887158461f0f4a15c0"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D06_exp_consistency_lambda0p001.json": {
+      "saved": [
+        null
+      ],
+      "current": "da0aefb9a20b9d71a929e997a7d60ad3b7fabb60c0cfe75fbfd1cd4b2fb5a53c"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D07_exp_consistency_lambda0p1.json": {
+      "saved": [
+        null
+      ],
+      "current": "b193f6b376a3a0b96ffca7ce2f3e64010b9e56fe71aaa3ffed4aa7f191b17f6f"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D08_exp_consistency_lambda1.json": {
+      "saved": [
+        null
+      ],
+      "current": "789bccd8881cb146fc4657d3375c97d2e71faa7b7a73c189e959109980d1941c"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D09_lowrank_consistency_lambda0.json": {
+      "saved": [
+        null
+      ],
+      "current": "ebdb18823c4c0697330f7ec7d24071e8105a6f5f58b37528b682715b02e9de69"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D10_lowrank_consistency_lambda0p001.json": {
+      "saved": [
+        null
+      ],
+      "current": "8ebdb8603d8ec1856a5996ef4bc8b377fa677ea75142c73041f6c5c792811ed7"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D11_lowrank_consistency_lambda0p1.json": {
+      "saved": [
+        null
+      ],
+      "current": "e3ebba6036dd2a890b2d1259b5fcd6d5793f1dc4c20c5a4573a634983b1751b2"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D12_lowrank_consistency_lambda1.json": {
+      "saved": [
+        null
+      ],
+      "current": "6a7a507aa2c4c0d1eb259a60a2e9605d2191b38a0ed7f0234ec9a242744d612c"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D13_matsum_consistency_lambda0.json": {
+      "saved": [
+        null
+      ],
+      "current": "b36c9f6ffe59b1c1bf1fdd9d04834092d349f6b8e0f42c64286c540c06ab2de5"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D14_matsum_consistency_lambda0p001.json": {
+      "saved": [
+        null
+      ],
+      "current": "74415d88256df817fa9b56730b47122573e2fd4dcc94b34c02e3d588e705ad2a"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D15_matsum_consistency_lambda0p1.json": {
+      "saved": [
+        null
+      ],
+      "current": "1f67b3c125358627134066e6979e654d57191024cc52313d1f3c8711b782d77e"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D16_matsum_consistency_lambda1.json": {
+      "saved": [
+        null
+      ],
+      "current": "981ac727e1683b9f076fb9094a9448830027fcf251cd2af59504f035c4acaddf"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D17_lora_consistency_lambda0.json": {
+      "saved": [
+        null
+      ],
+      "current": "c88719871988abb993b01126ee5561ba0f46a3ee01073841afc93525e1b59c01"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D18_lora_consistency_lambda0p001.json": {
+      "saved": [
+        null
+      ],
+      "current": "3eae645197b81336d5741d23779db51c47e869933a96d6b43cd0f86012836f62"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D19_lora_consistency_lambda0p1.json": {
+      "saved": [
+        null
+      ],
+      "current": "2e43dfb590e2b0d672642b8d1feb8fc88f3c6b5cd927fdd131879d337e696da2"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/D20_lora_consistency_lambda1.json": {
+      "saved": [
+        null
+      ],
+      "current": "9264a8318078b42afbfb8617c207bbac20746f603ac430f0f7c8fe8c612006e1"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/E05_exp_blend.json": {
+      "saved": [
+        null
+      ],
+      "current": "bffbdf8397bc4479514b8778a31f9afecc76c57515e675f2d974fa442e508483"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/E06_lowrank_blend.json": {
+      "saved": [
+        null
+      ],
+      "current": "660d610a395442a91f860d5dc0de09f395023bf871a7c033156920dda22e5aa3"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/E07_matsum_blend.json": {
+      "saved": [
+        null
+      ],
+      "current": "5fcd96745878aef84fcbc264a17be37a2cbbf0407068f25ea204440f7dac124a"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/E08_lora_blend.json": {
+      "saved": [
+        null
+      ],
+      "current": "15b0663acb1f96c74118924895a7bdc36142f93275bf8fd9fb48d080c0d0d224"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/E09_exp_additive.json": {
+      "saved": [
+        null
+      ],
+      "current": "b3150fdb2a9c96e3b325edf4c63310c937c007d409d091f2f63b5a48bb7c8327"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/E10_lowrank_additive.json": {
+      "saved": [
+        null
+      ],
+      "current": "02a3804238d2f5ab27c20c353ab22389194d0a296c32204a51ffd9c259ac2885"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/E11_matsum_additive.json": {
+      "saved": [
+        null
+      ],
+      "current": "6bd0754d98287b3d3904ffdf0d34dfd281d30cc07865dd5ef286120cae1249e4"
+    },
+    "work/20261010_model_comparison/configs/model_expansion/E12_lora_additive.json": {
+      "saved": [
+        null
+      ],
+      "current": "01dbcc224c1f41a767a72c7d180ca1fc82393cb6c7a442727a2fe835cc2668b1"
+    },
+    "work/20261010_model_comparison/configs/ode_sgd/D01_consistency_lambda0.json": {
+      "saved": [
+        null
+      ],
+      "current": "39d65e32e14b1af5ddb7f29d84808e2fa320bd34e3a5956e13f6577a51755cb1"
+    },
+    "work/20261010_model_comparison/configs/ode_sgd/D02_consistency_lambda0p001.json": {
+      "saved": [
+        null
+      ],
+      "current": "ed400c6af679b862c3dc5816c57c80d2d7a602234bf8e1d1a1a3030edce2d051"
+    },
+    "work/20261010_model_comparison/configs/ode_sgd/D03_consistency_lambda0p1.json": {
+      "saved": [
+        null
+      ],
+      "current": "4a1813d7f5b8c368e60ce6bda76790bcd61424e30f8f5734ae7067e86dea7360"
+    },
+    "work/20261010_model_comparison/configs/ode_sgd/D04_consistency_lambda1.json": {
+      "saved": [
+        null
+      ],
+      "current": "209f6d43f7d43bf054b3d3280999777c1b8d105f1d0ee79d4406605c741a6fe4"
+    }
+  }
+}

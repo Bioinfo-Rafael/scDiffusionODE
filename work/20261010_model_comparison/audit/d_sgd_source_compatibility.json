@@ -44,9 +44,10 @@
     "work/20261010_model_comparison/adapters/source_compatibility.py": {
       "saved": [
         null,
-        "7e065b4de74de2ab713450d58cbc6425d3d224e49b538223170b4df274917821"
+        "7e065b4de74de2ab713450d58cbc6425d3d224e49b538223170b4df274917821",
+        "0636af81ed2101ad7d8b26c9e40854043fbc1edc915180faf7cfb431e26593fb"
       ],
-      "current": "0636af81ed2101ad7d8b26c9e40854043fbc1edc915180faf7cfb431e26593fb"
+      "current": "310b80028784cdf1c5bac35572fa0c078b014ae0614c04855fbd534d4f9c3af9"
     },
     "work/20261010_model_comparison/adapters/summary.py": {
       "saved": [
