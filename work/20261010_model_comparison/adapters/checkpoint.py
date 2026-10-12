@@ -87,6 +87,8 @@ def load(c, run, meta, *, value=None, weights='ema', target='cpu'):
         require(ck.get('schema')==SCHEMA, 'unknown checkpoint schema')
         require(ck['config']==c, 'effective config differs from checkpoint')
         check_ids(ck,meta)
+        if c.get('exp_clip'):
+            require(ck['provenance'].get('exp_clip')==meta.get('exp_clip'), 'checkpoint exponential bounds differ')
         require(ck['provenance']['source_hashes']==source_hashes(), 'source/config code changed since checkpoint')
         require(ck['grn']==meta['grn'], 'checkpoint GRN differs')
         mask=None if c['family']=='baseline' else mask_for(meta['gene_ids'],meta)

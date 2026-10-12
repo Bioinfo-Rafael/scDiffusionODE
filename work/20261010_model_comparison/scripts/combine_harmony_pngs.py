@@ -35,7 +35,7 @@ def combine(run_root, condition_set='pilot', normal=False):
 if __name__=='__main__':
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--run-root',type=Path,required=True)
-    parser.add_argument('--condition-set',choices=['pilot','ode_sgd'],default='pilot')
+    parser.add_argument('--condition-set',choices=['pilot','ode_sgd','model_expansion'],default='pilot')
     parser.add_argument('--normal',action='store_true')
     args=parser.parse_args()
     combine(args.run_root,args.condition_set,args.normal)

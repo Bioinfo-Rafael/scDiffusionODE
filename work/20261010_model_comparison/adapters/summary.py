@@ -49,9 +49,11 @@ def summarize(run_root,*,output=None,extra=()):
     import matplotlib.pyplot as plt
     out=confined(output or Path(run_root)/'comparison');out.mkdir(parents=True,exist_ok=True)
     rows,pending=collect(run_root,extra)
-    # Include all pilot conditions, including never-trained ones.
+    # A dedicated campaign declares its own expected conditions.
+    campaign = Path(run_root)/'campaign.json'
+    expected = read_json(campaign)['conditions'] if campaign.exists() else conditions()
     found={r['condition'] for r in rows}|{r['condition'] for r in pending}
-    pending += [dict(condition=n,status='not run') for n in conditions() if n not in found]
+    pending += [dict(condition=n,status='not run') for n in expected if n not in found]
     write_json(out/'status.json',dict(completed_output_rows=len(rows),pending=pending))
     frame=pd.DataFrame(rows);frame.to_csv(out/'comparison.csv',index=False)
     if not rows:return out

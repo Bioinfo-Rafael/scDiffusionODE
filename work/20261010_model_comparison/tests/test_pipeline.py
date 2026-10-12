@@ -102,10 +102,11 @@ def data(tmp_path):
     grn=dict(source=str(edge),source_sha256=C.sha256(edge),mapped_tsv=str(edge),mapped_sha256=C.sha256(edge),unique_edges=2)
     meta=dict(training_sha256=C.sha256(path),gene_ids=genes,cell_ids=cells,expression_scale=C.SCALE,input_sha256='synthetic',grn=grn)
     C.write_json(folder/'manifest.json',dict(training=str(path),metadata=meta,grn=grn))
+    meta['exp_clip']=D.expression_clip(a.X,C.config('B05_exp'),meta['training_sha256'])
     return folder,a,meta
 
 
-@pytest.mark.parametrize('name',C.conditions()+C.conditions(True))
+@pytest.mark.parametrize('name',C.conditions()+C.conditions(True)+C.expansion_conditions())
 def test_configs_forward_backward_and_restore(name,data):
     folder,a,meta=data;c=small(name)
     C.validate(C.config(name))
@@ -178,7 +179,9 @@ def test_freeze_hash_optimizer_and_ema(data):
 
 
 @pytest.mark.parametrize('name',['A01_cellunet_startx','B02_hill_after_linear','C04_hill_after_linear_additive','D03_consistency_lambda0p1',
-                               'D01_consistency_lambda0_sgd','D03_consistency_lambda0p1_sgd'])
+                               'D01_consistency_lambda0_sgd','D03_consistency_lambda0p1_sgd',
+                               'B05_exp','D07_exp_consistency_lambda0p1','D11_lowrank_consistency_lambda0p1',
+                               'D15_matsum_consistency_lambda0p1','D19_lora_consistency_lambda0p1'])
 def test_train_resume_roundtrip_and_velocity(name,data,tmp_path):
     folder,a,meta=data;c=small(name.removesuffix('_sgd'))
     if name.endswith('_sgd'):c['ode_optimizer']='SGD'
@@ -306,6 +309,107 @@ def test_summary_keeps_folds_and_protocols(tmp_path):
     assert len(list(out.glob('metrics_*.png')))==2
     C.write_json(external/'metadata.json',dict(status='failed'))
     rows,pending=S.collect(root,[external]);assert len(rows)==1 and pending
+
+
+def test_expansion_launcher_and_summary(tmp_path):
+    root=tmp_path/'expansion'
+    out=subprocess.check_output([sys.executable,'-S',str(C.HERE/'scripts/launch_model_expansion.py'),
+                                 '--dry-run','--run-root',str(root)],cwd=C.ROOT,text=True)
+    assert len(C.expansion_conditions())==32
+    assert len(C.conditions())==17
+    assert out.count('--stage1-checkpoint')==8
+    for name in C.expansion_conditions():assert name in out
+    assert not root.exists()
+    configs=[C.config(n) for n in C.expansion_conditions()]
+    assert all(c['hybrid']=='additive' for c in configs if c['family']=='joint')
+    assert len([c for c in configs if c['family']=='consistency'])==16
+    C.write_json(root/'campaign.json',dict(conditions=C.expansion_conditions()))
+    S=importlib.import_module(P+'.adapters.summary')
+    summary=S.summarize(root)
+    assert {r['condition'] for r in C.read_json(summary/'status.json')['pending']}==set(C.expansion_conditions())
+
+
+@pytest.mark.parametrize('kind',['exp','lowrank','matsum','lora'])
+def test_expansion_consistency_weighting_and_lambda_zero(kind,data):
+    folder,a,meta=data
+    name=next(n for n in C.expansion_conditions() if n.startswith('D') and f'_{kind}_' in n and n.endswith('lambda0'))
+    c=small(name);mask=D.mask_for(meta['gene_ids'],meta)
+    model=M.build(c,meta['gene_ids'],mask=mask,meta=meta).train()
+    baseline=M.build(small('A01_cellunet_startx'),meta['gene_ids'],state=model.ml_model.state_dict()).train()
+    x=torch.from_numpy(a.X[:4]);noise=torch.randn_like(x,dtype=torch.float64);t=torch.tensor([0,49,500,999]);w=torch.ones(4)
+    value,parts=O.loss(c,model,C.diffusion(c),x,t,w,noise=noise)
+    np.testing.assert_allclose(parts['ode_regularization_final_weighted'],5*parts['ode_offmask_base_raw'],rtol=1e-6)
+    assert parts['cell_ode_consistency_final_weighted_20260830']==0
+    value.backward()
+    O.loss(small('A01_cellunet_startx'),baseline,C.diffusion(c),x,t,w,noise=noise)[0].backward()
+    for p,q in zip(model.ml_model.parameters(),baseline.parameters()):torch.testing.assert_close(p.grad,q.grad,rtol=0,atol=0)
+
+
+@pytest.mark.parametrize('kind',['exp','lowrank','matsum','lora'])
+def test_expansion_frozen_blend_additive_and_cache(kind,data):
+    _,a,meta=data;mask=D.mask_for(meta['gene_ids'],meta)
+    for mode in ('blend','additive'):
+        name=next(n for n in C.expansion_conditions() if n.startswith('E') and n.endswith(f'_{kind}_{mode}'))
+        c=small(name);model=M.build(c,meta['gene_ids'],mask=mask,meta=meta).train()
+        x=torch.from_numpy(a.X[:4]);t=torch.tensor([0,49,500,999])[:,None];r=(1-t/500).clamp_min(0)
+        model.eval()
+        ode=model.ode_model(x,t);cell=model.ml_model(x,t)
+        torch.testing.assert_close(model(x,t),r*ode+((1-r)*cell if mode=='blend' else cell))
+        if kind=='lowrank':
+            model.train()
+            for times in (t,torch.full_like(t,999)):
+                model.zero_grad(set_to_none=True)
+                value=O.loss(c,model,C.diffusion(c),x,times.flatten(),torch.ones(4))[0]
+                if value.requires_grad:value.backward()
+            assert model.ode_model._cached_W_sub is None
+
+
+def test_expression_clip_and_stable_exponential(data):
+    from scipy import sparse
+    _,a,meta=data;c=small('B05_exp')
+    x=np.zeros((257,3),dtype=np.float32);x[-1,-1]=123
+    bounds=D.expression_clip(x,c,'hash')
+    assert bounds['observed_min']==0 and bounds['observed_max']==123
+    assert bounds['production_min']==0 and bounds['production_max']==140
+    assert bounds['rounding_step']==20
+    assert D.expression_clip(sparse.csr_matrix(x),c,'hash')==bounds
+    positive=D.expression_clip(np.array([[50.,100.]],dtype=np.float32),c,'hash')
+    assert positive['production_min']==45 and positive['production_max']==105
+    with pytest.raises(ValueError,match='nonzero'):D.expression_clip(np.zeros((2,2)),c,'hash')
+    with pytest.raises(ValueError,match='invalid expression'):D.expression_clip(np.array([[np.nan]]),c,'hash')
+    meta=dict(meta,exp_clip=dict(bounds,training_sha256=meta['training_sha256']))
+    net=M.build(c,meta['gene_ids'],mask=D.mask_for(meta['gene_ids'],meta),meta=meta)
+    field=net.ode_model
+    with torch.no_grad():
+        field.W.zero_();field.b.copy_(torch.tensor([-1e6,-2.,0.,2.,1e6,1e6]))
+    zeros=torch.zeros(2,6);out=field(zeros)
+    assert torch.isfinite(out).all() and (out>=0).all() and (out<=140).all()
+    torch.testing.assert_close(out[0,:4],torch.tensor([0.,np.exp(-2),1.,np.exp(2)],dtype=torch.float32))
+    torch.testing.assert_close(out[0,4],torch.tensor(140.))
+    out.sum().backward();assert torch.isfinite(field.b.grad).all()
+    assert field.b.grad[4]==0 and field.b.grad[2]==2
+    state=copy.deepcopy(net.state_dict());state['ode_model.production_bounds'][1]=141
+    with pytest.raises(ValueError,match='bound buffers'):
+        M.build(c,meta['gene_ids'],mask=D.mask_for(meta['gene_ids'],meta),meta=meta,state=state)
+
+
+@pytest.mark.parametrize('name',['E05_exp_blend','E09_exp_additive','E06_lowrank_blend','E10_lowrank_additive'])
+def test_expansion_stage2_runner_resume(name,data,tmp_path,monkeypatch):
+    folder,a,meta=data;c=small(name);stage=tmp_path/'stage.pt';baseline=stage_fixture(c,meta,stage)
+    if c['ode']=='lowrank':
+        class InactiveSampler:
+            def sample(self,n,device):
+                return torch.full((n,),999,device=device,dtype=torch.long),torch.ones(n,device=device)
+        monkeypatch.setattr(T,'sampler',lambda *args:InactiveSampler())
+    run=C.run_dir(c,tmp_path/'stage2')
+    T.train(c,run,data_dir=folder,target='cpu',stop=1,stage1=stage)
+    T.train(c,run,data_dir=folder,target='cpu',stop=2,resume='latest')
+    net,ck,_=K.load(c,run,meta)
+    assert M.single.state_hash(net.ml_model)==M.single.state_hash(baseline['ema'])
+    if c['ode']=='exp':
+        assert ck['provenance']['exp_clip']==meta['exp_clip']
+        changed=copy.deepcopy(meta);changed['exp_clip']['production_max']+=1
+        with pytest.raises(ValueError,match='bounds differ'):K.load(c,run,changed)
 
 
 def test_benchmark_adapter_reuses_only_matching_complete_artifact(data,tmp_path,monkeypatch):

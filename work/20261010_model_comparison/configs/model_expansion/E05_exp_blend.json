@@ -1,0 +1,15 @@
+{
+  "condition": "E05_exp_blend",
+  "ode": "exp",
+  "field_kwargs": {
+    "is_lincomb": false
+  },
+  "family": "two_step",
+  "hybrid": "blend",
+  "freeze_cellunet": true,
+  "total_steps": 10000,
+  "exp_clip": {
+    "policy": "training_range_margin_nice",
+    "margin_fraction": 0.1
+  }
+}

@@ -80,7 +80,7 @@ registry=dict(schema='source_reuse_registry_v1',models=rows,valid_statuses=['imp
  dict(combination='softmax LinComb + sparse coefficient penalty',status='incompatible',reason='7/07 requires sparse only with raw gate; softmax has entropy penalty'),
  dict(combination='state/time-dependent W reported as autonomous GRN ODE',status='incompatible',reason='MLP coefficients depend on input/conditioning timestep'),
  dict(combination='legacy bare EMA + assumed new Mouse gene order',status='incompatible',reason='missing full new-data/cell-order provenance; never infer from tensor shape')],
- runnable_configs={group:[p.stem for p in sorted((HERE/'configs'/group).glob('*.json'))] for group in ['pilot','extended']})
+ runnable_configs={group:[p.stem for p in sorted((HERE/'configs'/group).glob('*.json'))] for group in ['pilot','extended','model_expansion']})
 registry['training_methods'] = [
  dict(name=name, status=status, source=source, reason=reason)
  for name,status,source,reason in [

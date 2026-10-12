@@ -29,6 +29,11 @@ def build_field(c, genes, mask, meta=None):
     elif kind in ('racipe', 'exp', 'hill_after_linear_experts'):
         src = module('work.20260803_ODE_hill_exp.models.ode_fields')
         cls = dict(racipe=src.RacipeField, exp=src.ExpField, hill_after_linear_experts=src.HillAfterLinearField)[kind]
+        if kind == 'exp' and c.get('exp_clip'):
+            require(meta is not None and 'exp_clip' in meta, 'audited training expression bounds required')
+            require(meta['exp_clip']['training_sha256']==meta['training_sha256'], 'exp clip training data mismatch')
+            cls = module(__package__+'.exp_field').DataBoundedExpField
+            kw['clip'] = meta['exp_clip']
         field = cls(d, mask=mask, soft=True, off_mask_lambda=c['off_mask_lambda'], **kw)
     elif kind in ('centered_hill_experts', 'shifted_hill_experts'):
         src = module('work.20260816.models.ode_fields')
@@ -97,6 +102,9 @@ def build(c, genes, *, mask=None, meta=None, state=None):
     if state is not None:
         for name, value in state.items():
             require(torch.isfinite(value).all(), f'nonfinite checkpoint tensor: {name}')
+        if c.get('exp_clip'):
+            require(torch.equal(state['ode_model.production_bounds'].cpu(), model.ode_model.production_bounds.cpu()),
+                    'checkpoint exponential bound buffers differ from training metadata')
         model.load_state_dict(state, strict=True)
     return model
 

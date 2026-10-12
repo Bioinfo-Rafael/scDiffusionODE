@@ -1,0 +1,17 @@
+{
+  "condition": "E10_lowrank_additive",
+  "ode": "lowrank",
+  "field_kwargs": {
+    "time_dim": 64,
+    "hidden": 256,
+    "dropout": 0.0,
+    "use_decay": true,
+    "rank": 16,
+    "lowrank_penalty_subsample": 8
+  },
+  "soft_weighting": "external_5",
+  "family": "two_step",
+  "hybrid": "additive",
+  "freeze_cellunet": true,
+  "total_steps": 10000
+}

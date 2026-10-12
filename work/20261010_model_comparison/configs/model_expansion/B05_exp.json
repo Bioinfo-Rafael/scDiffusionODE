@@ -1,0 +1,13 @@
+{
+  "condition": "B05_exp",
+  "ode": "exp",
+  "field_kwargs": {
+    "is_lincomb": false
+  },
+  "family": "ode_only",
+  "hybrid": "none",
+  "exp_clip": {
+    "policy": "training_range_margin_nice",
+    "margin_fraction": 0.1
+  }
+}

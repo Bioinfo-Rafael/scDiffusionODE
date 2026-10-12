@@ -1,6 +1,6 @@
 # Mouse Gastrulation model comparison — 20261010
 
-既存モデル・loss・DDPM samplingを直接importする比較環境です。初回 **17条件**と拡張 **26条件**（計43 config）を用意しました。本学習・実データsampling・VeloEV実評価は自動実行していません。
+既存モデル・loss・DDPM samplingを直接importする比較環境です。初回 **17条件**、従来の拡張 **26条件**、別実行のモデル追加 **32条件**を用意しました（別途DのSGD比較4 config）。本学習・実データsampling・VeloEV実評価は自動実行していません。
 
 - 全34 work directoryの調査: [audit/WORK_DIRECTORY_AUDIT.md](audit/WORK_DIRECTORY_AUDIT.md)
 - モデルの式・class・状態: [MODEL_INVENTORY.md](MODEL_INVENTORY.md)、[CSV](MODEL_INVENTORY.csv)、[registry.json](registry.json)
@@ -93,6 +93,105 @@ freezeの有無だけを比較する追加条件は `X_stage1_hill_additive_free
 EはA01の30,000更新に加え、ODEを10,000更新します。学習率を減らすスケジュールの基準は30,000更新のままなので、「10,000更新で学習率を0まで減らす」設定ではありません。全E条件は`shared_stage1.json`で同じA01 checkpoint/hashを使うことを検証します。
 
 歴史的実装からの変更として、Dは8/30のEPSILON予測をSTART_X予測に、100,000更新を30,000更新に変更しています。また10/08のODE SGDではなくAdamWを使います。ソースのsoft constraint内部係数5は保持し、June系の「外側で5倍」と区別します。
+
+## モデル追加32条件 — 2026-10-12
+
+`configs/model_expansion/` は、Exponential・LowRank・MatSum・LoRAを追加する独立した比較セットです。**追加分ではCはAdditiveだけ、Blend対Additiveの比較はEだけ**にします。既存の「17条件の対応表」とconfigは変更しません。通常の `--all` と `--extended` にも自動では入りません。
+
+### 追加条件の対応表
+
+| モデル（config名） | B：ODE単独 | C：同時学習・Additive | E：CellUNet固定・Blend | E：CellUNet固定・Additive |
+|---|---|---|---|---|
+| Exponential (`exp`) | B05 | C05 | E05 | E09 |
+| LowRank (`lowrank`) | B06 | C06 | E06 | E10 |
+| MatSum (`matsum`) | B07 | C07 | E07 | E11 |
+| LoRA (`lora`) | B08 | C08 | E08 | E12 |
+
+完全な条件名は `B05_exp`、`C05_exp_additive`、`E05_exp_blend`、`E09_exp_additive` の形式です。Cは4条件だけなのでC05〜C08を使います。Additiveの同時学習対CellUNet固定は、C05対E09、C06対E10、C07対E11、C08対E12を比較します。
+
+| D：出力一致のモデル | λ=0 | λ=0.001 | λ=0.1 | λ=1 |
+|---|---|---|---|---|
+| Exponential | D05 | D06 | D07 | D08 |
+| LowRank | D09 | D10 | D11 | D12 |
+| MatSum | D13 | D14 | D15 | D16 |
+| LoRA | D17 | D18 | D19 | D20 |
+
+Dの完全名は `D05_exp_consistency_lambda0`、`D10_lowrank_consistency_lambda0p001`、`D15_matsum_consistency_lambda0p1`、`D20_lora_consistency_lambda1` の形式です。Dは生成にCellUNetのみを使い、λ=0ではODEに復元・出力一致の学習信号がかからない点も既存Dと同じです。
+
+**B:4 + C:4 + D:16 + E:8 = 32条件**、出力別評価は **72行**（B:4、C:12、D:32、E:24）です。B/C/Dは30,000更新、Eは共通A01の30,000更新後にODEを10,000更新します。START_X、入力、seed、GRN、AdamW、batch size、sampling、評価条件は既存の標準比較と共通です。DのSGD比較は含みません。
+
+### 追加モデルの数式と設定
+
+$x\in\mathbb{R}^G$ は発現量、$t$ は拡散時刻、$s(z)=\log(1+e^z)$ はsoftplusです。各出力は次の式です。
+
+| モデル | $F(x,t)$ | 設定 |
+|---|---|---|
+| Exponential | $\operatorname{clip}(\exp(Wx+b),L,H)-\delta\odot x$ | 単一モデル。$\delta=s(\gamma)+10^{-6}$ |
+| LowRank | $s(U(x,t)V(x,t)^\top x+b)-\delta\odot x$ | rank=16、$\delta=s(\gamma)$ |
+| MatSum | $s((\sum_{k=1}^{8}a_k(x,t)A_k)x+b)-\delta\odot x$ | 8基底、$\delta=s(\gamma)$ |
+| LoRA | $s((W_0+\sum_{k=1}^{8}a_k(x,t)U_kV_k^\top)x+b)-\delta\odot x$ | 8基底、各rank=16、$\delta=s(\gamma)$ |
+
+Exponentialは時刻に依存しません。LowRankはMLPがU/Vを生成し、MatSum/LoRAはMLPが係数を生成します。MLPはhidden=256、time_dim=64、dropout=0です。係数はsoftmaxなしで負値も取ります。LoRAのW0/U/Vもすべて学習します。
+
+Exponentialの **L/Hは生成項の出力範囲**です。最終出力Fには減衰項があるため負値も取ります。元入力全遺伝子ではなく、実際に学習に使う **normalized linear training Xの全細胞×1,024 HVG**からグローバルな最小m・最大Mを取得します。ミニバッチ、拡散ノイズ付き入力、評価foldごとには変更しません。
+
+1. レンジ `R=M-m` の上下に10%のマージンを加えます。定数の正値データでは `R=M` を使います。
+2. `R/10` 以上の最小の `1,2,5×10^n` を丸め幅hにします。
+3. `L=max(0, floor((m-0.1R)/h)*h)`、`H=ceil((M+0.1R)/h)*h` として外側へ丸めます。例えば実測0〜123ならL=0、H=140です。
+4. 数値計算はexpの前に入力を `log(H)` 以下へ制限し、L>0なら `log(L)` 以上にも制限します。L=0では下側の対数境界は設けません。exp後にもL/Hへ丸め誤差を含めて制限するため、大きい線形出力でもexpがオーバーフローしません。
+
+実測m/M、マージン、丸め幅、L/H、対数境界、学習データhashを `provenance.json` とcheckpointに保存します。L/Hはモデルのbufferにも保存し、再開・生成・velocity出力で同じ値を使用し、不一致は拒否します。実データの数値は実行先で計算します。従来の `X_exp_additive` / `X_exp_lincomb8` の固定[-20,20]設定は別条件として維持します。
+
+GRN制約はExponentialではW、LowRankでは最大8細胞の動的UVᵀ、MatSumではA、LoRAではW0と各UkVkᵀに掛ける既存仕様です。係数5を一度だけ適用します。同じ係数でも正則化対象が違うため、全モデルで同一の制約とは解釈しません。
+
+### 別ディレクトリでの実行
+
+専用の起動スクリプトは **`runs/model_expansion_20261012/`** を既定の出力先にします。その下に条件ごとのcheckpoints/logs/samples/predictions/metrics/figuresを保存します。共通入力は `runs/data/`、32条件の一覧は `campaign.json`、共通A01の出所は `shared_stage1.json`、集計は `comparison/` に保存します。
+
+```bash
+# 追加32条件の一覧・実行コマンド確認（学習なし）
+python -m work.20261010_model_comparison.cli list --model-expansion
+python work/20261010_model_comparison/scripts/launch_model_expansion.py --dry-run
+
+# 学習 → 生成 → velocity → benchmark → 可視化 → 集計
+python work/20261010_model_comparison/scripts/launch_model_expansion.py --device cuda
+
+# 中断後の再開：途中条件を再開、完了条件は検証して再利用
+python work/20261010_model_comparison/scripts/launch_model_expansion.py --device cuda --resume
+
+# 学習のみ
+python work/20261010_model_comparison/scripts/launch_model_expansion.py --device cuda --stages train
+
+# 保存済みのcheckpoint・生成細胞・評価から全作図をやり直す（再学習・再生成なし）
+python work/20261010_model_comparison/scripts/launch_model_expansion.py --plots-only
+```
+
+標準実行は全条件のtraining/samples/velocity可視化後、通常UMAPとHarmony UMAPの両方・それぞれ32条件の一覧PNG・既存比較と同じ5列のheatmap/metricsを作成します。`--harmony-python /path/to/python`を指定でき、省略時は`runs/.venv-harmony/bin/python`があれば使用します。`harmonypy==0.0.10`等の可視化依存を学習前に確認します。Harmony環境の作成方法は後述のHarmony節を参照してください。
+
+| 出力（run-root以下） | 内容 |
+|---|---|
+| `comparison/heatmap_*.png`, `metrics_*.png` | CBDir・\|CBDir\|・ICVCoh・CTO・TSC。fold点と母標準偏差も表示 |
+| `comparison/scatter_*.png`, `comparison.csv`, `status.json` | 指標散布図・評価値・32条件の状態 |
+| `comparison/joint_umap_all.png`, `joint_umap_harmony_all.png` | 通常版・Harmony版の32条件一覧 |
+| `<条件>/figures/generative/joint_umap.png`, `joint_umap_harmony.png` | 条件ごとの通常版・Harmony版。H5ADと設定/hashも保存 |
+| `<条件>/figures/generative/expression_distribution.png`, `collapse_diagnostics.json` | 発現分布・平均/分散・生成多様性等 |
+| `<条件>/figures/training/` | loss成分・勾配等の推移、ODEパラメータ分布と統計 |
+| `<条件>/figures/velocity/<出力>/fold_*/` | 3foldそれぞれのcelltype/stage UMAP・stream図・velocity norm図と診断 |
+
+既存A〜Eと同じ作図処理を追加32条件に適用します。既存A〜Eの結果をこのrun-rootへ混ぜることはしません。HarmonyはReal/Generatedの違いを補正する可視化であり、通常UMAPや評価指標を置き換えません。
+
+Eの初期値は `runs/default/A01_cellunet_startx/checkpoints/latest.json` から解決する **final 30,000-update EMA**です。A01が別のrun-rootにある場合は `--stage1-checkpoint /absolute/path/to/model030000.pt` を渡します。起動時に出所・学習設定・データID・最終更新数を確認し、新たにA01を再学習しません。dry-runでは既定のcheckpoint名を表示しますが、実行時はlatest.jsonの参照先・hashを確認します。
+
+`--run-root work/20261010_model_comparison/runs/別名` と `--data-dir` も指定できます。専用launcherはdefault・DのSGD比較・データ用ディレクトリへの出力を拒否します。比較集計の未実行一覧も、この32条件だけを対象にします。
+
+単一条件も実行できます。同じ `--run-root` を後続のsample/export_velocity/evaluate/visualizeへ渡してください。Eを単独で新規学習する場合は `--stage1-checkpoint` も指定します。
+
+```bash
+python -m work.20261010_model_comparison.cli train \
+  --condition B05_exp \
+  --run-root work/20261010_model_comparison/runs/model_expansion_20261012 \
+  --device cuda
+```
 
 ## DだけODEをSGDへ変更する追加実験
 

@@ -29,8 +29,16 @@ def loss(c, model, d, x, t, weights, noise=None):
     module('work.20260915_x0predict.common').assert_start_x(d)
     terms = d.training_losses(model, x, t, noise=noise)
     ode = model.ode_model
+    penalty = ode.off_mask_penalty(c['ode_reg_norm'])
+    if c['soft_weighting'] == 'external_5':
+        base = ode._offmask_base(c['ode_reg_norm'])
+        penalty = penalty * c['off_mask_lambda']
+    elif hasattr(ode, 'off_mask_penalty_base'):
+        base = ode.off_mask_penalty_base(c['ode_reg_norm'])
+    else:
+        base = ode._offmask_base(c['ode_reg_norm'])
     parts = consistency.loss_components_20260830(
-        (terms['loss']*weights).mean(), ode.off_mask_penalty(c['ode_reg_norm']),
+        (terms['loss']*weights).mean(), penalty,
         c['ode_reg_lambda'], model.consistency_penalty_20260830(), weights,
-        c['consistency_lambda'], ode_offmask_base_raw=ode.off_mask_penalty_base(c['ode_reg_norm']))
+        c['consistency_lambda'], ode_offmask_base_raw=base)
     return parts['total_loss'], {k:float(v.detach()) for k,v in parts.items()}

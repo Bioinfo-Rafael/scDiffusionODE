@@ -40,7 +40,9 @@ def export(c, run, *, data_dir=None, checkpoint=None, target='auto', fields=None
             composition=c['hybrid'],
             cell_ids_sha256=digest_ids(a.obs_names),gene_ids_sha256=digest_ids(a.var_names),
             biological_assumption='experimental proxy ds/dt := raw output; START_X/EPSILON loss does not establish ds/dt',
-            output_category=('autonomous_field' if c['ode'] in ('simple_softplus','hill_after_linear','centered_signed_hill','shifted_hill_rho','geneode') else 'conditioned_field') if field=='ode_raw' else 'denoiser_proxy')
+            output_category=('autonomous_field' if c['ode'] in ('simple_softplus','hill_after_linear','centered_signed_hill','shifted_hill_rho','geneode') or (c['ode']=='exp' and not c['field_kwargs'].get('is_lincomb',False)) else 'conditioned_field') if field=='ode_raw' else 'denoiser_proxy')
+        if c.get('exp_clip'):
+            stamp['exp_clip'] = meta['exp_clip']
         if output.exists():
             old=read_json(sidecar)
             require(all(old.get(k)==v for k,v in stamp.items()), 'existing velocity provenance differs')

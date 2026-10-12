@@ -1,0 +1,13 @@
+{
+  "condition": "C05_exp_additive",
+  "ode": "exp",
+  "field_kwargs": {
+    "is_lincomb": false
+  },
+  "family": "joint",
+  "hybrid": "additive",
+  "exp_clip": {
+    "policy": "training_range_margin_nice",
+    "margin_fraction": 0.1
+  }
+}

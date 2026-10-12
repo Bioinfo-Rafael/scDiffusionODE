@@ -21,6 +21,7 @@ No copied model implementations exist in this directory. Existing source files r
 | `ODE/ode_20260421_regODEMLratio.py::GeneODE` | extension | correct full-order constructor mask; keep `x @ W` source/target forward |
 | `ODE/ode_20260707_lincomb.py::ConfigurableLinCombField` | gate extensions | original sparse/entropy checks and losses |
 | `work/20260803_ODE_hill_exp/models/ode_fields.py::{HillAfterLinearField,RacipeField,ExpField}` | single/expert extensions | no RACIPE/exp approximation |
+| `work/20260803_ODE_hill_exp/models/ode_fields.py::ExpField` | model expansion B05/C05/D05–D08/E05/E09 | `adapters/exp_field.py::DataBoundedExpField` changes only production clipping to clean training-X bounds plus margin/rounding; static W/b, decay, GRN and component composition are inherited |
 | `work/20260816/models/ode_fields.py::{CenteredSignedHillField,ShiftedHillRhoField}` | K8 direct Hill extensions | K8 source defaults and gating retained |
 | `work/20260917/src/fields.py::{DirectMessageODE,MultiHopGraphFilterODE}`; `models.py::ComparisonHybrid` | graph / LowRank extensions | edges from mapped mask; source LowRank inactive-cache reset |
 | `ODE/ode_20260609_hybrid5x3.py::UnifiedODEMLHybrid`; `ode_20260609_scalemodel.py::SimpleScalarScaleModel` | historical composition extensions | choose standard/ratio/norm/scale/TS policy explicitly |
@@ -33,6 +34,7 @@ No copied model implementations exist in this directory. Existing source files r
 - `adapters/legacy.py`: scoped `common` binding for old unqualified imports; restore any prior module binding.
 - `adapters/data.py`: shared manifest, ID/hash/scale checks, TSV mapping/coverage; source `prepare` retained.
 - `adapters/model.py`: class dispatch and composition; source/source-target mask boundary.
+- `adapters/exp_field.py`: explicitly requested data-derived production clipping; bounds audited by `adapters/data.py`, stored as model buffers and checked against provenance on restore. The historical fixed-bound ExpField remains unchanged.
 - `adapters/objectives.py`: family dispatch and original consistency composer. No Sinkhorn, diffusion, soft-mask or consistency formula copies.
 - `adapters/training.py`: artifact/resume/diagnostic orchestration for B–E; imports losses, batches and EMA. A01 delegates the full source loop. This does not replace historical TrainLoop implementations.
 - `adapters/checkpoint.py`: trusted bundle format, strict architecture, ID/data/source and final-EMA checks; all Stage2 conditions register one immutable Stage1 identity.
@@ -41,6 +43,7 @@ No copied model implementations exist in this directory. Existing source files r
 - `adapters/visualization.py`: log/parameter/distribution plots and scVelo streams using the official saved postprocess embedding; no metric recomputation.
 - `adapters/summary.py`: preserve official summaries and all fold values, split comparison charts by protocol/profile/reference.
 - `common.py`, `cli.py`, `scripts/*`: configs, local output confinement, provenance, independent pipeline entry points.
+- `scripts/launch_model_expansion.py`: separate 32-condition campaign, verified shared A01, restart dispatch and campaign-specific summary. D05–D20 reuse the original consistency wrapper/composer with field-specific internal/external GRN weighting; no copied loss formula.
 
 ## Extension boundaries
 

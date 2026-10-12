@@ -1,0 +1,16 @@
+{
+  "condition": "D18_lora_consistency_lambda0p001",
+  "ode": "lora",
+  "field_kwargs": {
+    "time_dim": 64,
+    "hidden": 256,
+    "dropout": 0.0,
+    "use_decay": true,
+    "rank": 16,
+    "K": 8
+  },
+  "soft_weighting": "external_5",
+  "family": "consistency",
+  "hybrid": "none",
+  "consistency_lambda": 0.001
+}

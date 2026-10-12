@@ -135,7 +135,13 @@ def train(c, run, *, data_dir=None, target='auto', stop=None, resume=None, stage
             x=common.finite('batch',batches.next().to(dev));t,w=sampling.sample(len(x),dev)
             opt.zero_grad(set_to_none=True)
             value,components=loss(c,model,d,x,t,w)
-            common.finite('loss',value).backward()
+            common.finite('loss',value)
+            if value.requires_grad:
+                value.backward()
+            else:
+                # A frozen CellUNet + inactive dynamic field has no trainable loss.
+                require(c['freeze_cellunet'] and c['hybrid'] in ('blend','additive') and bool((t>=500).all()),
+                        'unexpected loss without gradients')
             for p in model.parameters():
                 if p.grad is not None:common.finite('gradient',p.grad)
             norms={}

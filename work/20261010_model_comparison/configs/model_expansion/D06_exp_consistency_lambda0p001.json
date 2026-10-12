@@ -1,0 +1,14 @@
+{
+  "condition": "D06_exp_consistency_lambda0p001",
+  "ode": "exp",
+  "field_kwargs": {
+    "is_lincomb": false
+  },
+  "family": "consistency",
+  "hybrid": "none",
+  "consistency_lambda": 0.001,
+  "exp_clip": {
+    "policy": "training_range_margin_nice",
+    "margin_fraction": 0.1
+  }
+}

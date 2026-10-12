@@ -57,6 +57,28 @@ def conditions(extended=False):
     folder = HERE / 'configs' / ('extended' if extended else 'pilot')
     return [p.stem for p in sorted(folder.glob('*.json'))]
 
+
+def expansion_conditions():
+    return [p.stem for p in sorted((HERE / 'configs/model_expansion').glob('*.json'))]
+
+
+def expansion_campaign(run_root, *, create=False):
+    run = Path(run_root).resolve()
+    require(run.is_relative_to(HERE/'runs') and run != HERE/'runs',
+            'Choose a model expansion campaign directory below this suite runs/')
+    for reserved in ('default','d_ode_sgd_30000','data'):
+        require(not run.is_relative_to(HERE/'runs'/reserved), 'Use a separate directory for model expansion')
+    names = expansion_conditions()
+    manifest = dict(schema='model_expansion_v1', conditions=names, configs=[config(n) for n in names])
+    path = run/'campaign.json'
+    if path.exists():
+        require(read_json(path)==manifest, 'campaign configuration changed')
+    elif run.exists():
+        require(not any(run.iterdir()), 'existing nonempty run-root has no matching campaign manifest')
+    if create:
+        write_json(path, manifest)
+    return manifest
+
 def branch_names(c):
     if c['family']=='baseline':return ['cellunet_raw']
     if c['family']=='ode_only':return ['ode_raw']
@@ -65,7 +87,7 @@ def branch_names(c):
 def config(name):
     p = Path(name)
     if not p.is_file():
-        matches = [HERE / 'configs' / group / (str(name) + '.json') for group in ('pilot', 'extended')]
+        matches = [HERE / 'configs' / group / (str(name) + '.json') for group in ('pilot', 'extended', 'model_expansion')]
         matches = [p for p in matches if p.is_file()]
         require(len(matches) == 1, f'unknown condition: {name}')
         p = matches[0]
@@ -75,6 +97,13 @@ def config(name):
     return c
 
 def validate(c):
+    if c.get('exp_clip') is not None:
+        require(c['ode']=='exp' and c['field_kwargs'].get('is_lincomb') is False,
+                'data-derived exponential clipping requires a single Exp field')
+        require(c['exp_clip']==dict(policy='training_range_margin_nice',margin_fraction=0.1),
+                'unsupported exponential clipping policy')
+        require(not any(k.startswith('exp_preactivation_') for k in c['field_kwargs']),
+                'data-derived clipping cannot be combined with fixed exponential bounds')
     require(c.get('ode_optimizer','AdamW') in ('AdamW','SGD'),'unsupported ODE optimizer')
     require(c.get('ode_optimizer')!='SGD' or (c['family']=='consistency' and c['optimizer']=='AdamW'),
             'ODE SGD is supported only for consistency with CellUNet AdamW')
@@ -95,9 +124,12 @@ def validate(c):
     require(c['soft_weighting'] in ('internal','external_5'),'unknown source penalty convention')
     require(c['family']!='baseline' or c['ode'] is None,'baseline has no ODE branch')
     if c['family']=='consistency':
-        require(c['ode'] in ('simple_softplus','hill_after_linear','centered_signed_hill','shifted_hill_rho'),
-                'consistency adapter requires the exact 8/30 single-field penalty interface')
+        require(c['ode'] in ('simple_softplus','hill_after_linear','centered_signed_hill','shifted_hill_rho',
+                            'exp','lowrank','matsum','lora'), 'unsupported consistency field')
         require(c['consistency_lambda']>=0,'negative consistency coefficient')
+        if c['ode'] in ('lowrank','matsum','lora'):
+            require(c['soft_weighting']=='external_5' and c['ratio_reg_weight']==0.,
+                    'MathMLP consistency requires external GRN weighting without ratio regularization')
     if c['hybrid']=='ratio_reg':
         require(c['ode'] in ('geneode','lowrank','lincomb','matsum','lora','lincomb_configurable',
                 'racipe','exp','hill_after_linear_experts','centered_hill_experts','shifted_hill_experts'),
@@ -141,7 +173,7 @@ def provenance(c, meta):
                     'CellUNet-only sampling retained']
     if c['family']=='joint':changes.append('source two-step wrappers composed with trainable CellUNet')
     if c['family']=='two_step':changes.append('new-data A01 final EMA; stop=10000, anneal horizon=30000')
-    return dict(effective_config=c, source_hashes=source_hashes(),
+    result = dict(effective_config=c, source_hashes=source_hashes(),
         git_commit=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip(),
         data_sha256=meta['training_sha256'], gene_ids_sha256=digest_ids(meta['gene_ids']),
         cell_ids_sha256=digest_ids(meta['cell_ids']), expression_scale=SCALE,
@@ -150,6 +182,9 @@ def provenance(c, meta):
         grn=meta.get('grn'),
         compute_protocol='shared 30000-update Stage1 + Stage2' if c['family']=='two_step' else 'from random initialization',
         lr_annealing='post-update zero-based index / lr_anneal_steps (9/16 and 10/09 convention)')
+    if c.get('exp_clip'):
+        result['exp_clip'] = meta['exp_clip']
+    return result
 
 def device(name):
     import torch

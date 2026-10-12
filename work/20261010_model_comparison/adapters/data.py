@@ -25,6 +25,35 @@ def dense_rows(x):
     return np.asarray(x.toarray() if sparse.issparse(x) else x, dtype=np.float32)
 
 
+def expression_clip(x, c, training_sha256):
+    """Global clean training-X bounds; include implicit sparse zeros, never noisy batches."""
+    import math
+    import numpy as np
+    lo, hi = math.inf, -math.inf
+    for start in range(0, x.shape[0], 256):
+        block = dense_rows(x[start:start+256])
+        require(block.size > 0 and np.isfinite(block).all() and (block >= 0).all(),
+                'invalid expression for exponential clipping')
+        lo, hi = min(lo, float(block.min())), max(hi, float(block.max()))
+    require(math.isfinite(lo) and hi > 0, 'exponential clipping needs nonempty nonzero training data')
+    # Ten roughly spaced ticks; pick a human-readable step from 1,2,5,10 * 10^n.
+    span = hi - lo if hi > lo else hi
+    target = span / 10.
+    power = 10. ** math.floor(math.log10(target))
+    step = next(v * power for v in (1., 2., 5., 10.) if v * power >= target)
+    margin = c['exp_clip']['margin_fraction'] * span
+    lower = max(0., math.floor((lo-margin)/step)*step)
+    upper = math.ceil((hi+margin)/step)*step
+    require(math.isfinite(upper) and upper < np.finfo(np.float32).max, 'exponential production bound exceeds float32')
+    return dict(policy=c['exp_clip']['policy'], margin_fraction=c['exp_clip']['margin_fraction'],
+                observed_min=lo, observed_max=hi, margin=margin, rounding_step=step,
+                production_min=lower, production_max=upper,
+                preactivation_min=math.log(lower) if lower > 0 else None,
+                preactivation_max=math.log(upper),
+                scope='all cells and HVGs of clean normalized linear training X; global bounds',
+                training_sha256=training_sha256)
+
+
 def validate_training(path, meta, c):
     import anndata as ad
     import numpy as np
@@ -86,6 +115,8 @@ def read_data(c, data_dir=None):
     require(sha256(grn['mapped_tsv']) == grn['mapped_sha256'], 'mapped GRN changed')
     require(sha256(grn['source']) == grn['source_sha256'], 'GRN source changed')
     meta = dict(m['metadata'], grn=grn)
+    if c.get('exp_clip'):
+        meta['exp_clip'] = expression_clip(a.X, c, meta['training_sha256'])
     return a, meta
 
 

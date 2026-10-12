@@ -13,7 +13,8 @@ def parser():
     p.add_argument('--condition',default='A01_cellunet_startx',help='condition ID or JSON path')
     p.add_argument('--all',action='store_true',help='all 17 pilot conditions')
     p.add_argument('--extended',action='store_true',help='list/include extended conditions')
-    p.add_argument('--run-root',type=Path,default=HERE/'runs/default')
+    p.add_argument('--model-expansion',action='store_true',help='select the separate 32-condition model expansion')
+    p.add_argument('--run-root',type=Path,help='default: runs/default; model expansion: runs/model_expansion_20261012')
     p.add_argument('--data-dir',type=Path,default=HERE/'runs/data')
     p.add_argument('--run',type=Path,help='internal plotting worker directory')
     p.add_argument('--device',choices=['auto','cpu','cuda'],default='auto')
@@ -42,6 +43,7 @@ def preflight():
     changed=[p for p,h in baseline.items() if not (ROOT/p).is_file() or sha256(ROOT/p)!=h]
     report=dict(protected_file_count=len(baseline),protected_changed=changed,
         pilot_conditions=len(conditions()),extended_conditions=len(conditions(True)),
+        model_expansion_conditions=len(expansion_conditions()),
         source_commit=(HERE/'audit/git_commit.txt').read_text().strip(),
         source_input_exists=root_path(config('A01_cellunet_startx')['input']).is_file(),
         legacy_training_exists=(ROOT/'work/20261009_newBenchmark/runs/data/training.h5ad').is_file(),
@@ -49,7 +51,7 @@ def preflight():
         normalized_reference_exists=(DEFAULT_REFERENCE/'manifest.json').exists(),
         dependencies={n:bool(importlib.util.find_spec(n)) for n in ['torch','anndata','scanpy','blobfile','pandas','pytest']},
         training_started=False)
-    for n in conditions()+conditions(True):config(n)
+    for n in conditions()+conditions(True)+expansion_conditions():config(n)
     require(not changed,f'protected files changed: {changed}')
     return report
 
@@ -75,8 +77,12 @@ def dispatch(action,c,run,args):
 
 def main(argv=None):
     args=parser().parse_args(argv)
+    require(not (args.model_expansion and args.extended), 'choose model-expansion or extended')
+    if args.run_root is None:
+        is_expansion = args.model_expansion or Path(args.condition).stem in expansion_conditions()
+        args.run_root = HERE/'runs'/('model_expansion_20261012' if is_expansion else 'default')
     if args.action=='list':
-        names=conditions()+(conditions(True) if args.extended else [])
+        names=expansion_conditions() if args.model_expansion else conditions()+(conditions(True) if args.extended else [])
         for name in names:
             c=config(name);print(f"{name:48} {c['family']:12} {str(c['ode']):26} {c['hybrid']:22} {c['prediction']} {c['total_steps']} updates")
         return
@@ -87,7 +93,9 @@ def main(argv=None):
     if args.action=='velocity-worker':
         require(args.run is not None,'--run required')
         print(module(__package__+'.adapters.visualization').velocity_worker(confined(args.run)));return
-    names=conditions()+(conditions(True) if args.extended else []) if args.all else [args.condition]
+    names=(expansion_conditions() if args.model_expansion else conditions()+(conditions(True) if args.extended else [])) if args.all else [args.condition]
+    if args.action != 'prepare' and any(config(n)['condition'] in expansion_conditions() for n in names):
+        expansion_campaign(args.run_root, create=not args.dry_run)
     for name in names:
         c=config(name);run=run_dir(c,args.run_root)
         actions=args.stages if args.action=='launch' else [args.action]

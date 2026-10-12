@@ -1,0 +1,15 @@
+{
+  "condition": "D15_matsum_consistency_lambda0p1",
+  "ode": "matsum",
+  "field_kwargs": {
+    "time_dim": 64,
+    "hidden": 256,
+    "dropout": 0.0,
+    "use_decay": true,
+    "K": 8
+  },
+  "soft_weighting": "external_5",
+  "family": "consistency",
+  "hybrid": "none",
+  "consistency_lambda": 0.1
+}
