@@ -71,7 +71,15 @@ def train(c, run, *, data_dir=None, target='auto', stop=None, resume=None, stage
     if (run/'effective_config.json').exists():
         require(read_json(run/'effective_config.json')==c,'run config changed')
     if (run/'provenance.json').exists():
-        require(read_json(run/'provenance.json')==prov,'run provenance/source/data changed')
+        previous=read_json(run/'provenance.json')
+        if previous!=prov:
+            from .source_compatibility import verify_sources
+            verify_sources(previous['source_hashes'],c,prov['source_hashes'])
+            keys=set(previous)|set(prov)
+            require(all(previous.get(k)==prov.get(k) for k in keys-{'source_hashes','git_commit'}),
+                    'run provenance/data changed')
+            archive=run/'provenance_before_source_compatibility.json'
+            if not archive.exists():write_json(archive,previous)
     write_json(run/'effective_config.json',c)
     write_json(run/'provenance.json',prov)
     if c['family']=='baseline':

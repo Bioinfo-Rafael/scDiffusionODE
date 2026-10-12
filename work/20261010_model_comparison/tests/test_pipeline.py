@@ -89,6 +89,61 @@ def test_dual_optimizer_matches_adamw_and_sgd():
         opt.load_state_dict(cell.state_dict())
 
 
+def test_reviewed_d_source_compatibility_rejects_unknown_changes():
+    compat=importlib.import_module(P+'.adapters.source_compatibility')
+    current=C.source_hashes();saved=dict(current)
+    rules=C.read_json(C.HERE/'audit/d_sgd_source_compatibility.json')['files']
+    for path,rule in rules.items():
+        old=rule['saved'][0]
+        if old is None:saved.pop(path,None)
+        else:saved[path]=old
+    c=C.config(C.HERE/'configs/ode_sgd/D03_consistency_lambda0p1.json')
+    assert compat.verify_sources(saved,c,current)
+    for path in ['guided_diffusion/cell_model.py',str((C.HERE/'adapters/objectives.py').relative_to(C.ROOT))]:
+        tampered=dict(current);tampered[path]='unreviewed'
+        with pytest.raises(ValueError,match='unreviewed'):compat.verify_sources(saved,c,tampered)
+    with pytest.raises(ValueError,match='source/config'):
+        compat.verify_sources(saved,C.config('D03_consistency_lambda0p1'),current)
+
+
+def test_old_d_checkpoint_load_and_resume_preserve_original(data,tmp_path):
+    folder,a,meta=data;c=small('D03_consistency_lambda0p1');c['ode_optimizer']='SGD'
+    run=C.run_dir(c,tmp_path/'old')
+    path=T.train(c,run,data_dir=folder,target='cpu',stop=1,reuse=False)
+    ck=K.read(path);saved=ck['provenance']['source_hashes']
+    for filename,rule in C.read_json(C.HERE/'audit/d_sgd_source_compatibility.json')['files'].items():
+        old=rule['saved'][0]
+        if old is None:saved.pop(filename,None)
+        else:saved[filename]=old
+    ck['provenance']['git_commit']='82f6b98'
+    torch.save(ck,path);digest=C.sha256(path)
+    C.write_json(run/'checkpoints/latest.json',dict(checkpoint=str(path),step=1,sha256=digest))
+    C.write_json(run/'provenance.json',ck['provenance'])
+    K.load(c,run,meta)
+    assert C.sha256(path)==digest
+    assert C.read_json(run/'source_compatibility.json')['checkpoint_sha256']==digest
+    T.train(c,run,data_dir=folder,target='cpu',stop=2,resume='latest',reuse=False)
+    assert C.sha256(path)==digest
+    assert C.read_json(run/'provenance_before_source_compatibility.json')==ck['provenance']
+
+
+@pytest.mark.parametrize('name',['D01_consistency_lambda0','D02_consistency_lambda0p001','D03_consistency_lambda0p1','D04_consistency_lambda1'])
+def test_d_loss_identical_before_model_expansion(name,data):
+    import types
+    old=types.ModuleType(P+'.adapters._old_objectives');old.__package__=P+'.adapters'
+    source=subprocess.check_output(['git','show','82f6b98:work/20261010_model_comparison/adapters/objectives.py'],cwd=C.ROOT,text=True)
+    exec(compile(source,'old_objectives.py','exec'),old.__dict__)
+    folder,a,meta=data;c=small(name);c['ode_optimizer']='SGD'
+    model=M.build(c,meta['gene_ids'],mask=D.mask_for(meta['gene_ids'],meta),meta=meta).train()
+    other=copy.deepcopy(model);x=torch.from_numpy(a.X[:4]);t=torch.tensor([0,49,500,999]);noise=torch.randn_like(x)
+    args=(C.diffusion(c),x,t,torch.ones(4))
+    first,_=old.loss(c,model,*args,noise=noise);second,_=O.loss(c,other,*args,noise=noise)
+    torch.testing.assert_close(first,second,rtol=0,atol=0)
+    first.backward();second.backward()
+    for p,q in zip(model.parameters(),other.parameters()):
+        torch.testing.assert_close(p.grad,q.grad,rtol=0,atol=0)
+
+
 @pytest.fixture
 def data(tmp_path):
     folder=tmp_path/'data';folder.mkdir()

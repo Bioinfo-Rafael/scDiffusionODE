@@ -195,6 +195,8 @@ python -m work.20261010_model_comparison.cli train \
 
 ## DだけODEをSGDへ変更する追加実験
 
+追加モデル対応（`ec76791`）を実行中のcheckoutへ反映すると、旧D checkpointの全ソースhash照合が停止する場合があります。DのHill＋SGDに限り、`audit/d_sgd_source_compatibility.json`に記録した旧／新ファイルhashの組み合わせを検証して継続可能です。未知の変更・データ/GRN/config不一致は引き続き拒否します。元checkpointは書き換えず、ロード時に`source_compatibility.json`へ旧／新hashとcheckpoint hashを記録します。中断学習の再開時は以前のprovenanceを別名で保持します。実行中のcheckoutの更新は避けてください。
+
 `configs/ode_sgd/D*.json`の4条件は、上記D01〜D04のODE optimizerだけをSGDへ変更します。CellUNetはAdamWのままです。`work/20261008_ode_optimizer`と同じく、SGDはmomentum=0、Nesterovなし、初期lr=1e-4、weight decay=1e-4です。CellUNet/ODEを重複なく分離して各optimizerで1回ずつ更新し、その後EMAを1回更新します。
 
 今回の比較対象は**現在のMouse benchmarkのD条件**です。入力、START_X loss、GRN、seed、30,000更新、学習率スケジュールは現在のDから継承します。10/08版のデータや学習ループ全体を移植するものではありません。特に現在のDは更新後にzero-based indexで学習率を設定するため、10/08版のcompleted-stepによる減衰とは1ステップ分異なります。今回のAdamW対SGD比較では現在のDの減衰方式を両枝で保持します。

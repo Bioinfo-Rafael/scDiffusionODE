@@ -89,7 +89,14 @@ def load(c, run, meta, *, value=None, weights='ema', target='cpu'):
         check_ids(ck,meta)
         if c.get('exp_clip'):
             require(ck['provenance'].get('exp_clip')==meta.get('exp_clip'), 'checkpoint exponential bounds differ')
-        require(ck['provenance']['source_hashes']==source_hashes(), 'source/config code changed since checkpoint')
+        from .source_compatibility import verify_sources
+        compatible=verify_sources(ck['provenance']['source_hashes'],c)
+        if compatible:
+            write_json(Path(run)/'source_compatibility.json',dict(
+                policy='reviewed D-only model-expansion compatibility',
+                checkpoint=str(path),checkpoint_sha256=sha256(path),
+                training_source_hashes=ck['provenance']['source_hashes'],
+                current_source_hashes=source_hashes(),reviewed_changes=compatible))
         require(ck['grn']==meta['grn'], 'checkpoint GRN differs')
         mask=None if c['family']=='baseline' else mask_for(meta['gene_ids'],meta)
         model=build(c,meta['gene_ids'],mask=mask,meta=meta,state=ck[weights])
