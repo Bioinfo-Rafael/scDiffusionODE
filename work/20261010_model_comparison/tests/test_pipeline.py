@@ -127,6 +127,58 @@ def test_old_d_checkpoint_load_and_resume_preserve_original(data,tmp_path):
     assert C.read_json(run/'provenance_before_source_compatibility.json')==ck['provenance']
 
 
+@pytest.mark.parametrize('name',C.expansion_conditions())
+def test_expansion_source_compatibility_is_wrapper_only(name):
+    compat=importlib.import_module(P+'.adapters.source_compatibility')
+    current=C.source_hashes();saved=dict(current)
+    rules=C.read_json(C.HERE/'audit/model_expansion_source_compatibility.json')['files']
+    for path,rule in rules.items():
+        if rule['saved'][0] is None:saved.pop(path,None)
+        else:saved[path]=rule['saved'][0]
+    assert compat.verify_sources(saved,C.config(name),current)==sorted(rules)
+    for path in ['ODE/ode_20260609_mathmlp.py',
+                 str((C.HERE/'adapters/exp_field.py').relative_to(C.ROOT)),
+                 str((C.HERE/'adapters/objectives.py').relative_to(C.ROOT)),
+                 str((C.HERE/'configs/model_expansion'/f'{name}.json').relative_to(C.ROOT))]:
+        tampered=dict(current);tampered[path]='unknown'
+        with pytest.raises(ValueError,match='unreviewed') as error:
+            compat.verify_sources(saved,C.config(name),tampered)
+        assert path in str(error.value) and 'saved=' in str(error.value)
+    bad_saved=dict(saved);bad_saved[next(iter(rules))]='unknown-saved-version'
+    with pytest.raises(ValueError,match='unknown-saved-version'):
+        compat.verify_sources(bad_saved,C.config(name),current)
+
+
+@pytest.mark.parametrize('name',['B05_exp','B06_lowrank'])
+@pytest.mark.parametrize('revision',['ec76791','d7d2e48'])
+def test_pre_compatibility_expansion_checkpoint_resume(name,revision,data,tmp_path):
+    folder,a,meta=data;c=small(name);run=C.run_dir(c,tmp_path/'old')
+    path=T.train(c,run,data_dir=folder,target='cpu',stop=1,reuse=False)
+    ck=K.read(path)
+    rules=C.read_json(C.HERE/'audit/model_expansion_source_compatibility.json')['files']
+    import hashlib
+    for filename in rules:
+        historical=subprocess.run(['git','show',f'{revision}:{filename}'],cwd=C.ROOT,capture_output=True)
+        if historical.returncode==0:
+            ck['provenance']['source_hashes'][filename]=hashlib.sha256(historical.stdout).hexdigest()
+        else:ck['provenance']['source_hashes'].pop(filename,None)
+    ck['provenance']['git_commit']=revision
+    torch.save(ck,path);digest=C.sha256(path)
+    C.write_json(run/'checkpoints/latest.json',dict(checkpoint=str(path),step=1,sha256=digest))
+    C.write_json(run/'provenance.json',ck['provenance'])
+    loaded,_,_=K.load(c,run,meta)
+    assert C.sha256(path)==digest
+    report=C.read_json(run/'source_compatibility.json')
+    assert report['training_source_hashes']==ck['provenance']['source_hashes']
+    assert report['current_source_hashes']==C.source_hashes()
+    # Actual downstream velocity export still works with the historical bundle.
+    assert V.export(c,run,data_dir=folder,target='cpu')
+    resumed=T.train(c,run,data_dir=folder,target='cpu',stop=2,resume='latest',reuse=False)
+    full=T.train(c,C.run_dir(c,tmp_path/'full'),data_dir=folder,target='cpu',stop=2,reuse=False)
+    assert M.single.state_hash(K.read(resumed)['raw'])==M.single.state_hash(K.read(full)['raw'])
+    assert C.sha256(path)==digest
+
+
 @pytest.mark.parametrize('name',['D01_consistency_lambda0','D02_consistency_lambda0p001','D03_consistency_lambda0p1','D04_consistency_lambda1'])
 def test_d_loss_identical_before_model_expansion(name,data):
     import types

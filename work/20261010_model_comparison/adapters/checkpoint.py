@@ -93,7 +93,7 @@ def load(c, run, meta, *, value=None, weights='ema', target='cpu'):
         compatible=verify_sources(ck['provenance']['source_hashes'],c)
         if compatible:
             write_json(Path(run)/'source_compatibility.json',dict(
-                policy='reviewed D-only model-expansion compatibility',
+                policy='exact-hash reviewed compatibility; condition-specific rules',
                 checkpoint=str(path),checkpoint_sha256=sha256(path),
                 training_source_hashes=ck['provenance']['source_hashes'],
                 current_source_hashes=source_hashes(),reviewed_changes=compatible))

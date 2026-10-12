@@ -184,6 +184,8 @@ Eの初期値は `runs/default/A01_cellunet_startx/checkpoints/latest.json` か�
 
 再開時に`--stage1-checkpoint`を省略した場合は、既存の`shared_stage1.json`に記録されたcheckpointを優先します。
 
+追加32条件で、初版`ec76791`の学習済みcheckpointをD向け互換性対応`d7d2e48`以後に読む場合は、`audit/model_expansion_source_compatibility.json`の完全一致hashルールを使います。許可するのは`checkpoint.py`・`training.py`・`source_compatibility.py`の確認済みの検証・記録処理変更だけです。モデル・loss・optimizer・データ・sampler・config等の未知の変更は拒否し、差分ファイルと保存時/現在のhashを表示します。元checkpointは書き換えず、許可した差分を各runの`source_compatibility.json`へ記録します。B05/B06の旧hashを持つ合成checkpointで、読込・velocity出力・学習再開と連続実行の一致を検証しています。
+
 ### 生成がNaN/Infになった場合
 
 学習lossが有限でも、入力に依存するLowRank等のfieldをDDPMで反復適用すると発散する場合があります。学習完了と生成成功は別に記録します。専用launcherは各stageを独立して実行し、`FloatingPointError: ancestral state contains NaN/Inf` に限り、`samples/nonfinite_failure.json` にcheckpoint hashとエラーログを保存して続行します。実細胞からのvelocity出力・評価・training/velocity作図と次の条件を実行します。checkpoint・データ不一致や他のエラーは従来どおり停止します。

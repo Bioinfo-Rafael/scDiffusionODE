@@ -1,0 +1,32 @@
+{
+  "scope": "32 model_expansion conditions; checkpoint/provenance compatibility plumbing only",
+  "reviewed_commits": [
+    "ec76791",
+    "d7d2e48",
+    "4e844de"
+  ],
+  "rationale": "Only source-verification dispatch and provenance archiving changed. Model, loss, optimizer, data, sampler and config must retain identical hashes.",
+  "files": {
+    "work/20261010_model_comparison/adapters/checkpoint.py": {
+      "saved": [
+        "6a3fe1a6db7f606fd0a9b57dc3d5306b4e653ad14d15079450dd3e92a7afc883",
+        "7a1b3af21b4d54ff07f7b27e889d18b7e405cafe81fe6e740726def1d5301646"
+      ],
+      "current": "8726ab0e38798b730e8e7b5a47b424759688a2fc629cddb730ac63ef2767499a"
+    },
+    "work/20261010_model_comparison/adapters/training.py": {
+      "saved": [
+        "0bc36a82163cf72f70e0b334a2686d4506147a83b61ff5cafddf5ba963f5b817",
+        "0dcb451fd5120a980b03e4df42241a240228182dfbe5abfe05ad6ace3dcb35f8"
+      ],
+      "current": "0dcb451fd5120a980b03e4df42241a240228182dfbe5abfe05ad6ace3dcb35f8"
+    },
+    "work/20261010_model_comparison/adapters/source_compatibility.py": {
+      "saved": [
+        null,
+        "7e065b4de74de2ab713450d58cbc6425d3d224e49b538223170b4df274917821"
+      ],
+      "current": "0636af81ed2101ad7d8b26c9e40854043fbc1edc915180faf7cfb431e26593fb"
+    }
+  }
+}
