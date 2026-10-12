@@ -113,6 +113,23 @@ python work/20261010_model_comparison/scripts/launch_ode_sgd.py \
 
 `--dry-run`でコマンドだけ確認できます。`--stages train`なら学習のみです。D01（λ=0）でもGRN制約とSGDのweight decayは残ります。比較CSVにはDの8出力行が入り、標準のstatus.jsonではA/B/C/Eは未実行として表示されます。
 
+標準の全stage実行では、通常UMAPに加えてHarmony版と2種類のUMAP一覧、5列の比較図も最後に作成します。Harmony用Pythonは既存`runs/.venv-harmony/bin/python`を優先し、`--harmony-python /path/to/python`でも指定できます。必要な環境は後述のHarmony節で作成してください。学習前にこの環境の依存を確認します。
+
+| 出力先（run-root以下） | 内容 |
+|---|---|
+| `D*/figures/generative/joint_umap.png` | 通常のReal＋Generated UMAP |
+| `D*/figures/generative/joint_umap_harmony.png` | Real／GeneratedをbatchとするHarmony補正後UMAP。通常版は保持 |
+| `comparison/joint_umap_all.png` | 通常版4枚のPNG結合 |
+| `comparison/joint_umap_harmony_all.png` | Harmony版4枚のPNG結合 |
+| `comparison/heatmap_0.png`, `comparison/metrics_0.png` | CBDir、絶対値CBDir、ICVCoh、CTO、TSCの5列。元CSVの符号は保持 |
+
+旧版ですでに実行中なら、そのジョブの終了後に次を実行してください。学習・生成・benchmarkを再実行せず、保存済みの結果から作図を完了します。通常UMAPが既にあれば再利用し、なければ保存済み生成細胞から作成します。
+
+```bash
+python work/20261010_model_comparison/scripts/launch_ode_sgd.py \
+  --run-root work/20261010_model_comparison/runs/d_ode_sgd_30000 --plots-only
+```
+
 ## データ・GRN
 
 `prepare` は `work/20261009_newBenchmark/runs/data/training.h5ad` があれば、shape、metadata、SHA256、cell/gene順序、linear-scale/HVG provenance、元入力hashを検証して再利用します。なければ **既存10/09のprepare関数**をimportし、出力だけ本ディレクトリ内へ変更して作成します。

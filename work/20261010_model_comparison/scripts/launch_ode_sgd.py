@@ -16,6 +16,8 @@ def main():
     p.add_argument('--device',default='cuda',choices=['cuda','cpu','auto'])
     p.add_argument('--resume',action='store_true')
     p.add_argument('--dry-run',action='store_true')
+    p.add_argument('--plots-only',action='store_true',help='finish plots from saved samples/evaluations; no training or sampling')
+    p.add_argument('--harmony-python',help='Python with harmonypy==0.0.10 (default: runs/.venv-harmony if present)')
     p.add_argument('--stages',nargs='+',choices=['train','sample','export_velocity','evaluate','visualize'],
                    default=['train','sample','export_velocity','evaluate','visualize'])
     args=p.parse_args();run=args.run_root.resolve()
@@ -31,6 +33,11 @@ def main():
     def execute(command):
         print(shlex.join(command),flush=True)
         if not args.dry_run:subprocess.run(command,cwd=ROOT,check=True)
+    finish=[sys.executable,str(HERE/'scripts/finish_ode_sgd_plots.py'),'--run-root',str(run)]
+    if args.harmony_python:finish+=['--harmony-python',args.harmony_python]
+    if args.plots_only:
+        execute(finish);return
+    if 'visualize' in args.stages:execute(finish+['--check-only'])
     execute(base+['prepare'])
     for path in configs:
         c=json.loads(path.read_text())
@@ -39,7 +46,8 @@ def main():
         if args.resume and (run/c['condition']/'checkpoints/latest.json').exists():
             command+=['--resume']
         execute(command)
-    execute(base+['summarize','--run-root',str(run)])
+    if 'visualize' in args.stages:execute(finish)
+    else:execute(base+['summarize','--run-root',str(run)])
 
 
 if __name__=='__main__':main()
