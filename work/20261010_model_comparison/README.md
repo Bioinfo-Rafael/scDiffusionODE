@@ -440,6 +440,92 @@ work/20261010_model_comparison/runs/.venv-harmony/bin/python \
   --run-root work/20261010_model_comparison/runs/retry_20261012_052933
 ```
 
+## ODE・CellUNet・target x0の診断図
+
+`scripts/diagnose_branches.py` は8/30の診断指標を使い、START_X向けに
+**CellUNet–x0、ODE–x0、ODE–CellUNetの3組**を評価します。
+再学習・sampling・Harmonyは実行しません。既定で次の2 campaignのD01〜D04を読みます。
+
+- `runs/retry_20261012_052933/`（ODE AdamW）
+- `runs/d_ode_sgd_30000/`（ODE SGD）
+
+学習時と同じPython環境を有効にし、リポジトリrootで実行してください。
+
+```bash
+python work/20261010_model_comparison/scripts/diagnose_branches.py --device cuda
+```
+
+既定は各条件のlatest checkpoint、**rawとEMAの両方**、共通の1,024細胞、
+`t=0,1,10,25,49,99,199,299,399,499,599,699,799,899,999`、rolling windowは100 optimizer stepsです。
+両branchには同一の`x_t = q_sample(x0,t,noise)`を渡し、targetは常に**ノイズを加える前のx0**です。
+`t=0`も正規のq_sampleを使います（clean入力への置換ではありません）。
+noiseはfloat64、seedは`seed + t * 1000003`で、条件・checkpoint・raw/EMA・batch size間で共通です。
+CellUNetとODEのforwardをeval/no_gradで直接呼び、optimizerや学習時のconsistency cacheを使いません。
+
+オプション例：
+
+```bash
+# lossのみ先に作図。checkpointと実データは不要。
+python work/20261010_model_comparison/scripts/diagnose_branches.py --loss-only
+
+# 8/30と同様に全1000ノイズ時刻を評価。既定の15時刻より計算量が増える。
+python work/20261010_model_comparison/scripts/diagnose_branches.py \
+  --device cuda --timesteps 0:1000 --weights ema
+
+# 保存済みcheckpoint間の学習推移も作図。指定したcheckpointが全条件で必要。
+python work/20261010_model_comparison/scripts/diagnose_branches.py \
+  --device cuda --checkpoint-steps 5000,10000,20000,30000 --weights raw ema
+
+# 1 campaign / 1条件のみ。
+python work/20261010_model_comparison/scripts/diagnose_branches.py \
+  --run-roots work/20261010_model_comparison/runs/d_ode_sgd_30000 \
+  --conditions D03_consistency_lambda0p1 --device cuda
+```
+
+`--data-dir`で共通データmanifestのdirectory、`--cells`で評価細胞数、
+`--rolling-window`で平滑化幅を指定できます。`--check-only`は入力ファイルの存在とconfigを検査し、
+作図を開始しません。checkpoint内容・hash・遺伝子順などは本実行時に既存loaderで検証します。
+保存された`effective_config.json`を使うため、SGDを誤ってAdamWとして解釈しません。
+
+### 指標・表示の定義
+
+- cosineとPearsonは細胞ごとに遺伝子軸で計算し、平均とQ25–Q75を表示。全細胞×遺伝子をflattenしたglobal Pearsonも別図・列に保存。
+- MSEは細胞ごとのgene MSE、normは細胞ごとのL2 norm。target x0のnormも作図。
+- norm ratioは`CellUNet/x0`、`ODE/x0`、`ODE/CellUNet`。**細胞ごとの比の平均**であり、平均normの比ではありません。
+- 角度が未定義のゼロnorm、Pearsonが未定義の定数ベクトル、分母がゼロのnorm ratioはNaNとし、CSVにvalid/undefined件数を保存。8/30のゼロ埋めは引き継ぎません。
+- lossは全optimizer stepの`logs/loss_*.jsonl`を読み、`rolled_back`は除外。同じstepの矛盾するliveログや、weighted成分の和とtotalの不一致はエラーにします。
+- 重み付け前：復元MSE、GRNのoff-mask基礎罰則、CellUNet–ODEのMSE。
+- 重み付け後：復元loss、内部/外部係数適用後のGRN罰則、λ適用後の一致loss。3つの和がtotalです。ODE–x0 MSEは診断指標で、Dの学習lossには含まれません。
+- loss図は **raw/weighted × unsmoothed/rolling × linear/log** の8枚。rollingは直近100 optimizer stepsのmean ± population SDで、疎なログでも100行窓には置き換えません。
+- 構成割合はweighted成分/weighted total。rolling版は**平均した成分/平均したtotal**で、各stepの割合を平均した値とは異なります。total=0なら割合はNaNです。
+- 対数軸では非正値を描画だけから除外し、CSVのゼロ値を微小正値へ変更しません。cosine/Pearsonは符号を保つ通常軸のみ。
+- branch図の横軸はdiffusion timestep、loss図の横軸はoptimizer step。複数checkpoint指定時は、固定`t=0,49,499,999`（指定範囲内）のcheckpoint推移図も追加。
+- 学習lossは実際のraw学習ログ。checkpoint上の固定細胞/noise診断やEMAの評価値とは別です。学習で見た全細胞から部分集合を選ぶため、汎化性能の評価ではありません。
+
+### 保存先
+
+既定は`runs/branch_diagnostics_<UTC timestamp>/`です。
+`--output-dir`でsuite配下の新しいdirectoryを指定できます。既存directoryは上書きしません。
+
+```text
+manifest.json                    # 設定、コード/入力hash、checkpoint、完了/失敗状態
+selected_cells.csv               # 全条件共通の細胞ID・行番号
+all_pair_metrics.csv, all_norms.csv
+loss_summary.csv
+comparison/                      # campaign×条件の一覧図（raw/EMA別、lossも含む）
+<campaign>/<condition>/
+  pair_metrics_by_timestep.csv   # 3組のcosine/Pearson/MSE/norm ratioと分布統計
+  norms_by_timestep.csv          # 3者のnormと分布統計
+  loss_history.csv, loss_rolling_mean.csv, loss_rolling_std.csv, loss_fraction.csv
+  figures/                      # 条件ごとの詳細図
+```
+
+数値・ゼロloss・rolling・実PNG生成を確認するテスト：
+
+```bash
+python -m unittest work.20261010_model_comparison.tests.test_branch_diagnostics -v
+```
+
 ## Artifact layout / limits
 
 ```text
