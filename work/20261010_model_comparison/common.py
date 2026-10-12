@@ -75,6 +75,9 @@ def config(name):
     return c
 
 def validate(c):
+    require(c.get('ode_optimizer','AdamW') in ('AdamW','SGD'),'unsupported ODE optimizer')
+    require(c.get('ode_optimizer')!='SGD' or (c['family']=='consistency' and c['optimizer']=='AdamW'),
+            'ODE SGD is supported only for consistency with CellUNet AdamW')
     require(c['family'] in ('baseline', 'ode_only', 'joint', 'consistency', 'two_step'), 'unknown family')
     require(c['prediction'] in ('START_X', 'EPSILON'), 'invalid prediction')
     require(c['diffusion_steps'] == 1000 and c['noise_schedule'] == 'linear', 'requires original diffusion')
@@ -133,7 +136,9 @@ def provenance(c, meta):
         changes.append('historical EPSILON target changed to START_X in adapter')
     if c['family']=='consistency':
         changes += ['8/30 horizon 100000 -> 30000; 9/16 zero-based LR schedule',
-                    '10/08 ODE SGD -> AdamW; CellUNet-only sampling retained']
+                    ('10/08-style CellUNet AdamW / ODE SGD; current D LR schedule retained'
+                     if c.get('ode_optimizer')=='SGD' else '10/08 ODE SGD -> AdamW'),
+                    'CellUNet-only sampling retained']
     if c['family']=='joint':changes.append('source two-step wrappers composed with trainable CellUNet')
     if c['family']=='two_step':changes.append('new-data A01 final EMA; stop=10000, anneal horizon=30000')
     return dict(effective_config=c, source_hashes=source_hashes(),

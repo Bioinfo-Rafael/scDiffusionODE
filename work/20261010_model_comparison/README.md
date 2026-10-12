@@ -94,6 +94,25 @@ EはA01の30,000更新に加え、ODEを10,000更新します。学習率を減�
 
 歴史的実装からの変更として、Dは8/30のEPSILON予測をSTART_X予測に、100,000更新を30,000更新に変更しています。また10/08のODE SGDではなくAdamWを使います。ソースのsoft constraint内部係数5は保持し、June系の「外側で5倍」と区別します。
 
+## DだけODEをSGDへ変更する追加実験
+
+`configs/ode_sgd/D*.json`の4条件は、上記D01〜D04のODE optimizerだけをSGDへ変更します。CellUNetはAdamWのままです。`work/20261008_ode_optimizer`と同じく、SGDはmomentum=0、Nesterovなし、初期lr=1e-4、weight decay=1e-4です。CellUNet/ODEを重複なく分離して各optimizerで1回ずつ更新し、その後EMAを1回更新します。
+
+今回の比較対象は**現在のMouse benchmarkのD条件**です。入力、START_X loss、GRN、seed、30,000更新、学習率スケジュールは現在のDから継承します。10/08版のデータや学習ループ全体を移植するものではありません。特に現在のDは更新後にzero-based indexで学習率を設定するため、10/08版のcompleted-stepによる減衰とは1ステップ分異なります。今回のAdamW対SGD比較では現在のDの減衰方式を両枝で保持します。
+
+出力の既定値は`runs/d_ode_sgd_30000/`です。同じD01〜D04という条件名を使いますが、既存runとは別ディレクトリで管理します。両optimizerの状態をcheckpointに保存・復元し、旧共有AdamW checkpointからの再開は拒否します。ログには両枝の勾配norm、実更新量norm、使用LRを保存します。
+
+```bash
+# Dの4条件だけ：学習 → 生成 → velocity → benchmark → 可視化 → 集計
+python work/20261010_model_comparison/scripts/launch_ode_sgd.py \
+  --run-root work/20261010_model_comparison/runs/d_ode_sgd_30000 --device cuda
+# 途中停止後：未着手条件は新規開始、途中条件は再開、完了条件は検証して再利用
+python work/20261010_model_comparison/scripts/launch_ode_sgd.py \
+  --run-root work/20261010_model_comparison/runs/d_ode_sgd_30000 --device cuda --resume
+```
+
+`--dry-run`でコマンドだけ確認できます。`--stages train`なら学習のみです。D01（λ=0）でもGRN制約とSGDのweight decayは残ります。比較CSVにはDの8出力行が入り、標準のstatus.jsonではA/B/C/Eは未実行として表示されます。
+
 ## データ・GRN
 
 `prepare` は `work/20261009_newBenchmark/runs/data/training.h5ad` があれば、shape、metadata、SHA256、cell/gene順序、linear-scale/HVG provenance、元入力hashを検証して再利用します。なければ **既存10/09のprepare関数**をimportし、出力だけ本ディレクトリ内へ変更して作成します。

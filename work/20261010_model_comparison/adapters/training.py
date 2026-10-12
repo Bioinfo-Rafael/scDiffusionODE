@@ -106,7 +106,10 @@ def train(c, run, *, data_dir=None, target='auto', stop=None, resume=None, stage
         ema={k:v.detach().clone() for k,v in model.state_dict().items()}
         start=0;batches=legacy.Batches(a,c['batch_size'],c['seed'],preprocess=False)
     require(start<stop,'checkpoint already reached stop step')
-    if c['freeze_cellunet']:
+    if c.get('ode_optimizer')=='SGD':
+        from .optimizers import CellAdamWODESGD
+        opt=CellAdamWODESGD(model,c)
+    elif c['freeze_cellunet']:
         opt=single.optimizer_for(model,c)
     else:
         opt=torch.optim.AdamW([p for p in model.parameters() if p.requires_grad],lr=c['lr'],weight_decay=c['weight_decay'])
@@ -139,7 +142,16 @@ def train(c, run, *, data_dir=None, target='auto', stop=None, resume=None, stage
             for key,branch in [('cell',getattr(model,'ml_model',None)),('ode',model.ode_model)]:
                 if branch is not None:
                     norms[key+'_gradient_norm']=sum(float(p.grad.detach().double().square().sum()) for p in branch.parameters() if p.grad is not None)**.5
-            lr_used=opt.param_groups[0]['lr'];opt.step();single.update_ema(ema,model,c['ema_rate'])
+            lr_used=opt.param_groups[0]['lr']
+            if c.get('ode_optimizer')=='SGD':
+                before={name:[p.detach().clone() for p in branch.parameters()] for name,branch in
+                        [('cell',model.ml_model),('ode',model.ode_model)]}
+                norms['ode_lr_used']=opt.ode.param_groups[0]['lr']
+            opt.step();single.update_ema(ema,model,c['ema_rate'])
+            if c.get('ode_optimizer')=='SGD':
+                for name,branch in [('cell',model.ml_model),('ode',model.ode_model)]:
+                    norms[name+'_update_norm']=sum(float((p.detach()-old).double().square().sum())
+                        for p,old in zip(branch.parameters(),before[name]))**.5
             # 9/16 uses total_steps=10000 but retains lr_anneal_steps=30000.
             for group in opt.param_groups:group['lr']=c['lr']*(1-index/c['lr_anneal_steps'])
             step=index+1

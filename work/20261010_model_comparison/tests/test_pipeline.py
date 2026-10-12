@@ -70,6 +70,25 @@ def small(name):
     return c
 
 
+def test_dual_optimizer_matches_adamw_and_sgd():
+    optim=importlib.import_module(P+'.adapters.optimizers')
+    model=torch.nn.Module()
+    model.ml_model=torch.nn.Linear(2,1);model.ode_model=torch.nn.Linear(2,1)
+    reference=copy.deepcopy(model)
+    c=dict(lr=1e-4,weight_decay=1e-4)
+    opt=optim.CellAdamWODESGD(model,c)
+    cell=torch.optim.AdamW(reference.ml_model.parameters(),**c)
+    ode=torch.optim.SGD(reference.ode_model.parameters(),momentum=0.,**c)
+    for _ in range(2):
+        for p,q in zip(model.parameters(),reference.parameters()):
+            p.grad=torch.full_like(p,.25);q.grad=p.grad.clone()
+        opt.step();cell.step();ode.step()
+    for p,q in zip(model.parameters(),reference.parameters()):
+        torch.testing.assert_close(p,q,rtol=0,atol=0)
+    with pytest.raises(ValueError,match='dual optimizer'):
+        opt.load_state_dict(cell.state_dict())
+
+
 @pytest.fixture
 def data(tmp_path):
     folder=tmp_path/'data';folder.mkdir()
@@ -158,15 +177,24 @@ def test_freeze_hash_optimizer_and_ema(data):
     for key,value in state.items():assert torch.equal(value,ema['ml_model.'+key])
 
 
-@pytest.mark.parametrize('name',['A01_cellunet_startx','B02_hill_after_linear','C04_hill_after_linear_additive','D03_consistency_lambda0p1'])
+@pytest.mark.parametrize('name',['A01_cellunet_startx','B02_hill_after_linear','C04_hill_after_linear_additive','D03_consistency_lambda0p1',
+                               'D01_consistency_lambda0_sgd','D03_consistency_lambda0p1_sgd'])
 def test_train_resume_roundtrip_and_velocity(name,data,tmp_path):
-    folder,a,meta=data;c=small(name);run=C.run_dir(c,tmp_path/'split')
+    folder,a,meta=data;c=small(name.removesuffix('_sgd'))
+    if name.endswith('_sgd'):c['ode_optimizer']='SGD'
+    run=C.run_dir(c,tmp_path/'split')
     p=T.train(c,run,data_dir=folder,target='cpu',stop=1,reuse=False)
     p=T.train(c,run,data_dir=folder,target='cpu',stop=2,resume='latest',reuse=False)
     loaded,ck,_=K.load(c,run,meta)
     assert ck['step']==2
     full=C.run_dir(c,tmp_path/'full');q=T.train(c,full,data_dir=folder,target='cpu',stop=2,reuse=False)
     full_ck=K.read(q)
+    if name.endswith('_sgd'):
+        assert ck['optimizer']['schema']=='cell_adamw_ode_sgd_v1'
+        assert ck['optimizer']['cell']['state']
+        assert ck['optimizer']['ode']['state']=={}
+        assert ck['optimizer']['ode']['param_groups'][0]['momentum']==0
+        assert ck['optimizer']['cell']['param_groups'][0]['lr']==ck['optimizer']['ode']['param_groups'][0]['lr']
     assert M.single.state_hash(ck['raw'])==M.single.state_hash(full_ck['raw'])
     assert M.single.state_hash(ck['ema'])==M.single.state_hash(full_ck['ema'])
     paths=V.export(c,run,data_dir=folder,target='cpu')

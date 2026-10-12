@@ -1,6 +1,7 @@
 # Validation report
 
-- Local test suite: 66 passed, 4 warnings in 20.28 seconds; see `test_results.txt`.
+- Local test suite: 70 passed, 4 warnings in 22.82 seconds; see `test_results.txt`.
+- D ODE-SGD control: all four resolved configurations differ from their original D configuration only by `ode_optimizer=SGD`. Tests verify exact branch updates against separate PyTorch AdamW/SGD, dual optimizer serialization, lambda=0 and lambda=0.1 bitwise raw/EMA equivalence after resume, and velocity exports. Python 3.9 launcher dry-run passed. No production GPU training was run locally.
 - 2026-10-12 checkpoint relocation fix: when a latest pointer references a missing path, try only the same filename beside that pointer. Hash validation remains enforced; tests cover relocated pointers with and without hashes, corruption, absent files, and explicit-path behavior. Remote checkpoint contents remain unverified locally.
 - 2026-10-12 portability fix: runtime provenance hashes only Git-tracked historical inventory entries. A regression test checks identical hashes with local untracked tooling present or absent, and continued failure for a missing tracked dependency.
 - Coverage includes synthetic training/checkpoint resume, model adapters, source losses, sampling, velocity export, benchmark contracts, and visualization fixtures.
