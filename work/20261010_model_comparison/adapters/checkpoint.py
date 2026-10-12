@@ -12,6 +12,13 @@ def resolve(run, value=None):
     if value and value != 'latest': return root_path(value)
     pointer = read_json(Path(run) / 'checkpoints/latest.json')
     path = root_path(pointer['checkpoint'])
+    if not path.is_file():
+        # Run directories can be renamed/copied while latest.json retains an
+        # absolute path. Only try the same filename beside this pointer.
+        relocated = Path(run) / 'checkpoints' / path.name
+        if not relocated.is_file():
+            raise FileNotFoundError(f'Checkpoint missing: {path}; also checked {relocated}')
+        path = relocated.resolve()
     if 'sha256' in pointer:
         require(sha256(path)==pointer['sha256'], 'checkpoint SHA256 mismatch')
     return path

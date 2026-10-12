@@ -1,4 +1,4 @@
-.................................................................        [100%]
+..................................................................       [100%]
 =============================== warnings summary ===============================
 work/20261010_model_comparison/tests/test_pipeline.py::test_generative_and_training_visualization
   /Users/cls-lab/Git/scDiffusionODE/work/20260915_x0predict/analysis/sliced_wasserstein.py:32: RuntimeWarning: divide by zero encountered in matmul
@@ -17,4 +17,4 @@ work/20261010_model_comparison/tests/test_pipeline.py::test_generative_and_train
     return dispatch(args[0].__class__)(*args, **kw)
 
 -- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
-65 passed, 4 warnings in 21.65s
+66 passed, 4 warnings in 20.28s

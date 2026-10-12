@@ -45,6 +45,24 @@ def test_source_hashes_portable_checkout(tmp_path,monkeypatch):
     with pytest.raises(FileNotFoundError):C.source_hashes()
 
 
+def test_checkpoint_pointer_after_run_relocation(tmp_path):
+    run=tmp_path/'renamed_run';folder=run/'checkpoints';folder.mkdir(parents=True)
+    checkpoint=folder/'model030000.pt';checkpoint.write_bytes(b'checkpoint fixture')
+    old=tmp_path/'old_run/checkpoints/model030000.pt'
+    pointer=folder/'latest.json'
+    C.write_json(pointer,dict(checkpoint=str(old),step=30000))
+    assert K.resolve(run)==checkpoint.resolve()
+    digest=C.sha256(checkpoint)
+    C.write_json(pointer,dict(checkpoint=str(old),step=30000,sha256=digest))
+    assert K.resolve(run)==checkpoint.resolve()
+    checkpoint.write_bytes(b'corrupted')
+    with pytest.raises(ValueError,match='SHA256'):K.resolve(run)
+    checkpoint.unlink()
+    with pytest.raises(FileNotFoundError,match='also checked'):K.resolve(run)
+    # Explicit paths are never redirected to another checkpoint.
+    assert K.resolve(run,str(old))==old
+
+
 def small(name):
     c=C.config(name)
     c.update(cell_unet_hidden_num=[16,12,8,8],batch_size=4,expected_cells=16,expected_erythroid=16,
