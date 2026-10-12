@@ -69,3 +69,5 @@ if __name__=='__main__':
     found={f.parents[2].name for f in files}
     if expected-found:raise FileNotFoundError(f'Missing pilot joint UMAPs: {sorted(expected-found)}')
     for path in files:replot(path)
+    from combine_harmony_pngs import combine
+    combine(args.run_root)

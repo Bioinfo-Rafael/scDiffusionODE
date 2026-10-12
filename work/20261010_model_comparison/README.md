@@ -272,6 +272,14 @@ nohup work/20261010_model_comparison/runs/.venv-harmony/bin/python \
 
 全17条件の入力が揃っているかを先に確認し、足りなければ欠けた条件名を表示して停止します。生成や学習を自動でやり直すことはありません。
 
+作図完了後、既存の17枚のPNGを4列に並べた`comparison/joint_umap_harmony_all.png`も作成します。元画像をリサイズせず、条件名を付けて結合します。既に作図済み、または旧版で作図を開始している場合は、全条件の作図終了後に次だけ実行してください。UMAP/Harmonyの再計算は行いません。
+
+```bash
+work/20261010_model_comparison/runs/.venv-harmony/bin/python \
+  work/20261010_model_comparison/scripts/combine_harmony_pngs.py \
+  --run-root work/20261010_model_comparison/runs/retry_20261012_052933
+```
+
 ## Artifact layout / limits
 
 ```text
