@@ -10,19 +10,89 @@
 
 ## 比較条件
 
-| Group | Conditions | Training | Sampling output |
+この17条件で調べるのは、**CellUNetによる発現データの生成に、ODEをどう組み込むと結果が変わるか**です。A〜Eは組み込み方、末尾の数字はODEの種類や合成方法などの違いを表します。
+
+まず、ここでいう「学習」はvelocityの正解値に合わせる学習ではありません。全17条件で、ノイズを加えた発現量 `x_t` を入力し、元の発現量 `x_0` を予測します。これが **START_X** です。生成性能の評価とは別に、学習後の各出力をvelocityと仮定してCBDirなども評価します。
+
+### A〜Eで何を変えるか
+
+以下では **U = CellUNetの出力、F = ODEの出力、H = 両者を合成した出力**と書きます。Uは条件グループCと区別するための記号です。
+
+| グループ | 比較したいこと | 学習するもの・初期状態 | 発現量の予測と細胞生成に使う出力 |
 |---|---|---|---|
-| A01 | CellUNet START_X | 30000; 10/09 final EMAを検証して再利用可能 | CellUNet |
-| B01–04 | simple_softplus / hill_after_linear / centered_signed_hill / shifted_hill_rho | ODE-only START_X MSE + source soft; 30000 | ODE |
-| C01–04 | simple/hill × blend/additive | joint START_X MSE + soft; 30000 | Hybrid |
-| D01–04 | hill; lambda 0/.001/.1/1 | joint START_X + original consistency + soft; 30000 | **CellUNetのみ** |
-| E01–04 | simple/hill × blend/additive | shared A01 final EMA; C freeze; ODE 10000 | Hybrid |
+| **A：CellUNet単独** | ODEを使わない基準 | CellUNetを30,000更新。互換な既存の学習済みモデルがあれば再利用 | U |
+| **B：ODE単独** | CellUNetをODEに置き換えるとどうなるか。ODEの式による違いはあるか | ODEをランダム初期値から30,000更新。CellUNetは存在しない | F |
+| **C：両方を同時学習** | CellUNetとODEを最初から組み合わせるとどうなるか | 両方をランダム初期値から同時に30,000更新 | H |
+| **D：出力を近づける補助損失** | CellUNetの出力をODEの出力に近づける制約の強さで、結果がどう変わるか | 両方をランダム初期値から30,000更新。発現量予測の誤差はUに、出力一致の誤差はUとFの両方にかかる | **Uのみ。Fを混ぜて生成する条件ではない** |
+| **E：学習済みCellUNetにODEを追加** | 既に学習したCellUNetを固定し、ODEだけ追加学習するとどうなるか | A01の学習済みCellUNetを全E条件で共有・固定。ODEをランダム初期値から10,000更新 | H |
 
-Pilot: cells=89267、HVG=1024、normalized spliced linear X、1000-step linear diffusion、B128、AdamW lr1e-4/WD1e-4、EMA.9999、seed1234。Native ancestral DDPM、clip=False、nw=.5、生成3000細胞。Blend `rF+(1-r)C`、Additive `C+rF`、`r=max(0,1-t/500)`。
+「固定（freeze）」は重みを更新しないこと、「同時学習（joint）」は両方の重みを更新することです。1更新は128細胞のミニバッチによるoptimizerの1ステップで、1 epochではありません。
 
-Eの**停止10000 updates**と**LR anneal horizon 30000**は別設定です。9/16のpost-update zero-based annealingを保持します。Dは8/30のEPSILONからSTART_Xへ変更、8/30の100kから30kへ変更、10/08のODE SGDからAdamWへ変更します。ソースのsoft constraint内部係数5は保持し、June系の「外側で5倍」と混同しません。
+### 17条件の対応表
 
-Jointと2-stepは初期値・累積更新数が違います。freezeだけを比較する追加対照 `X_stage1_hill_additive_freeze_true/false` は同じA01 final EMAから開始します。全E条件はrun-root内の `shared_stage1.json` に同じcheckpoint/hashを要求します。
+| 条件ID | ODEの種類 | 組み合わせ方・変更する値 |
+|---|---|---|
+| A01 | なし | CellUNet単独 |
+| B01 | simple_softplus | ODE単独 |
+| B02 | hill_after_linear | ODE単独 |
+| B03 | centered_signed_hill | ODE単独 |
+| B04 | shifted_hill_rho | ODE単独 |
+| C01 | simple_softplus | 同時学習・Blend |
+| C02 | hill_after_linear | 同時学習・Blend |
+| C03 | simple_softplus | 同時学習・Additive |
+| C04 | hill_after_linear | 同時学習・Additive |
+| D01 | hill_after_linear | 出力一致の係数 λ = 0 |
+| D02 | hill_after_linear | 出力一致の係数 λ = 0.001 |
+| D03 | hill_after_linear | 出力一致の係数 λ = 0.1 |
+| D04 | hill_after_linear | 出力一致の係数 λ = 1 |
+| E01 | simple_softplus | CellUNet固定・Blend |
+| E02 | hill_after_linear | CellUNet固定・Blend |
+| E03 | simple_softplus | CellUNet固定・Additive |
+| E04 | hill_after_linear | CellUNet固定・Additive |
+
+ODE名は式の違いです。`simple_softplus` は遺伝子入力を線形結合してsoftplusを通す生成項、`hill_after_linear` はその後にHill型の飽和を入れる生成項を使います。`centered_signed_hill` と `shifted_hill_rho` は遺伝子間の各作用を異なる符号付きHill型応答で表します。いずれも発現量に比例する減衰項を持ちます。厳密な式は [MODEL_INVENTORY.md](MODEL_INVENTORY.md) を参照してください。
+
+### BlendとAdditiveの違い
+
+- **Blend：`H = r F + (1-r) U`**。CellUNetとODEを重み付きで混ぜます。ODEの比重が大きいほどCellUNetの比重は小さくなります。
+- **Additive：`H = U + r F`**。CellUNetをそのまま残し、ODEの出力を加えます。
+
+どちらも `r = max(0, 1-t/500)` です。`t`は拡散のノイズ時刻（0〜999）で、生物学的な時間ではありません。`t >= 500`ではODEの寄与が0になります。velocity評価の`t=49`では`r=0.902`なので、Blendは`0.902 F + 0.098 U`、Additiveは`U + 0.902 F`です。
+
+### Dのλは何に掛かるか
+
+Dの損失は概略として **`MSE(U(x_t,t), x_0) + λ MSE(U(x_t,t), F(x_t)) + GRN制約`** です。λが大きいほど、CellUNetとODEの出力の一致を強く求めます。ODEは固定教師ではなく、両方が更新されます。
+
+**D01のλ=0では、ODEに発現量復元やCellUNetとの一致を学ばせる損失がかかりません。** ODEにはGRN制約とoptimizerのweight decayが残ります。そのため、D01の`ode_raw`を「発現量の復元を学習したODE」と解釈してはいけません。
+
+### 図の1行は「学習条件 × 取り出した出力」
+
+例えば `C02_hill_after_linear_blend / ode_raw_t49` は、**C02として同時学習したモデルから、ODE側の出力だけを取り出して評価した行**です。B02のようにODEだけを単独学習したモデルではありません。
+
+| 図のラベル | 評価に渡すもの | 対象グループ |
+|---|---|---|
+| `cellunet_raw_t49` | CellUNet単体の出力 U(X,49) | A、C、D、E |
+| `ode_raw_t49` | ODE単体の出力 F(X) | B、C、D、E |
+| `hybrid_raw_t49` | 合成後の出力 H(X,49) | C、E |
+
+ここでXはノイズを加えていない前処理済みの実細胞の発現量です。`raw`は出力からXを引いたり積分したりせず、そのまま使うという意味です。**17学習条件から37行の評価結果**が生じます（A:1、B:4、C:12、D:8、E:12）。Eの`cellunet_raw`は全条件で同じ固定A01を取り出すので、同じ評価設定なら同じ結果になります。
+
+### どの条件同士を比べるか
+
+- **ODEの式の違い**：B01〜B04。Hybrid内ならC01対C02、C03対C04など。
+- **混ぜ方の違い**：C01対C03、C02対C04。Eも同じ対応。
+- **出力一致の制約の強さ**：D01〜D04の同じ出力同士。
+- **初めから同時学習か、学習済みCellUNetへの追加学習か**：C01対E01など、同じ末尾番号同士。ただし初期値と学習量も違うので、freezeだけの効果とは言えません。
+
+freezeの有無だけを比較する追加条件は `X_stage1_hill_additive_freeze_true/false` です。どちらも同じA01から開始します。追加26条件は`--extended`で選ぶもので、通常の`--all`が実行する17条件には含まれません。
+
+### 共通設定と更新数の注意
+
+全条件で89,267細胞・1,024 HVG、normalized spliced linear X、1000-step linear diffusion、batch size 128、AdamW（lr=1e-4、weight decay=1e-4）、EMA=0.9999、seed=1234を使います。ODEを持つ条件では、既知GRNにない結合へ罰則を課すsoft constraintを使います（結合を強制的に0へ固定するhard maskではありません）。生成は既存のancestral DDPM、clip=False、nw=0.5、3,000細胞です。
+
+EはA01の30,000更新に加え、ODEを10,000更新します。学習率を減らすスケジュールの基準は30,000更新のままなので、「10,000更新で学習率を0まで減らす」設定ではありません。全E条件は`shared_stage1.json`で同じA01 checkpoint/hashを使うことを検証します。
+
+歴史的実装からの変更として、Dは8/30のEPSILON予測をSTART_X予測に、100,000更新を30,000更新に変更しています。また10/08のODE SGDではなくAdamWを使います。ソースのsoft constraint内部係数5は保持し、June系の「外側で5倍」と区別します。
 
 ## データ・GRN
 
@@ -170,6 +240,37 @@ python -m work.20261010_model_comparison.cli train \
 ```
 
 個別入口 `python work/20261010_model_comparison/scripts/train.py ...` 等も同じCLIです。追加config JSONを `--condition path/to/config.json` で指定できます。数理構造を新規定義せず、registryの実装済みfield/compositionを選びます。
+
+## Harmony補正したjoint UMAPを別名で作成
+
+全17条件の既存`figures/generative/joint_umap.h5ad`を読み、保存済みの共同PCA（通常50成分）へHarmonyを適用します。batchは`sampling_origin`（Real / Generated）です。条件ごとに補正し、補正後PCAの先頭40成分・近傍15・seed=1234で近傍グラフを作成し、UMAPを計算します（min_dist=0.5、spread=1.0）。全モデルを一つの共通座標へ統合する処理ではありません。
+
+Harmonyは`harmonypy==0.0.10`を使用し、theta=2、lambda=1、sigma=0.1、最大10反復です。完全な設定・ライブラリversion・入力hashは出力JSONに保存します。[ScanpyのHarmony説明](https://scanpy.readthedocs.io/en/stable/generated/scanpy.external.pp.harmony_integrate.html)と同様に、PCAと近傍グラフ作成の間に補正を入れます。
+
+元の`joint_umap.png`、`joint_umap.h5ad`、`umap_metadata.json`は変更しません。同じディレクトリに次の3ファイルを作成します。
+
+- `joint_umap_harmony.png`
+- `joint_umap_harmony.h5ad`
+- `umap_harmony_metadata.json`
+
+Real/Generatedの差そのものを補正するため、補正後に重なることだけで生成精度が高いとは判断できません。元の図と併せて解釈してください。発現量、学習済みモデル、velocity benchmarkの値は変更しません。
+
+remoteで既存のscdiffusion環境を有効にしてから、補正用の隔離環境で実行します。GPUは不要です。
+
+```bash
+cd /home/suzuki/Projects/scDiffusion-github
+git pull --ff-only origin main
+conda activate scdiffusion
+python -m venv --system-site-packages work/20261010_model_comparison/runs/.venv-harmony
+work/20261010_model_comparison/runs/.venv-harmony/bin/python -m pip install --no-deps harmonypy==0.0.10
+OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 PYTHONUNBUFFERED=1 \
+nohup work/20261010_model_comparison/runs/.venv-harmony/bin/python \
+  work/20261010_model_comparison/scripts/replot_harmony.py \
+  --run-root work/20261010_model_comparison/runs/retry_20261012_052933 \
+  > work/20261010_model_comparison/runs/retry_20261012_052933/harmony.log 2>&1 < /dev/null &
+```
+
+全17条件の入力が揃っているかを先に確認し、足りなければ欠けた条件名を表示して停止します。生成や学習を自動でやり直すことはありません。
 
 ## Artifact layout / limits
 
