@@ -1,0 +1,57 @@
+{
+  "completed_output_rows": 8,
+  "pending": [
+    {
+      "condition": "A01_cellunet_startx",
+      "status": "not run"
+    },
+    {
+      "condition": "B01_simple_softplus",
+      "status": "not run"
+    },
+    {
+      "condition": "B02_hill_after_linear",
+      "status": "not run"
+    },
+    {
+      "condition": "B03_centered_signed_hill",
+      "status": "not run"
+    },
+    {
+      "condition": "B04_shifted_hill_rho",
+      "status": "not run"
+    },
+    {
+      "condition": "C01_simple_softplus_blend",
+      "status": "not run"
+    },
+    {
+      "condition": "C02_hill_after_linear_blend",
+      "status": "not run"
+    },
+    {
+      "condition": "C03_simple_softplus_additive",
+      "status": "not run"
+    },
+    {
+      "condition": "C04_hill_after_linear_additive",
+      "status": "not run"
+    },
+    {
+      "condition": "E01_simple_softplus_blend",
+      "status": "not run"
+    },
+    {
+      "condition": "E02_hill_after_linear_blend",
+      "status": "not run"
+    },
+    {
+      "condition": "E03_simple_softplus_additive",
+      "status": "not run"
+    },
+    {
+      "condition": "E04_hill_after_linear_additive",
+      "status": "not run"
+    }
+  ]
+}

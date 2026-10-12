@@ -1,0 +1,10 @@
+{
+  "condition_set": "ode_sgd",
+  "available": [
+    "D01_consistency_lambda0",
+    "D02_consistency_lambda0p001",
+    "D03_consistency_lambda0p1",
+    "D04_consistency_lambda1"
+  ],
+  "unavailable": []
+}
