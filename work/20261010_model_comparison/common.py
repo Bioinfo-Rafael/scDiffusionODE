@@ -118,7 +118,11 @@ def paths_at(run):
 
 def source_hashes():
     index = read_json(HERE / 'audit/source_index.json')
-    paths = [ROOT / r['path'] for r in index]
+    # The historical inventory also includes local, ignored analysis tooling.
+    # Only versioned historical files are portable dependencies of this suite.
+    tracked = set(subprocess.check_output(
+        ['git', 'ls-files', '-z'], cwd=ROOT).decode().split('\0'))
+    paths = [ROOT / r['path'] for r in index if r['path'] in tracked]
     paths += list(HERE.glob('*.py')) + list((HERE / 'adapters').glob('*.py')) + list((HERE / 'configs').rglob('*.json'))
     return {str(p.relative_to(ROOT)): sha256(p) for p in sorted(set(paths))}
 

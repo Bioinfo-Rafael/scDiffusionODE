@@ -1,6 +1,7 @@
 # Validation report
 
-- Local test suite: 64 passed, 4 warnings in 18.82 seconds; see `test_results.txt`.
+- Local test suite: 65 passed, 4 warnings in 21.65 seconds; see `test_results.txt`.
+- 2026-10-12 portability fix: runtime provenance hashes only Git-tracked historical inventory entries. A regression test checks identical hashes with local untracked tooling present or absent, and continued failure for a missing tracked dependency.
 - Coverage includes synthetic training/checkpoint resume, model adapters, source losses, sampling, velocity export, benchmark contracts, and visualization fixtures.
 - Four warnings remain: three NumPy matmul warnings from the original sliced-Wasserstein implementation on synthetic inputs, and one AnnData string-index conversion warning. Tests verify finite outputs.
 - Historical tracked source protection: 1,030 files checked against the initial workspace baseline; no changes.

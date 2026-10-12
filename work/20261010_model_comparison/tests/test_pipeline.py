@@ -23,6 +23,28 @@ B=importlib.import_module(P+'.adapters.benchmark')
 torch.set_num_threads(1)
 
 
+def test_source_hashes_portable_checkout(tmp_path,monkeypatch):
+    root=tmp_path/'repo';root.mkdir()
+    suite=root/'work/suite';(suite/'audit').mkdir(parents=True)
+    historical=root/'work/old/model.py';historical.parent.mkdir()
+    historical.write_text('value = 1\n')
+    local=root/'work/old/results/devtools/ruff/__init__.py'
+    local.parent.mkdir(parents=True);local.write_text('# local tooling\n')
+    (suite/'common.py').write_text('# adapter\n')
+    C.write_json(suite/'audit/source_index.json',[
+        dict(path=str(historical.relative_to(root))),
+        dict(path=str(local.relative_to(root)))])
+    subprocess.run(['git','init','-q',str(root)],check=True)
+    subprocess.run(['git','add','work/old/model.py'],cwd=root,check=True)
+    monkeypatch.setattr(C,'ROOT',root);monkeypatch.setattr(C,'HERE',suite)
+    expected={'work/old/model.py':C.sha256(historical),'work/suite/common.py':C.sha256(suite/'common.py')}
+    assert C.source_hashes()==expected
+    local.unlink()  # A remote checkout never receives ignored developer tooling.
+    assert C.source_hashes()==expected
+    historical.unlink()  # Missing tracked dependencies must still fail loudly.
+    with pytest.raises(FileNotFoundError):C.source_hashes()
+
+
 def small(name):
     c=C.config(name)
     c.update(cell_unet_hidden_num=[16,12,8,8],batch_size=4,expected_cells=16,expected_erythroid=16,
