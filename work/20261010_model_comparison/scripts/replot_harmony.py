@@ -62,6 +62,7 @@ if __name__=='__main__':
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--run-root',type=Path,required=True)
     p.add_argument('--condition-set',choices=['pilot','ode_sgd','model_expansion'],default='pilot')
+    p.add_argument('--allow-missing',action='store_true')
     args=p.parse_args()
     # Require the complete pilot before changing any plots.
     suite=Path(__file__).resolve().parents[1]
@@ -69,7 +70,7 @@ if __name__=='__main__':
     files=[args.run_root/name/'figures/generative/joint_umap.h5ad' for name in sorted(expected)]
     files=[f for f in files if f.is_file()]
     found={f.parents[2].name for f in files}
-    if expected-found:raise FileNotFoundError(f'Missing {args.condition_set} joint UMAPs: {sorted(expected-found)}')
+    if expected-found and not args.allow_missing:raise FileNotFoundError(f'Missing {args.condition_set} joint UMAPs: {sorted(expected-found)}')
     for path in files:replot(path)
     from combine_harmony_pngs import combine
-    combine(args.run_root,args.condition_set)
+    combine(args.run_root,args.condition_set,allow_missing=args.allow_missing)

@@ -182,6 +182,27 @@ python work/20261010_model_comparison/scripts/launch_model_expansion.py --plots-
 
 Eの初期値は `runs/default/A01_cellunet_startx/checkpoints/latest.json` から解決する **final 30,000-update EMA**です。A01が別のrun-rootにある場合は `--stage1-checkpoint /absolute/path/to/model030000.pt` を渡します。起動時に出所・学習設定・データID・最終更新数を確認し、新たにA01を再学習しません。dry-runでは既定のcheckpoint名を表示しますが、実行時はlatest.jsonの参照先・hashを確認します。
 
+再開時に`--stage1-checkpoint`を省略した場合は、既存の`shared_stage1.json`に記録されたcheckpointを優先します。
+
+### 生成がNaN/Infになった場合
+
+学習lossが有限でも、入力に依存するLowRank等のfieldをDDPMで反復適用すると発散する場合があります。学習完了と生成成功は別に記録します。専用launcherは各stageを独立して実行し、`FloatingPointError: ancestral state contains NaN/Inf` に限り、`samples/nonfinite_failure.json` にcheckpoint hashとエラーログを保存して続行します。実細胞からのvelocity出力・評価・training/velocity作図と次の条件を実行します。checkpoint・データ不一致や他のエラーは従来どおり停止します。
+
+生成できなかった条件のgenerative UMAP・Harmony UMAPは作成せず、32条件の一覧図の該当欄を`UNAVAILABLE`にします。heatmap/metricsは生成の成否とは独立した実細胞velocity評価を使います。`campaign_progress.json`、`comparison/generative_plot_status.json`、UMAP一覧と同名のJSONで欠損条件を確認できます。標準sampler・モデル式・学習設定・checkpointの検証は変更していません。
+
+```bash
+# 完了済み学習を再利用し、生成失敗を記録して後続条件へ進む
+python work/20261010_model_comparison/scripts/launch_model_expansion.py --device cuda --resume
+
+# 生成失敗の時刻と値を調べる（モデル・生成成果物は変更しない）
+python work/20261010_model_comparison/scripts/diagnose_sampling.py \
+  --condition B06_lowrank \
+  --run-root work/20261010_model_comparison/runs/model_expansion_20261012 \
+  --device cuda
+```
+
+診断は元と同じEMA・seed・batch size・DDPMを使い、最初の非有限値までのsampleと予測x0のmin/max、非有限要素数を`<条件>/diagnostics/sampling_*.jsonl`とJSONへ保存します。生成数は標準3,000細胞で、`--count 50`なら先頭バッチだけを調べます。同じcheckpointの生成失敗を既に記録した場合、通常の再開では再試行を省きます。明示的に再試行する場合は`--retry-failed-sampling`を追加します。旧版で停止した条件は、最初の再開時に1回再試行してから失敗を記録します。
+
 `--run-root work/20261010_model_comparison/runs/別名` と `--data-dir` も指定できます。専用launcherはdefault・DのSGD比較・データ用ディレクトリへの出力を拒否します。比較集計の未実行一覧も、この32条件だけを対象にします。
 
 単一条件も実行できます。同じ `--run-root` を後続のsample/export_velocity/evaluate/visualizeへ渡してください。Eを単独で新規学習する場合は `--stage1-checkpoint` も指定します。

@@ -39,11 +39,36 @@ def test_expansion_plot_only_dry_run(tmp_path):
                                     '--harmony-python','harmony-python'],cwd=common.ROOT,text=True)
     lines=result.splitlines()
     assert '--check-only' in lines[0]
-    assert sum('--stages visualize' in line for line in lines)==32
+    assert sum('--stages visualize' in line for line in lines)==96
     assert 'finish_comparison_plots.py' in lines[-1]
     assert '--harmony-python harmony-python' in lines[-1]
     assert '--stages train' not in result and '--stage1-checkpoint' not in result
     assert not (tmp_path/'plots').exists()
+
+
+def test_missing_umaps_are_explicit(tmp_path,monkeypatch):
+    import json
+    from PIL import Image
+    montage=importlib.import_module('work.20261010_model_comparison.scripts.combine_harmony_pngs')
+    finish=importlib.import_module('work.20261010_model_comparison.scripts.finish_comparison_plots')
+    folder=tmp_path/'B05_exp/figures/generative';folder.mkdir(parents=True)
+    Image.new('RGB',(640,480),'white').save(folder/'joint_umap.png')
+    (folder/'joint_umap.h5ad').touch()
+    with pytest.raises(FileNotFoundError):montage.combine(tmp_path,'model_expansion',True)
+    out=montage.combine(tmp_path,'model_expansion',True,allow_missing=True)
+    report=json.loads(out.with_suffix('.json').read_text())
+    assert report['available']==['B05_exp'] and len(report['unavailable'])==31
+    assert 'B06_lowrank' in report['unavailable']
+    calls=[]
+    def fake(command,**kwargs):
+        calls.append(command)
+        if 'summarize' in command:
+            (tmp_path/'comparison/comparison.csv').write_text('condition\nB06_lowrank\n')
+    monkeypatch.setattr(finish.subprocess,'run',fake)
+    finish.main(['--run-root',str(tmp_path),'--allow-missing'])
+    assert len(calls)==5 and all('visualize' not in cmd for cmd in calls)
+    assert '--allow-missing' in calls[-1] and '--allow-missing' in calls[-2]
+    assert len(json.loads((tmp_path/'comparison/generative_plot_status.json').read_text())['unavailable_conditions'])==31
 
 
 def test_harmony_keeps_originals(tmp_path):
