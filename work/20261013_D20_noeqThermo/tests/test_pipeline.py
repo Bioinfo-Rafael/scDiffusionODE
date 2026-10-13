@@ -34,7 +34,10 @@ def test_selection_and_id_order(fixture):
 def test_lap_skips_undefined_states_and_pairs_both_directions(fixture,monkeypatch):
     _,_,a,_,_=fixture
     c=A.load_analysis_config('smoke')['lap']
+    a.obsm['X_umap']=np.random.default_rng(2).normal(size=(len(a),2))
+    a.obs['celltype']=['Erythroid1']*len(a)
     assert B.run_least_action_paths(a,celltype_key='celltype',config=c,diffusion=.2)[1]['status']=='skipped'
+    a.obs['celltype']=['Erythroid1']*30+['Erythroid2']*30
     calls=[]
     class PD:
         def least_action(self,adata,start,end,**kwargs):
@@ -42,7 +45,6 @@ def test_lap_skips_undefined_states_and_pairs_both_directions(fixture,monkeypatc
             adata.uns[kwargs['add_key']]=dict(prediction=[np.zeros((2,2))],action=[np.zeros(2)],t=[np.arange(2)],mftp=[1.])
     class Dyn:pd=PD()
     monkeypatch.setattr(B,'import_dynamo',lambda _:Dyn())
-    a.obsm['X_umap']=np.random.default_rng(1).normal(size=(len(a),2))
     c.update(endpoint_labels=['Erythroid1','Erythroid2'])
     _,status=B.run_least_action_paths(a,celltype_key='celltype',config=c,diffusion=.2)
     assert status['completed_pairs']==2 and calls[0][:2]==calls[1][:2][::-1]

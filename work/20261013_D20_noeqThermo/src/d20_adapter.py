@@ -31,8 +31,8 @@ def load_analysis_config(mode, path=None):
               c['sde']['D'] == c['sde']['dt'] == 0.2, 'D20 requires paper_literal D=dt=0.2')
     C.require(c['gene_id_source'] == 'var_names', 'D20 requires ordered var_names gene IDs')
     lap = c['lap']
-    C.require(lap['D_scale'] == 1 and lap['bidirectional_pairs'] and
-              lap['require_explicit_endpoints'], 'D20 LAP requires explicit bidirectional states and D_scale=1')
+    C.require(lap['D_scale'] == 1 and lap['bidirectional_pairs'],
+              'D20 LAP requires bidirectional states and D_scale=1')
     C.require(lap['max_pairs'] % 2 == 0, 'LAP max_pairs must be even')
     labels = lap.get('endpoint_labels', [])
     C.require(not labels or (len(labels) >= 2 and len(set(labels)) == len(labels)),

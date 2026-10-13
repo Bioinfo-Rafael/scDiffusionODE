@@ -78,7 +78,7 @@ python work/20261013_D20_noeqThermo/scripts/run_analysis.py \
 }
 ```
 
-LAPは既定では `endpoint_labels=[]` のため理由を記録してskipする。確認済みの異なる状態を `lap.endpoint_labels` に2つ以上指定すると、各組をA→B / B→Aの順で計算する。発生方向は推定しない。Smokeは最大2方向、Fullは最大12方向、`max_pairs` は偶数。選択・Smoke標本化後に `minimum_cells_per_state`（5/20）を満たさない指定ラベルはエラーとなる。LAPの一方向でも失敗したら全体を成功と表示せず、metadataを残して非zero終了する。
+LAPは既定で実データの `celltype` ラベルから、選択後 `minimum_cells_per_state`（Smoke 5 / Full 20）を満たす状態を、件数の多い順に `max_states` 件まで選ぶ。2状態未満なら理由を記録してskipする。方向は推定せず、各状態ペアをA→B / B→Aの両方向で計算する。確認済みのラベルだけを解析する場合は `lap.endpoint_labels` に2つ以上指定する。Smokeは最大2方向、Fullは最大12方向、`max_pairs` は偶数。LAPの一方向でも失敗したら全体を成功と表示せず、metadataを残して非zero終了する。
 
 ## 数値設定と出力
 

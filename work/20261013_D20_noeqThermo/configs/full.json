@@ -67,7 +67,7 @@
     "minimize_time": false,
     "EM_steps": 2,
     "endpoint_labels": [],
-    "require_explicit_endpoints": true,
+    "require_explicit_endpoints": false,
     "bidirectional_pairs": true
   },
   "plot": {
