@@ -172,7 +172,7 @@ def plot_core_figures(
     fig, ax = plt.subplots(figsize=(7.2, 5.8))
     _cell_scatter(ax, coordinates, labels, cfg)
     _stream(ax, result)
-    ax.set(title="Erythropoietic continuous UMAP vector field", xlabel="UMAP1", ylabel="UMAP2")
+    ax.set(title=cfg.get("field_title", "Erythropoietic continuous UMAP vector field"), xlabel="UMAP1", ylabel="UMAP2")
     ax.legend(frameon=False, fontsize=7, ncol=2, loc="best")
     name = "01_umap_vector_field.png"
     _finish(fig, output_dir / name, dpi, cfg)

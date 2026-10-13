@@ -202,15 +202,22 @@ def run_least_action_paths(
 
     if not bool(config.get("enabled", True)) or int(config["max_pairs"]) == 0:
         return [], {"status": "not_requested"}
+    if config.get("require_explicit_endpoints") and not config.get("endpoint_labels"):
+        return [], {"status": "skipped", "reason": "explicit distinct state labels required; no direction inferred"}
     dyn = import_dynamo("1.4.1")
     states, representatives = _select_endpoint_states(adata, celltype_key, config)
     if len(states) < 2:
         return [], {
             "status": "skipped",
-            "reason": "fewer than two sufficiently populated Erythropoietic celltype states",
+            "reason": "fewer than two sufficiently populated celltype states",
             "states": states,
         }
     pairs = [(start, end) for start in states for end in states if start != end]
+    if config.get("bidirectional_pairs"):
+        pairs = [(a, b) for i, a in enumerate(states) for b in states[i + 1:]]
+        pairs = [pair for a, b in pairs for pair in ((a, b), (b, a))]
+        if int(config["max_pairs"]) % 2:
+            raise ValueError("bidirectional LAP requires an even max_pairs")
     pairs = pairs[: int(config["max_pairs"])]
     paths: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []

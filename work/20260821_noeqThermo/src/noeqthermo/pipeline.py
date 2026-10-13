@@ -139,19 +139,43 @@ def discover_run_dirs(explicit: Sequence[str], runs_root: str | Path | None) -> 
     return unique
 
 
-def _shared_erythropoietic_adata(first_inputs: Mapping[str, Any], config: Mapping[str, Any], prior):
+def _shared_erythropoietic_adata(first_inputs: Mapping[str, Any], config: Mapping[str, Any], prior, adata=None):
     import scanpy as sc
 
-    adata = sc.read_h5ad(first_inputs["data_path"])
+    adata = sc.read_h5ad(first_inputs["data_path"]) if adata is None else adata
     selection = config["selection"]
     obs_key = str(selection["obs_key"])
     celltype_key = str(selection["celltype_key"])
-    if obs_key not in adata.obs or celltype_key not in adata.obs:
-        raise KeyError(f"h5ad must contain obs columns {obs_key!r} and {celltype_key!r}")
-    adata = adata[adata.obs[obs_key].astype(str) == str(selection["value"])].copy()
+    mode = selection.get("mode", "legacy")
+    if mode not in {"legacy", "filter", "all", "prefer_erythropoietic"}:
+        raise ValueError("unknown selection.mode")
+    report = {"requested": dict(selection), "input_cells": int(adata.n_obs)}
+    report["available_labels"] = {
+        key: {str(k): int(v) for k, v in adata.obs[key].value_counts(dropna=False).items()}
+        for key in adata.obs if (isinstance(adata.obs[key].dtype, pd.CategoricalDtype)
+                                or pd.api.types.is_string_dtype(adata.obs[key]))
+    }
+    if mode == "prefer_erythropoietic":
+        obs_key, values = "Superclass", ["Erythropoietic"]
+    else:
+        values = selection.get("values", [selection.get("value")])
+    mask = adata.obs[obs_key].astype(str).isin([str(v) for v in values]) if obs_key in adata.obs else None
+    if mode == "all" or (mode == "prefer_erythropoietic" and (mask is None or not mask.any())):
+        report.update(applied="all", fallback=(mode == "prefer_erythropoietic"))
+        adata = adata.copy()
+    else:
+        if mask is None:
+            raise KeyError(f"h5ad must contain obs column {obs_key!r}")
+        adata = adata[mask].copy()
+        report.update(applied="filter", obs_key=obs_key, values=values, fallback=False)
+    if celltype_key not in adata.obs:
+        if mode == "legacy":
+            raise KeyError(f"h5ad must contain obs column {celltype_key!r}")
+        adata.obs[celltype_key] = "unannotated"
+        report["state_annotation"] = "unavailable; one display group, no biological state inferred"
     source_cells = int(adata.n_obs)
     if source_cells == 0:
-        raise ValueError("no Superclass == Erythropoietic cells were found")
+        raise ValueError("no cells match the configured selection")
     max_cells = int(config["max_cells"])
     if max_cells > 0 and adata.n_obs > max_cells:
         rng = np.random.default_rng(int(config["seed"]))
@@ -159,7 +183,9 @@ def _shared_erythropoietic_adata(first_inputs: Mapping[str, Any], config: Mappin
         adata = adata[indices].copy()
     X = prior["dense"](adata.X)
     adata.X = X
-    genes = prior["gene_names"](adata)
+    genes = adata.var_names.astype(str).tolist() if config.get("gene_id_source") == "var_names" else prior["gene_names"](adata)
+    report.update(source_cells=source_cells, selected_cells=int(adata.n_obs), seed=int(config["seed"]), max_cells=max_cells)
+    adata.uns["noeq_selection"] = report
 
     umap = config["umap"]
     max_components = min(int(umap["n_components"]), adata.n_obs - 1, adata.n_vars - 1)
@@ -213,7 +239,7 @@ def _project_model_velocity(
         cbook.mplDeprecation = matplotlib.MatplotlibDeprecationWarning
     import scvelo as scv
 
-    observed_genes = prior["gene_names"](shared)
+    observed_genes = shared.var_names.astype(str).tolist() if config.get("gene_id_source") == "var_names" else prior["gene_names"](shared)
     if observed_genes != list(genes):
         raise ValueError("shared h5ad gene ordering changed before model evaluation")
     X = prior["dense"](shared.X)
@@ -232,7 +258,8 @@ def _project_model_velocity(
         velocity_gene = np.asarray(adapter.func(X), dtype=np.float32)
         del adapter, model, diffusion
     else:
-        velocity_gene, field_metadata = velocity_provider(X, genes, inputs, device)
+        provider_inputs = dict(inputs, evaluation_cell_ids=shared.obs_names.astype(str).tolist())
+        velocity_gene, field_metadata = velocity_provider(X, genes, provider_inputs, device)
         velocity_gene = np.asarray(velocity_gene, dtype=np.float32)
     if velocity_gene.shape != X.shape or not np.isfinite(velocity_gene).all():
         raise ValueError("gene-space model velocity is invalid or misaligned")
@@ -301,7 +328,7 @@ def _save_common(shared: Any, genes: Sequence[str], source_cells: int, output_di
     pd.DataFrame(
         {
             "cell_id": shared.obs_names.astype(str),
-            "Superclass": shared.obs["Superclass"].astype(str).to_numpy(),
+            **({"Superclass": shared.obs["Superclass"].astype(str).to_numpy()} if "Superclass" in shared.obs else {}),
             celltype_key: shared.obs[celltype_key].astype(str).to_numpy(),
             "UMAP1": coordinates[:, 0],
             "UMAP2": coordinates[:, 1],
@@ -314,7 +341,8 @@ def _save_common(shared: Any, genes: Sequence[str], source_cells: int, output_di
         genes=np.asarray(genes, dtype=str),
     )
     metadata = {
-        "selection": "Superclass == Erythropoietic",
+        "selection": ("Superclass == Erythropoietic" if config["selection"].get("mode", "legacy") == "legacy"
+                      else shared.uns["noeq_selection"]),
         "source_cells": source_cells,
         "selected_cells": int(shared.n_obs),
         "n_genes": len(genes),
@@ -348,6 +376,7 @@ def run_pipeline(
     prepared_inputs=None,
     velocity_provider=None,
     resume_identity=None,
+    prepared_adata=None,
 ) -> dict[str, Any]:
     if (prepared_inputs is None) != (velocity_provider is None):
         raise ValueError("prepared_inputs and velocity_provider must be supplied together")
@@ -392,7 +421,7 @@ def run_pipeline(
                 f"found {sorted(data_paths)}"
             )
         device = prior["select_device"](device_name)
-        shared, genes, source_cells = _shared_erythropoietic_adata(inputs_list[0], config, prior)
+        shared, genes, source_cells = _shared_erythropoietic_adata(inputs_list[0], config, prior, prepared_adata)
         common_metadata = _save_common(shared, genes, source_cells, output_dir, config)
         coordinate_hash = common_metadata["coordinates_sha256"]
 

@@ -44,8 +44,14 @@ def validate_config(config: Mapping[str, Any]) -> None:
     if missing:
         raise KeyError(f"missing configuration sections: {missing}")
     selection = config["selection"]
-    if selection.get("obs_key") != "Superclass" or selection.get("value") != "Erythropoietic":
+    if selection.get("mode", "legacy") not in {"legacy", "filter", "all", "prefer_erythropoietic"}:
+        raise ValueError("unknown selection.mode")
+    if selection.get("mode", "legacy") == "legacy" and (selection.get("obs_key") != "Superclass" or selection.get("value") != "Erythropoietic"):
         raise ValueError("this analysis is restricted to Superclass == Erythropoietic")
+    if selection.get("mode") == "filter":
+        values = selection.get("values", [selection.get("value")])
+        if not selection.get("obs_key") or not isinstance(values, list) or not values or any(v is None for v in values):
+            raise ValueError("selection filter requires obs_key and nonempty values")
     for name in ("seed", "max_cells"):
         value = config.get(name)
         if not isinstance(value, int) or isinstance(value, bool) or value < 0:
