@@ -1,0 +1,41 @@
+{
+  "cellunet": {
+    "rows": 13,
+    "plots": [
+      {
+        "index": 0,
+        "rows": 13,
+        "protocol": "full-trained",
+        "profile": "normalized",
+        "reference_manifest_sha256": "da5a3661c63ed71390e0bfe6830b8e24624817b2295d68b1b1919197ce600b2d"
+      }
+    ],
+    "status": "complete"
+  },
+  "ode": {
+    "rows": 16,
+    "plots": [
+      {
+        "index": 0,
+        "rows": 16,
+        "protocol": "full-trained",
+        "profile": "normalized",
+        "reference_manifest_sha256": "da5a3661c63ed71390e0bfe6830b8e24624817b2295d68b1b1919197ce600b2d"
+      }
+    ],
+    "status": "complete"
+  },
+  "hybrid": {
+    "rows": 8,
+    "plots": [
+      {
+        "index": 0,
+        "rows": 8,
+        "protocol": "full-trained",
+        "profile": "normalized",
+        "reference_manifest_sha256": "da5a3661c63ed71390e0bfe6830b8e24624817b2295d68b1b1919197ce600b2d"
+      }
+    ],
+    "status": "complete"
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "condition_set": "pilot",
+  "available": [
+    "A01_cellunet_startx",
+    "D01_consistency_lambda0",
+    "D02_consistency_lambda0p001",
+    "D03_consistency_lambda0p1",
+    "D04_consistency_lambda1"
+  ],
+  "unavailable": []
+}

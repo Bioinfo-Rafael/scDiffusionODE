@@ -1,0 +1,10 @@
+{
+  "condition_set": "pilot",
+  "available": [
+    "B01_simple_softplus",
+    "B02_hill_after_linear",
+    "B03_centered_signed_hill",
+    "B04_shifted_hill_rho"
+  ],
+  "unavailable": []
+}

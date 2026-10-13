@@ -1,0 +1,33 @@
+{
+  "cellunet": {
+    "rows": 4,
+    "plots": [
+      {
+        "index": 0,
+        "rows": 4,
+        "protocol": "full-trained",
+        "profile": "normalized",
+        "reference_manifest_sha256": "da5a3661c63ed71390e0bfe6830b8e24624817b2295d68b1b1919197ce600b2d"
+      }
+    ],
+    "status": "complete"
+  },
+  "ode": {
+    "rows": 4,
+    "plots": [
+      {
+        "index": 0,
+        "rows": 4,
+        "protocol": "full-trained",
+        "profile": "normalized",
+        "reference_manifest_sha256": "da5a3661c63ed71390e0bfe6830b8e24624817b2295d68b1b1919197ce600b2d"
+      }
+    ],
+    "status": "complete"
+  },
+  "hybrid": {
+    "rows": 0,
+    "plots": [],
+    "status": "no_data"
+  }
+}

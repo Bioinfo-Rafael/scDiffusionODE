@@ -1,0 +1,11 @@
+{
+  "condition_set": "model_expansion",
+  "available": [
+    "B05_exp",
+    "B08_lora"
+  ],
+  "unavailable": [
+    "B06_lowrank",
+    "B07_matsum"
+  ]
+}

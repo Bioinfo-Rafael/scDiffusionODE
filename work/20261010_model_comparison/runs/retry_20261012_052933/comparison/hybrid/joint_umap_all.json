@@ -1,0 +1,14 @@
+{
+  "condition_set": "pilot",
+  "available": [
+    "C01_simple_softplus_blend",
+    "C02_hill_after_linear_blend",
+    "C03_simple_softplus_additive",
+    "C04_hill_after_linear_additive",
+    "E01_simple_softplus_blend",
+    "E02_hill_after_linear_blend",
+    "E03_simple_softplus_additive",
+    "E04_hill_after_linear_additive"
+  ],
+  "unavailable": []
+}

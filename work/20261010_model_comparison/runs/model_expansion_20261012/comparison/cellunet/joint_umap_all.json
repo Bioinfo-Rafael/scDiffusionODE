@@ -1,0 +1,22 @@
+{
+  "condition_set": "model_expansion",
+  "available": [
+    "D05_exp_consistency_lambda0",
+    "D06_exp_consistency_lambda0p001",
+    "D07_exp_consistency_lambda0p1",
+    "D08_exp_consistency_lambda1",
+    "D09_lowrank_consistency_lambda0",
+    "D10_lowrank_consistency_lambda0p001",
+    "D11_lowrank_consistency_lambda0p1",
+    "D12_lowrank_consistency_lambda1",
+    "D13_matsum_consistency_lambda0",
+    "D14_matsum_consistency_lambda0p001",
+    "D15_matsum_consistency_lambda0p1",
+    "D16_matsum_consistency_lambda1",
+    "D17_lora_consistency_lambda0",
+    "D18_lora_consistency_lambda0p001",
+    "D19_lora_consistency_lambda0p1",
+    "D20_lora_consistency_lambda1"
+  ],
+  "unavailable": []
+}

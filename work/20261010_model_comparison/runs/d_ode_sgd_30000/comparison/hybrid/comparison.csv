@@ -1,0 +1,1 @@
+condition,field,category,prediction,family,inference_protocol,profile,reference_manifest_sha256,protocol_note,result_path,cbdir_mean,cbdir_std,cbdir_fold0,cbdir_fold1,cbdir_fold2,icvcoh_mean,icvcoh_std,icvcoh_fold0,icvcoh_fold1,icvcoh_fold2,cto_mean,cto_std,cto_fold0,cto_fold1,cto_fold2,tsc_mean,tsc_std,tsc_fold0,tsc_fold1,tsc_fold2

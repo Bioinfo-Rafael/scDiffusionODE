@@ -1,0 +1,10 @@
+{
+  "unavailable_conditions": [
+    "B06_lowrank",
+    "B07_matsum",
+    "C06_lowrank_additive",
+    "E06_lowrank_blend",
+    "E10_lowrank_additive"
+  ],
+  "reason": "no finite generated samples; see campaign_progress.json and condition logs"
+}
