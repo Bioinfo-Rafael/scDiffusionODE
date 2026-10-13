@@ -56,6 +56,13 @@
       ],
       "current": "1be17a311dfbce3aee7b1980019f30ffa711c134278e808973a6da03121dff7b",
       "reason": "D20 analysis-only optional selection/ID/input/LAP/plot hooks; legacy defaults and model/training/numerical equations unchanged"
+    },
+    "work/20261010_model_comparison/adapters/summary.py": {
+      "saved": [
+        "90bb4def35d32536577c90824aeadf26972e27ca7bf8ed459cfc6ed3a3429e9e"
+      ],
+      "current": "b3a133b570d2086b0b6b756c799903181fc6449072c3b7fb835c31780c3fc164",
+      "reason": "Reviewed remote-only change delegates comparison figure plotting to analysis.split_comparison after metrics are loaded; no model, data, checkpoint, or velocity equation changes"
     }
   },
   "analysis_extension": "20261013 D20: exact before/after hashes for backward-compatible noeqthermo hooks; see work/20261013_D20_noeqThermo/README.md"

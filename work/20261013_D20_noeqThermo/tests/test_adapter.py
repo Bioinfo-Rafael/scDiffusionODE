@@ -133,3 +133,16 @@ def test_exact_compatibility_rules_are_still_strict():
     assert module.verify_sources(saved,A.C.config(A.CONDITION),current)==sorted(changed)
     saved[changed[0]]='unreviewed'
     with pytest.raises(ValueError,match='unreviewed'):module.verify_sources(saved,A.C.config(A.CONDITION),current)
+
+
+def test_reviewed_remote_summary_change_only():
+    module=importlib.import_module(A.P+'.adapters.source_compatibility')
+    path='work/20261010_model_comparison/adapters/summary.py'
+    saved=A.C.source_hashes()
+    current=dict(saved)
+    current[path]='b3a133b570d2086b0b6b756c799903181fc6449072c3b7fb835c31780c3fc164'
+    assert saved[path]=='90bb4def35d32536577c90824aeadf26972e27ca7bf8ed459cfc6ed3a3429e9e'
+    assert module.verify_sources(saved,A.C.config(A.CONDITION),current)==[path]
+    current[path]='another unreviewed edit'
+    with pytest.raises(ValueError,match='unreviewed'):
+        module.verify_sources(saved,A.C.config(A.CONDITION),current)

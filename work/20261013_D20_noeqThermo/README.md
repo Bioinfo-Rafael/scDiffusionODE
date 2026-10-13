@@ -123,6 +123,8 @@ LAPは既定で実データの `celltype` ラベルから、選択後 `minimum_c
 
 互換性ファイルに汎用ignore、hash検証無効化、任意hash受入は追加していない。未知のsource変更は従来どおり停止する。他の未コミット変更がcheckpointのsourceと異なる場合も停止する。
 
+リモートで確認された `adapters/summary.py` のローカル変更は、比較結果の描画を `analysis.split_comparison.plot_comparisons` へ委譲するだけだった。checkpoint保存時のSHA256 `90bb4def…` と実際の変更後 `b3a133b5…` の組だけをモデル拡張campaignの互換性規則に追加した。リモートの編集内容を上書きせず、別のhashは引き続き拒否する。
+
 ## ローカル検証
 
 ```bash
