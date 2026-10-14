@@ -12,7 +12,23 @@ HERE = Path(__file__).resolve().parents[1]
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT))
 PACKAGE = 'work.20261010_model_comparison'
-DEFAULT_ROOTS = [HERE/'runs/retry_20261012_052933', HERE/'runs/d_ode_sgd_30000']
+DEFAULT_ROOTS = [HERE/'runs/model_expansion_20261012', HERE/'runs/d_ode_sgd_30000',
+                 HERE/'runs/retry_20261012_052933']
+
+
+def default_conditions(root):
+    expansion = root.name == 'model_expansion_20261012'
+    folder = HERE/'configs'/('model_expansion' if expansion else 'ode_sgd')
+    return [f.stem for f in sorted(folder.glob('D*.json'))
+            if not expansion or 9 <= int(f.stem.split('_')[0][1:]) <= 20]
+
+
+def comparison_groups(jobs):
+    groups = {}
+    for campaign, run, config, _ in jobs:
+        key = (campaign, config['ode'], config.get('ode_optimizer', 'AdamW'))
+        groups.setdefault(key, []).append((config['consistency_lambda'], config['condition']))
+    return [(key, [name for _, name in sorted(values)]) for key, values in groups.items()]
 DEFAULT_TIMES = '0,1,10,25,49,99,199,299,399,499,599,699,799,899,999'
 
 
@@ -33,7 +49,7 @@ def integers(value):
 def main(argv=None):
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('--run-roots', type=Path, nargs='+', default=DEFAULT_ROOTS)
-    p.add_argument('--conditions', nargs='+', default=[f.stem for f in sorted((HERE/'configs/ode_sgd').glob('D*.json'))])
+    p.add_argument('--conditions', nargs='+', default=None, help='Explicit conditions for every root; default: expansion D09-D20, other roots D01-D04')
     p.add_argument('--data-dir', type=Path, default=HERE/'runs/data')
     p.add_argument('--output-dir', type=Path, help='New directory below work/20261010_model_comparison (never overwritten)')
     p.add_argument('--checkpoint-steps', default='latest', help='latest or comma list, e.g. 5000,10000,20000,30000')
@@ -55,7 +71,7 @@ def main(argv=None):
     steps = None if args.checkpoint_steps == 'latest' else integers(args.checkpoint_steps)
     if steps is not None and steps[0] < 1:
         p.error('checkpoint steps must be positive optimizer update counts')
-    if len(set(args.weights)) != len(args.weights) or len(set(args.conditions)) != len(args.conditions):
+    if len(set(args.weights)) != len(args.weights) or (args.conditions is not None and len(set(args.conditions)) != len(args.conditions)):
         p.error('duplicate weights or conditions')
     if len({path.name for path in args.run_roots}) != len(args.run_roots):
         p.error('run-roots must have distinct directory names')
@@ -63,7 +79,7 @@ def main(argv=None):
     jobs = []
     for root in args.run_roots:
         root = root.resolve()
-        for name in args.conditions:
+        for name in args.conditions or default_conditions(root):
             if Path(name).name != name:
                 p.error('conditions must be directory names, not paths')
             run = root/name
@@ -172,12 +188,20 @@ def main(argv=None):
             report['jobs'].append(job_report)
             C.write_json(output/'manifest.json', report)
         pd.DataFrame(loss_summaries).to_csv(output/'loss_summary.csv', index=False)
-        P.plot_loss_comparison(loss_entries, output/'comparison')
+        for (campaign, ode, optimizer), names in comparison_groups(jobs):
+            group_output = output/'comparison'/campaign/f'{ode}_{optimizer}'
+            entries = [entry for name in names for entry in loss_entries
+                       if entry[0] == campaign and entry[1] == name]
+            P.plot_loss_comparison(entries, group_output)
         if all_pairs:
             pairs, norms = pd.concat(all_pairs, ignore_index=True), pd.concat(all_norms, ignore_index=True)
             pairs.to_csv(output/'all_pair_metrics.csv', index=False)
             norms.to_csv(output/'all_norms.csv', index=False)
-            P.plot_comparison(pairs, norms, output/'comparison')
+            for (campaign, ode, optimizer), names in comparison_groups(jobs):
+                group_pairs = pairs[(pairs.campaign == campaign) & pairs.condition.isin(names)]
+                group_norms = norms[(norms.campaign == campaign) & norms.condition.isin(names)]
+                P.plot_comparison(group_pairs, group_norms,
+                                  output/'comparison'/campaign/f'{ode}_{optimizer}')
         report['status'] = 'complete'
         C.write_json(output/'manifest.json', report)
         print(f'Complete: {output}', flush=True)

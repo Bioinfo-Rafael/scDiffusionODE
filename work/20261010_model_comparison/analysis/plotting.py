@@ -176,21 +176,22 @@ def plot_loss_comparison(entries, output):
     campaigns = list(dict.fromkeys(entry[0] for entry in entries))
     conditions = sorted({entry[1] for entry in entries})
     for mode, frame_index in (('unsmoothed', 2), ('rolling', 3)):
-        for log in (False, True):
-            fig, axes = plt.subplots(len(campaigns), len(conditions), squeeze=False,
-                                     figsize=(5*len(conditions), 4*len(campaigns)), layout='constrained', sharey=True)
-            for entry in entries:
-                campaign, condition = entry[:2]
-                frame = entry[frame_index]
-                ax = axes[campaigns.index(campaign), conditions.index(condition)]
-                for column, name, color in zip((*WEIGHTED, 'total_loss'), (*NAMES, 'Total'), (*COLORS, '#333333')):
-                    ax.plot(frame.step, positive(frame[column], log), color=color, label=name, lw=1)
-                ax.set(title=f'{campaign}\n{condition}', xlabel='Optimizer update', ylabel='Weighted loss')
-                scale_axis(ax, log); ax.legend(fontsize=7)
-            axis = 'log' if log else 'linear'
-            fig.suptitle(f'Weighted losses | {mode} | {axis}; common y scale'
-                         + ('; nonpositive omitted' if log else ''))
-            finish(fig, Path(output)/f'comparison_loss_{mode}_{axis}.png')
+        for weighting, columns in (('raw', RAW), ('weighted', WEIGHTED)):
+            for log in (False, True):
+                fig, axes = plt.subplots(len(campaigns), len(conditions), squeeze=False,
+                                         figsize=(5*len(conditions), 4*len(campaigns)), layout='constrained', sharey=True)
+                for entry in entries:
+                    campaign, condition = entry[:2]
+                    frame = entry[frame_index]
+                    ax = axes[campaigns.index(campaign), conditions.index(condition)]
+                    for column, name, color in zip((*columns, 'total_loss'), (*NAMES, 'Total'), (*COLORS, '#333333')):
+                        ax.plot(frame.step, positive(frame[column], log), color=color, label=name, lw=1)
+                    ax.set(title=f'{campaign}\n{condition}', xlabel='Optimizer update', ylabel=f'{weighting.capitalize()} loss')
+                    scale_axis(ax, log); ax.legend(fontsize=7)
+                axis = 'log' if log else 'linear'
+                fig.suptitle(f'{weighting.capitalize()} losses | {mode} | {axis}; common y scale'
+                             + ('; nonpositive omitted' if log else ''))
+                finish(fig, Path(output)/f'comparison_loss_{weighting}_{mode}_{axis}.png')
         fig, axes = plt.subplots(len(campaigns), len(conditions), squeeze=False,
                                  figsize=(5*len(conditions), 4*len(campaigns)), layout='constrained', sharey=True)
         for campaign, condition, history, mean, fraction in entries:

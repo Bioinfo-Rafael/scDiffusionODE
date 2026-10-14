@@ -444,7 +444,9 @@ work/20261010_model_comparison/runs/.venv-harmony/bin/python \
 
 `scripts/diagnose_branches.py` は8/30の診断指標を使い、START_X向けに
 **CellUNet–x0、ODE–x0、ODE–CellUNetの3組**を評価します。
-再学習・sampling・Harmonyは実行しません。既定で次の2 campaignのD01〜D04を読みます。
+再学習・sampling・Harmonyは実行しません。既定で次の20条件を読み、モデル・optimizerごとにλ違いの4条件を横並びにします。
+
+- `runs/model_expansion_20261012/`：D09–D12 (lowrank)、D13–D16 (matsum)、D17–D20 (lora)
 
 - `runs/retry_20261012_052933/`（ODE AdamW）
 - `runs/d_ode_sgd_30000/`（ODE SGD）
@@ -508,6 +510,8 @@ python work/20261010_model_comparison/scripts/diagnose_branches.py \
 - branch図の横軸はdiffusion timestep、loss図の横軸はoptimizer step。複数checkpoint指定時は、固定`t=0,49,499,999`（指定範囲内）のcheckpoint推移図も追加。
 - 学習lossは実際のraw学習ログ。checkpoint上の固定細胞/noise診断やEMAの評価値とは別です。学習で見た全細胞から部分集合を選ぶため、汎化性能の評価ではありません。
 
+横並びのloss図もraw/weighted × unsmoothed/rolling × linear/logの8枚と、割合の2枚を出します。rawは重み付け前、unsmoothedは平滑化前を意味します。raw成分の和はtotalではなく、totalは常にweightedです。
+
 ### 保存先
 
 既定は`runs/branch_diagnostics_<UTC timestamp>/`です。
@@ -518,7 +522,7 @@ manifest.json                    # 設定、コード/入力hash、checkpoint、
 selected_cells.csv               # 全条件共通の細胞ID・行番号
 all_pair_metrics.csv, all_norms.csv
 loss_summary.csv
-comparison/                      # campaign×条件の一覧図（raw/EMA別、lossも含む）
+comparison/<campaign>/<ode>_<optimizer>/  # λ違い4条件を横並び（共通y軸）
 <campaign>/<condition>/
   pair_metrics_by_timestep.csv   # 3組のcosine/Pearson/MSE/norm ratioと分布統計
   norms_by_timestep.csv          # 3者のnormと分布統計

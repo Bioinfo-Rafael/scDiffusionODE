@@ -145,6 +145,23 @@ class DiagnosticsTest(unittest.TestCase):
             _, _, _, fraction = L.load(folder)
             self.assertTrue(fraction[['reconstruction', 'grn', 'consistency']].isna().all().all())
 
+    def test_default_selection_and_lambda_groups(self):
+        jobs = []
+        counts = []
+        for root in S.DEFAULT_ROOTS:
+            names = S.default_conditions(root)
+            counts.append(len(names))
+            for name in names:
+                config = C.config(name)
+                if root.name == 'd_ode_sgd_30000':
+                    config['ode_optimizer'] = 'SGD'
+                jobs.append((root.name, root/name, config, []))
+        self.assertEqual(counts, [12, 4, 4])
+        groups = S.comparison_groups(jobs)
+        self.assertEqual(len(groups), 5)
+        self.assertTrue(all(len(names) == 4 for _, names in groups))
+        self.assertEqual([n.split('_')[0] for n in groups[0][1]], ['D09', 'D10', 'D11', 'D12'])
+
     def test_plots_and_loss_only_cli(self):
         # End-to-end real PNG rendering, including lambda=0 and log axes.
         with tempfile.TemporaryDirectory() as folder:
@@ -166,7 +183,7 @@ class DiagnosticsTest(unittest.TestCase):
             P.plot_comparison(pairs, norms, output/'comparison')
             self.assertTrue((figures/'branches_mse_mean_log.png').stat().st_size > 1000)
             self.assertEqual(len(list((output/'comparison').glob('comparison_ema_*.png'))), 6)
-            self.assertEqual(len(list((output/'comparison').glob('comparison_loss*.png'))), 6)
+            self.assertEqual(len(list((output/'comparison').rglob('comparison_loss*.png'))), 10)
 
 
 if __name__ == '__main__':
