@@ -36,6 +36,7 @@ def fit_dynamo_vector_field(adata: Any, config: Mapping[str, Any]) -> dict[str, 
     restart_seeds = [int(value) for value in config["restart_seeds"]]
     if len(restart_seeds) != restart_num:
         raise ValueError("dynamo.restart_seeds length must equal restart_num")
+    print('[noeqthermo] SparseVFC begin', flush=True)
     dyn.vf.VectorField(
         adata,
         basis="umap",
@@ -50,8 +51,17 @@ def fit_dynamo_vector_field(adata: Any, config: Mapping[str, Any]) -> dict[str, 
     )
     if "VecFld_umap" not in adata.uns:
         raise RuntimeError("dyn.vf.VectorField did not create adata.uns['VecFld_umap']")
-    dyn.vf.topography(adata, n=int(config["topography_samples"]), basis="umap")
+    nullclines = config.get("topography_nullclines", True)
+    if not isinstance(nullclines, bool):
+        raise TypeError("dynamo.topography_nullclines must be a boolean")
+    print(f'[noeqthermo] Topography begin (nullcline refinement={nullclines})', flush=True)
+    if nullclines:
+        dyn.vf.topography(adata, n=int(config["topography_samples"]), basis="umap")
+    else:
+        _sampled_topography(adata, int(config["topography_samples"]))
+    print('[noeqthermo] Topography complete; curl begin', flush=True)
     dyn.vf.curl(adata, basis="umap")
+    print('[noeqthermo] Curl complete', flush=True)
     if "curl_umap" not in adata.obs:
         raise RuntimeError("dyn.vf.curl did not create adata.obs['curl_umap']")
     vecfld = adata.uns["VecFld_umap"]
@@ -66,11 +76,39 @@ def fit_dynamo_vector_field(adata: Any, config: Mapping[str, Any]) -> dict[str, 
         raise RuntimeError("analytical Dynamo field failed arbitrary-coordinate evaluation")
     return {
         "dynamo_version": str(config["version"]),
+        "topography_nullclines": nullclines,
+        "topography_samples": int(config["topography_samples"]),
         "n_control_points": int(np.asarray(vecfld["X_ctrl"]).shape[0]),
         "n_valid_cells": int(np.asarray(vecfld["valid_ind"]).size),
         "probe_coordinates": probes.tolist(),
         "probe_velocity": evaluated.tolist(),
     }
+
+
+def _sampled_topography(adata: Any, n: int) -> None:
+    """Dynamo's same sampled fixed-point search, without nullcline refinement.
+
+    Nullcline tracing/intersection is optional here: its intermediate candidate
+    list and pairwise deduplication are not bounded by the number of cells.
+    Keep all cells for bounds and confidence, and use Dynamo's own algorithms.
+    """
+    from dynamo.vectorfield.topography import Topography2D
+    from dynamo.vectorfield.utils import vecfld_from_adata
+
+    vecfld, func = vecfld_from_adata(adata, "umap")
+    coordinates = np.asarray(adata.obsm["X_umap"])
+    low, high = coordinates.min(0), coordinates.max(0)
+    margin = (high - low) * 0.1
+    xlim = [low[0] - margin[0], high[0] + margin[0]]
+    ylim = [low[1] - margin[1], high[1] + margin[1]]
+    topology = Topography2D(func, X_data=coordinates)
+    topology.find_fixed_points_by_sampling(n, xlim, ylim)
+    points, types = topology.get_fixed_points(get_types=True)
+    vecfld.update(
+        xlim=xlim, ylim=ylim, zlim=None, X_data=coordinates,
+        Xss=points, ftype=types, confidence=topology.get_Xss_confidence(),
+        NCx=None, NCy=None, separatrices=None, fp_ind=None,
+    )
 
 
 def evaluate_vector_field(

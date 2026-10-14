@@ -29,7 +29,8 @@
       400
     ],
     "min_velocity_correlation": 0.6,
-    "cores": 8
+    "cores": 8,
+    "topography_nullclines": false
   },
   "sde": {
     "parameterization": "paper_literal",

@@ -45,17 +45,19 @@
     },
     "work/20260821_noeqThermo/src/noeqthermo/dynamo_bridge.py": {
       "saved": [
-        "e5e6e7124c9568c958c6747eccd4635de4442e24a6520bca9ada4e3099a4c11a"
+        "e5e6e7124c9568c958c6747eccd4635de4442e24a6520bca9ada4e3099a4c11a",
+        "6b5ab2bb3da33382bd69ffd46f3257d01f298bf32b43f2e86a8364ce5c5eccc4"
       ],
-      "current": "6b5ab2bb3da33382bd69ffd46f3257d01f298bf32b43f2e86a8364ce5c5eccc4",
-      "reason": "D20 analysis-only optional selection/ID/input/LAP/plot hooks; legacy defaults and model/training/numerical equations unchanged"
+      "current": "c4e332777b810ff84744a4d03a9031bcf5d0f0689c93eb08e0244a9b15768548",
+      "reason": "D20 analysis-only optional selection/ID/input/LAP/plot hooks; legacy defaults and model/training/numerical equations unchanged; optional sampled-only Dynamo topography and phase logs, legacy nullcline default retained; no model/training/velocity/SDE changes"
     },
     "work/20260821_noeqThermo/src/noeqthermo/pipeline.py": {
       "saved": [
-        "9b1226357c2946b98ed8ae28fb659d4e14e0b8a75315c5c755f6ae7cba862f1c"
+        "9b1226357c2946b98ed8ae28fb659d4e14e0b8a75315c5c755f6ae7cba862f1c",
+        "1be17a311dfbce3aee7b1980019f30ffa711c134278e808973a6da03121dff7b"
       ],
-      "current": "1be17a311dfbce3aee7b1980019f30ffa711c134278e808973a6da03121dff7b",
-      "reason": "D20 analysis-only optional selection/ID/input/LAP/plot hooks; legacy defaults and model/training/numerical equations unchanged"
+      "current": "b69cf3efdb8113f27f9e7cf7256f6b3ac2b25d7507a08aa166143db240ec2225",
+      "reason": "D20 analysis-only optional selection/ID/input/LAP/plot hooks; legacy defaults and model/training/numerical equations unchanged; optional sampled-only Dynamo topography and phase logs, legacy nullcline default retained; no model/training/velocity/SDE changes"
     },
     "work/20261010_model_comparison/adapters/summary.py": {
       "saved": [

@@ -140,3 +140,54 @@ OMP_NUM_THREADS=1 NUMBA_NUM_THREADS=1 python -m pytest \
 検証環境は `/tmp/d20-noeq-venv`（既存scdiffusion環境を参照する一時venv、Dynamo 1.4.1、matplotlib 3.7.5）。ログは `outputs/local_tests.log`, `outputs/legacy_smoke.log`。人工fixtureの図・数値データは `outputs/local_test_fixtures/test_end_to_end_and_resume0/output/` にあり、学習済みD20の結果ではない。outputsはGit対象外。
 
 再現性のためDynamoをscVelo投影より先にimportし、乱数seedも固定する。Dynamo初回importがmatplotlib設定を変えると、scVeloのquiverベースのautoscaleが初回と再開で異なり得るため。この順序を固定した状態で投影velocityと連続場の厳密hash一致を確認した。
+
+### 2026-10-14: Full の OOM 後の再実行
+
+リモートの `memory.max=128849018880` はコンテナ上限120 GiBを示す。
+`oom_kill=1` と Full の `Killed` はOOMと整合するが、累積カウンタなので
+個別PIDの原因を単独では証明しない。ホストの `free -h` の空き容量とは異なる。
+
+SparseVFC完了後、保存前にTopographyとCurlが実行される。
+Dynamo 1.4.1のTopographyはサンプリング探索後にnullclineの交点から追加候補を作り、
+候補間距離による重複排除を行う。この候補数は入力細胞数だけでは制限されない。
+OOMが発生した関数自体は旧ログから未確定であり、今回の変更はこの追加探索を避ける対策である。
+
+D20のsmoke/full設定に `dynamo.topography_nullclines: false` を追加した。
+既存 `dynamo_bridge.py` に薄い分岐を追加し、Dynamo自身の `Topography2D` の
+`find_fixed_points_by_sampling`、`get_fixed_points`、`get_Xss_confidence` を使用する。
+全細胞による範囲・confidence、Fullの250初期点は維持する。
+nullclineからの追加固定点探索は省くため、旧設定と固定点数が一致するとは限らない。
+この選択をDynamo metadataに記録する。既存解析ではキー未指定時に従来のTopographyを使う。
+ODE・SparseVFC・SDE・landscape/fluxの数式と全細胞選択、D=0.2、dt=0.2、
+400軌道・100万stepは変更していない。pipelineとbridgeには処理区間のログも追加した。
+
+checkpointのsource hash検証は維持し、変更した2ファイルについてのみレビューした
+旧→新の厳密なhashペアを互換性監査ファイルへ追加した。
+環境へのパッケージ追加・更新は不要。
+ローカルの合成checkpointによる20テスト（10 PNG、LAP両方向、SDE resume、
+hash拒否、Dynamoの追加探索を省いた場合との固定点・confidence一致）が成功。
+実データ89,267細胞でのFull完走・ピークメモリはリモート実行で確認する必要がある。
+
+旧 `full_ema` はSDE checkpointがなく、またコード・設定のresume identityが変わるため、
+削除せず `full_ema_sampled_topography` を新しい出力先にする。同一コード・設定での
+次回実行は同じ出力先を指定してSDE checkpointからresumeできる（前処理とfield fitは再実行）。
+
+```bash
+cd ~/Projects/scDiffusion-github
+git pull --ff-only origin main
+mkdir -p work/20261013_D20_noeqThermo/outputs/logs
+log="work/20261013_D20_noeqThermo/outputs/logs/full_sampled_$(date +%Y%m%d_%H%M%S).log"
+nohup env PYTHON=/home/suzuki/.conda/envs/scdiffusion/bin/python \
+  bash work/20261013_D20_noeqThermo/scripts/run_remote.sh \
+  --mode full --device cuda \
+  --data-dir work/20261010_model_comparison/runs/data \
+  --output-dir work/20261013_D20_noeqThermo/outputs/full_ema_sampled_topography \
+  > "$log" 2>&1 < /dev/null &
+echo "PID=$! LOG=$log"
+tail -f "$log"
+```
+
+`tail`のCtrl-Cはバックグラウンド解析を止めない。完走後の10 PNGと数値データは
+`outputs/full_ema_sampled_topography/models/D20_lora_consistency_lambda1/` に保存される。
+LAPの状態・成功数は `least_action_metadata.json`、最終成功判定は
+`analysis_manifest.json` の `status=completed` と `numerical_validation.json` を確認する。

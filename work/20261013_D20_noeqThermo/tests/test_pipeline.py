@@ -92,3 +92,30 @@ def test_interrupted_sde_resume_is_identical(tmp_path):
     resumed=simulate_stationary_distribution(field,bounds,config,config,seed=1234,checkpoint_dir=tmp_path/'resumed')
     assert resumed[3]['start_step']==40
     for expected,actual in zip(reference[:3],resumed[:3]):np.testing.assert_array_equal(expected,actual)
+
+
+def test_sampled_topography_matches_dynamo_without_refinement(monkeypatch):
+    """The bounded path preserves Dynamo sampling/bounds/confidence semantics."""
+    import importlib
+    import anndata as ad
+    topo = importlib.import_module('dynamo.vectorfield.topography')
+    utils = importlib.import_module('dynamo.vectorfield.utils')
+    rng = np.random.default_rng(44)
+    a = ad.AnnData(np.zeros((80, 1)))
+    a.obsm['X_umap'] = rng.normal(size=(80, 2))
+    a.uns['VecFld_umap'] = {}
+    b = a.copy()
+    def field(adata, basis):
+        return adata.uns['VecFld_umap'], lambda x: -np.asarray(x)
+    monkeypatch.setattr(topo, 'vecfld_from_adata', field)
+    monkeypatch.setattr(utils, 'vecfld_from_adata', field)
+    calls = []
+    monkeypatch.setattr(topo.Topography2D, 'compute_nullclines', lambda *a, **k: calls.append(1))
+    np.random.seed(1234)
+    topo.topography(a, basis='umap', n=12)
+    assert calls == [1]
+    np.random.seed(1234)
+    B._sampled_topography(b, 12)
+    assert calls == [1]  # sampled path never requests nullclines
+    for key in ['Xss', 'ftype', 'confidence', 'X_data', 'xlim', 'ylim']:
+        np.testing.assert_allclose(a.uns['VecFld_umap'][key], b.uns['VecFld_umap'][key])

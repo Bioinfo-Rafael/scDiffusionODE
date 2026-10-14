@@ -517,6 +517,7 @@ def run_pipeline(
                 if fingerprint_path.exists() and json.loads(fingerprint_path.read_text()) != fingerprint:
                     raise ValueError("recomputed field differs from simulation checkpoint; use a new output directory")
                 _write_json(fingerprint_path, fingerprint)
+            print(f'[noeqthermo] SDE begin: {model_dir}', flush=True)
             num_tra, total_Fx, total_Fy, simulation_metadata = simulate_stationary_distribution(
                 field,
                 bounds,
@@ -527,6 +528,7 @@ def run_pipeline(
                 seed=int(config["seed"]),
                 checkpoint_dir=model_dir / "simulation",
             )
+            print('[noeqthermo] SDE complete; landscape begin', flush=True)
             result = compute_landscape_quantities(
                 field,
                 bounds,
@@ -538,6 +540,7 @@ def run_pipeline(
             )
             save_landscape(result, model_dir)
             fixed_points, fixed_types = fixed_points_from_adata(item["adata"])
+            print('[noeqthermo] Landscape saved; LAP begin', flush=True)
             lap_paths, lap_status = run_least_action_paths(
                 item["adata"],
                 celltype_key=celltype_key,
@@ -587,6 +590,7 @@ def run_pipeline(
                 plot_config["axis_bounds"] = bounds.tolist()
             if item["inputs"].get("plot_label"):
                 plot_config["condition_label"] = item["inputs"]["plot_label"]
+            print(f'[noeqthermo] Plotting begin: {item["dir"]}', flush=True)
             figures = plot_core_figures(item["result"], coordinates, labels,
                                         item["fixed_points"], item["fixed_types"], item["dir"], plot_config)
             if item["lap_paths"]:
