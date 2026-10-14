@@ -119,3 +119,22 @@ def test_sampled_topography_matches_dynamo_without_refinement(monkeypatch):
     assert calls == [1]  # sampled path never requests nullclines
     for key in ['Xss', 'ftype', 'confidence', 'X_data', 'xlim', 'ylim']:
         np.testing.assert_allclose(a.uns['VecFld_umap'][key], b.uns['VecFld_umap'][key])
+
+
+def test_benchmark_erythroid_config_selection(fixture):
+    import importlib
+    benchmark = importlib.import_module('data_preparation.20261007.benchmark.config')
+    config = A.load_analysis_config('full', A.HERE / 'configs/full_benchmark_erythroid.json')
+    assert config['selection']['values'] == list(benchmark.ERYTHROID_CELLTYPES)
+    assert benchmark.ERYTHROID_CELLS == 9815
+    assert config['max_cells'] == 0
+    _, _, adata, _, _ = fixture
+    labels = list(benchmark.ERYTHROID_CELLTYPES) + ['Epiblast']
+    adata.obs['celltype'] = labels * 10
+    shared, _, count = P._shared_erythropoietic_adata({}, config, P._load_prior_symbols(), adata)
+    assert count == 50
+    assert shared.obs_names.tolist() == adata.obs_names[adata.obs.celltype != 'Epiblast'].tolist()
+    assert not shared.uns['noeq_selection']['fallback']
+    adata.obs['celltype'] = ['Epiblast'] * len(adata)
+    with pytest.raises(ValueError, match='no cells'):
+        P._shared_erythropoietic_adata({}, config, P._load_prior_symbols(), adata)

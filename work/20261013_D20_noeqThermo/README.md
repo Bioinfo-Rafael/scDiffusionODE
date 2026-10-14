@@ -191,3 +191,36 @@ tail -f "$log"
 `outputs/full_ema_sampled_topography/models/D20_lora_consistency_lambda1/` に保存される。
 LAPの状態・成功数は `least_action_metadata.json`、最終成功判定は
 `analysis_manifest.json` の `status=completed` と `numerical_validation.json` を確認する。
+
+### benchmarkと同じ赤血球系細胞でFull解析
+
+`configs/full_benchmark_erythroid.json` は
+`data_preparation/20261007/benchmark/config.py` の `ERYTHROID_CELLTYPES` と
+`prepare.py::make_reference` の選択条件に合わせた設定。
+`celltype` が `Blood progenitors 1`, `Blood progenitors 2`, `Erythroid1`,
+`Erythroid2`, `Erythroid3` の細胞を、元の順序で全て選択する。
+報告されたD20データでは623 + 2460 + 2929 + 1106 + 2697 = 9815細胞となる。
+`Superclass`による選択や全細胞へのfallbackは行わない。
+選択結果のIDは `common/erythropoietic_fixed_umap.csv`、細胞数と条件は
+`analysis_manifest.json` の `common_embedding.selection` に記録される。
+これはbenchmarkの細胞選択を再現するもので、benchmark用の発現前処理・fold分割・
+UMAP設定を転用するものではない。D20の入力スケールと1024遺伝子を維持し、
+選択した細胞でUMAP/scVelo/SparseVFCを再計算する。
+FullのD、dt、SDE step数等は `full.json` と同じ。
+LAPも既存の設定と同じく細胞数上位2状態を両方向に計算する。
+
+```bash
+cd ~/Projects/scDiffusion-github
+git pull --ff-only origin main
+mkdir -p work/20261013_D20_noeqThermo/outputs/logs
+log="work/20261013_D20_noeqThermo/outputs/logs/full_benchmark_erythroid_$(date +%Y%m%d_%H%M%S).log"
+nohup env PYTHON=/home/suzuki/.conda/envs/scdiffusion/bin/python \
+  bash work/20261013_D20_noeqThermo/scripts/run_remote.sh \
+  --mode full \
+  --config work/20261013_D20_noeqThermo/configs/full_benchmark_erythroid.json \
+  --device cuda --data-dir work/20261010_model_comparison/runs/data \
+  --output-dir work/20261013_D20_noeqThermo/outputs/full_benchmark_erythroid_ema \
+  > "$log" 2>&1 < /dev/null &
+echo "PID=$! LOG=$log"
+tail -f "$log"
+```
