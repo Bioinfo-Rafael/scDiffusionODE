@@ -18,7 +18,8 @@
     "Training adds source-provenance archival and a no-gradient branch for frozen hybrids, not used by D.",
     "CLI/summary additions concern other campaigns. Newly added expansion/SGD configs do not replace pilot configs.",
     "Checkpoint/compatibility changes retain exact config, data, GRN, ID and state-dict checks.",
-    "Original checkpoint bytes and saved hashes are preserved; unknown saved or current hashes fail."
+    "Original checkpoint bytes and saved hashes are preserved; unknown saved or current hashes fail.",
+    "Reviewed b16e1d4, 7ed9cd6, cbba70b analysis-only noeqthermo changes and 61d63b2 remote summary plotting: unused by branch evaluation. Exact old/new hashes retained; no numerical model changes allowed."
   ],
   "files": {
     "work/20261010_model_comparison/adapters/checkpoint.py": {
@@ -60,15 +61,21 @@
     "work/20261010_model_comparison/adapters/source_compatibility.py": {
       "saved": [
         null,
-        "0636af81ed2101ad7d8b26c9e40854043fbc1edc915180faf7cfb431e26593fb"
+        "0636af81ed2101ad7d8b26c9e40854043fbc1edc915180faf7cfb431e26593fb",
+        "310b80028784cdf1c5bac35572fa0c078b014ae0614c04855fbd534d4f9c3af9"
       ],
-      "current": "310b80028784cdf1c5bac35572fa0c078b014ae0614c04855fbd534d4f9c3af9"
+      "current": "1bceb7e221041d66bdf5d74aebace02283e810c0f4b9095b48fff3bb3ccce66e"
     },
     "work/20261010_model_comparison/adapters/summary.py": {
       "saved": [
         "a9cdec4d4aa7b359e9b66c2a644d3b349dfbfb0d57f6841041d93db56ac9179f"
       ],
-      "current": "90bb4def35d32536577c90824aeadf26972e27ca7bf8ed459cfc6ed3a3429e9e"
+      "current": "90bb4def35d32536577c90824aeadf26972e27ca7bf8ed459cfc6ed3a3429e9e",
+      "alternate_current": [
+        "b3a133b570d2086b0b6b756c799903181fc6449072c3b7fb835c31780c3fc164",
+        "90bb4def35d32536577c90824aeadf26972e27ca7bf8ed459cfc6ed3a3429e9e"
+      ],
+      "reason": "Summary plotting only; accept exact repository version and previously reviewed remote split_comparison version (61d63b2). Neither is used in branch evaluation."
     },
     "work/20261010_model_comparison/adapters/training.py": {
       "saved": [
@@ -309,6 +316,36 @@
         null
       ],
       "current": "209f6d43f7d43bf054b3d3280999777c1b8d105f1d0ee79d4406605c741a6fe4"
+    },
+    "work/20260821_noeqThermo/src/noeqthermo/config.py": {
+      "saved": [
+        "e1fd49895da72a406a7dca4dfae085c830a5ece3902c7ff8ff84bee5575d7e4e"
+      ],
+      "current": "8f035bc111ae71c88567f87728a285ab81c7975fabe2bc74572bece2a1235211",
+      "reason": "D20 analysis-only optional selection/ID/input/LAP/plot hooks; legacy defaults and model/training/numerical equations unchanged"
+    },
+    "work/20260821_noeqThermo/src/noeqthermo/plotting.py": {
+      "saved": [
+        "2c0a2fe9ae403edbb80bcfb4ea23be69036df74db633c14fd0db60f432486ac2"
+      ],
+      "current": "9e3521208b1154d2d6e326df7b686c83e2dbc6d5da794bc6027b59678776ff39",
+      "reason": "D20 analysis-only optional selection/ID/input/LAP/plot hooks; legacy defaults and model/training/numerical equations unchanged"
+    },
+    "work/20260821_noeqThermo/src/noeqthermo/dynamo_bridge.py": {
+      "saved": [
+        "e5e6e7124c9568c958c6747eccd4635de4442e24a6520bca9ada4e3099a4c11a",
+        "6b5ab2bb3da33382bd69ffd46f3257d01f298bf32b43f2e86a8364ce5c5eccc4"
+      ],
+      "current": "c4e332777b810ff84744a4d03a9031bcf5d0f0689c93eb08e0244a9b15768548",
+      "reason": "D20 analysis-only optional selection/ID/input/LAP/plot hooks; legacy defaults and model/training/numerical equations unchanged; optional sampled-only Dynamo topography and phase logs, legacy nullcline default retained; no model/training/velocity/SDE changes"
+    },
+    "work/20260821_noeqThermo/src/noeqthermo/pipeline.py": {
+      "saved": [
+        "9b1226357c2946b98ed8ae28fb659d4e14e0b8a75315c5c755f6ae7cba862f1c",
+        "1be17a311dfbce3aee7b1980019f30ffa711c134278e808973a6da03121dff7b"
+      ],
+      "current": "b69cf3efdb8113f27f9e7cf7256f6b3ac2b25d7507a08aa166143db240ec2225",
+      "reason": "D20 analysis-only optional selection/ID/input/LAP/plot hooks; legacy defaults and model/training/numerical equations unchanged; optional sampled-only Dynamo topography and phase logs, legacy nullcline default retained; no model/training/velocity/SDE changes"
     }
   }
 }

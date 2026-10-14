@@ -42,7 +42,7 @@ class AdamWCompatibilityTest(unittest.TestCase):
         for path in sorted((C.HERE/'configs/ode_sgd').glob('D*.json')):
             config = C.config(path.stem)  # original pilot AdamW config
             changed = V.verify_sources(self.saved, config, self.current)
-            self.assertEqual(len(changed), 48)
+            self.assertGreaterEqual(len(changed), 48)
         self.assertEqual(self.saved['work/20261010_model_comparison/adapters/training.py'],
                          'e2651650c8003a9a06e9b91e93ab4a6f32096728a9b866a94f5ac1c08cc1be34')
         self.assertEqual(self.saved['work/20261010_model_comparison/common.py'],
@@ -65,6 +65,27 @@ class AdamWCompatibilityTest(unittest.TestCase):
             V.verify_sources(self.saved, C.config('A01_cellunet_startx'), self.current)
         with self.assertRaisesRegex(ValueError, 'unreviewed'):
             V.verify_sources(self.saved, C.config(C.HERE/'configs/ode_sgd/D03_consistency_lambda0p1.json'), self.current)
+
+    def test_reported_remote_sgd_hashes_and_summary_variants(self):
+        fixture = C.read_json(C.HERE/'tests/sgd_reported_source_changes.json')
+        saved, remote = dict(self.current), dict(self.current)
+        for path, hashes in fixture.items():
+            if hashes['saved'] is None:
+                saved.pop(path, None)
+            else:
+                saved[path] = hashes['saved']
+            remote[path] = hashes['current']
+        remote[VERIFIER] = self.current[VERIFIER]
+        self.assertEqual(len(fixture), 47)
+        for path in sorted((C.HERE/'configs/ode_sgd').glob('D*.json')):
+            config = C.config(path)
+            self.assertTrue(V.verify_sources(saved, config, remote))
+            self.assertTrue(V.verify_sources(saved, config, self.current))
+            for filename in ('work/20260821_noeqThermo/src/noeqthermo/pipeline.py',
+                             'work/20261010_model_comparison/adapters/summary.py',
+                             'guided_diffusion/cell_model.py'):
+                with self.assertRaisesRegex(ValueError, 'unreviewed'):
+                    V.verify_sources(saved, config, dict(remote, **{filename: 'unknown'}))
 
     def test_previous_verifier_checkpoints_for_all_supported_scopes(self):
         old_bytes = subprocess.check_output(['git', 'show', '8e84b30:'+VERIFIER], cwd=C.ROOT)

@@ -23,6 +23,6 @@ def verify_sources(saved, config, current=None):
         raise ValueError('source/config code changed since checkpoint: '+details)
     rules=read_json(HERE/'audit'/filename)['files']
     rejected=[p for p in sorted(changed) if p not in rules or
-              saved.get(p) not in rules[p]['saved'] or current.get(p)!=rules[p]['current']]
+              saved.get(p) not in rules[p]['saved'] or current.get(p) not in [rules[p]['current'], *rules[p].get('alternate_current', [])]]
     require(not rejected,'unreviewed source changes since checkpoint: '+details)
     return sorted(changed)
