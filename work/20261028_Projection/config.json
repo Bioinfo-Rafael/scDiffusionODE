@@ -1,0 +1,15 @@
+{
+  "run_root": "work/20261010_model_comparison/runs/model_expansion_20261012",
+  "data_dir": "work/20261010_model_comparison/runs/data",
+  "weights": "ema",
+  "timestep": 49,
+  "seed": 0,
+  "interpolation": {
+    "n_components": 16,
+    "n_centers": 128,
+    "ridge": 0.000001,
+    "seed": 0,
+    "max_validation_nrmse": 0.25,
+    "batch_size": 512
+  }
+}

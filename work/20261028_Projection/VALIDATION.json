@@ -1,0 +1,95 @@
+{
+  "execution_date_JST": "2026-10-28",
+  "platform": "macOS arm64",
+  "python": "3.11.15",
+  "tests": {
+    "passed": 22,
+    "skipped": 1,
+    "warnings": 2,
+    "seconds": 40.47,
+    "skipped_reason": "Real D20 checkpoint unavailable; PROJECTION_REAL_CONFIG unset"
+  },
+  "hodge": {
+    "n_cells": 80,
+    "n_features": 3,
+    "seed_data": 13,
+    "k": 12,
+    "rdim": 3,
+    "ssa": false,
+    "target": "U=sum(x**2)/2, F=-x",
+    "max_centered_potential_error": 3.419486915845482e-13,
+    "stationarity_relative": 2.5047735288737273e-13,
+    "interpolation": {
+      "fit_count": 64,
+      "max_abs_error": 0.010899169967722333,
+      "pca_explained_variance": 0.9999999999999996,
+      "support_definition": "Euclidean distance to nearest of at most 4096 original-space anchors",
+      "support_radius": 1.135514945465169,
+      "target_range": 5.920259475524339,
+      "training_rmse": 0.0019673545165042865,
+      "validation_count": 16,
+      "validation_nrmse": 0.0010541745797090552,
+      "validation_rmse": 0.006240987044379422
+    },
+    "official": {
+      "julia_version": "1.10.10",
+      "ddhodge_version": "0.7.1",
+      "ddhodge_commit": "d5d6b09431c0ccbb16e0b63414a5038511c19b85",
+      "manifest_sha256": "905c334b46d954f13bfc584132335864856c994e1e5745d67607612df446f3d2"
+    }
+  },
+  "cellrank": {
+    "n_cells": 80,
+    "n_features": 3,
+    "seed_data": 13,
+    "velocity": [
+      1.0,
+      0.2,
+      0.1
+    ],
+    "terminal_rule": "x[:,0] > 2.2",
+    "n_terminal": 14,
+    "normalization": {
+      "T_max": 4.162026405334473,
+      "T_min": 0.0,
+      "formula": "1-(T-T_min)/(T_max-T_min)",
+      "min_absorption_probability": 1e-06
+    },
+    "interpolation": {
+      "fit_count": 64,
+      "max_abs_error": 0.15961713573039849,
+      "pca_explained_variance": 0.9999999999999996,
+      "support_definition": "Euclidean distance to nearest of at most 4096 original-space anchors",
+      "support_radius": 1.135514945465169,
+      "target_range": 1.0,
+      "training_rmse": 0.04191401232296766,
+      "validation_count": 16,
+      "validation_nrmse": 0.07112891214016612,
+      "validation_rmse": 0.07112891214016612
+    },
+    "transition_checks": {
+      "density": 0.17125,
+      "minimum_entry": 1.1150311886310431e-09,
+      "nnz": 1096,
+      "row_sum_max_error": 3.3306690738754696e-16,
+      "self_transition_count": 0,
+      "self_transition_max": 0.0,
+      "shape": [
+        80,
+        80
+      ]
+    },
+    "absorption_checks": {
+      "conditional_time_relative_residual": {
+        "end": 3.25366908772915e-08
+      },
+      "probability_max_residual": 1.8996272554971938e-08
+    }
+  },
+  "real_model": {
+    "status": "not executed",
+    "check_command": "python work/20261028_Projection/scripts/check_model.py",
+    "failure": "FileNotFoundError: work/20261010_model_comparison/runs/model_expansion_20261012/D20_lora_consistency_lambda1/effective_config.json"
+  },
+  "evidence": "Metrics read from final pytest persistence artifacts; official numerical values, not mocked solvers"
+}
