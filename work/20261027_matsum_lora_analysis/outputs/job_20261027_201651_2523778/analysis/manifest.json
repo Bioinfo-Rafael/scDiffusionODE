@@ -1,0 +1,74 @@
+{
+  "status": "complete",
+  "mode": "full",
+  "device": "cuda",
+  "versions": {
+    "numpy": "1.24.0",
+    "scipy": "1.10.0",
+    "pandas": "2.0.0",
+    "torch": "2.5.1",
+    "matplotlib": "3.7.5",
+    "scikit-learn": "1.2.0",
+    "umap-learn": "0.5.7",
+    "anndata": "0.8.0",
+    "h5py": "3.8.0"
+  },
+  "command": [
+    "/home/suzuki/Projects/scDiffusion-github/work/20261027_matsum_lora_analysis/run.py",
+    "--device",
+    "cuda",
+    "--output",
+    "/home/suzuki/Projects/scDiffusion-github/work/20261027_matsum_lora_analysis/outputs/job_20261027_201651_2523778/analysis"
+  ],
+  "analysis_sources": {
+    "analyze_basis.py": "4c71382654d87e48a71f3ff8ac56e7bc26ddcf9ba8658154e9ceb9a3baefbff7",
+    "analyze_cells.py": "87501eb19b575ba48354f729fa82bf76ee7f819df04404ae5c78496ec2a75117",
+    "analyze_coefficients.py": "2d5a8de49a11d8f697dcd74f90c2bfa05c4f11dd311648bbd60ddb744d763e3d",
+    "artifacts.py": "5fa1450517a2fbe592f85860fc6112333249333bbc43fcc1cfc9c01cf09658a9",
+    "load_model.py": "a2408183f046ca9644e57b52f69f2bdf8cee35c1e9410faa01c0a0dc46360b77",
+    "numerics.py": "90d14fae28b90c85711311011231d7aa113d5840c8983f03a5d23659e4d949e3",
+    "plots.py": "a96c98aa1341a75196728839fcf293375ae4bf80e78511d8c218527668334d40",
+    "run.py": "133473c9a5444f9cfbc647961d9f1f63975146d789522ab532cd2d77c60e3dcf",
+    "spectral.py": "7c24698c9c99545e22560b583f9fa2e5e2c7d051a3b704c4e5b5354d73ef1c37"
+  },
+  "started_jst": "20261027_201732",
+  "config": {
+    "run_root": "work/20261010_model_comparison/runs/model_expansion_20261012",
+    "data_dir": "work/20261010_model_comparison/runs/data",
+    "models": [
+      "matsum",
+      "lora"
+    ],
+    "weights": "ema",
+    "timesteps": [
+      49
+    ],
+    "seed": 20261027,
+    "coefficient_batch_size": 256,
+    "matrix_batch_size": 16,
+    "spectral_dimensions": 32,
+    "spectral_cells_per_type": 3,
+    "heatmap_top_genes": 40,
+    "scatter_cells_per_type": 300,
+    "histogram_bins": 60,
+    "near_zero_mean_relative": 1e-06,
+    "near_zero_mean_absolute": 1e-12,
+    "cluster_counts": [
+      8,
+      16,
+      34
+    ],
+    "cluster_seeds": [
+      0,
+      1,
+      2
+    ],
+    "silhouette_sample_size": 5000,
+    "umap_neighbors": 30,
+    "umap_min_dist": 0.3
+  },
+  "completed_models": [
+    "matsum",
+    "lora"
+  ]
+}

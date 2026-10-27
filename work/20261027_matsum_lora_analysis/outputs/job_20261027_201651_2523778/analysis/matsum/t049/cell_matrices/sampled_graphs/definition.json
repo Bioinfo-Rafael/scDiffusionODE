@@ -1,0 +1,6 @@
+{
+  "seed": 20261027,
+  "per_type_requested": 3,
+  "component_spectra": "ordinary spectrum(C_ck)=abs(a_ck)*spectrum(B_k); normalized invariant unless a_ck=0",
+  "graph": "abs((W+W.T)/2), diagonal removed; signed direction information is discarded"
+}

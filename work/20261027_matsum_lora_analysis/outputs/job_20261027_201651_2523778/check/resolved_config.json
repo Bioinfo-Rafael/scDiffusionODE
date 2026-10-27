@@ -1,0 +1,35 @@
+{
+  "run_root": "work/20261010_model_comparison/runs/model_expansion_20261012",
+  "data_dir": "work/20261010_model_comparison/runs/data",
+  "models": [
+    "matsum",
+    "lora"
+  ],
+  "weights": "ema",
+  "timesteps": [
+    49
+  ],
+  "seed": 20261027,
+  "coefficient_batch_size": 256,
+  "matrix_batch_size": 16,
+  "spectral_dimensions": 32,
+  "spectral_cells_per_type": 3,
+  "heatmap_top_genes": 40,
+  "scatter_cells_per_type": 300,
+  "histogram_bins": 60,
+  "near_zero_mean_relative": 1e-06,
+  "near_zero_mean_absolute": 1e-12,
+  "cluster_counts": [
+    8,
+    16,
+    34
+  ],
+  "cluster_seeds": [
+    0,
+    1,
+    2
+  ],
+  "silhouette_sample_size": 5000,
+  "umap_neighbors": 30,
+  "umap_min_dist": 0.3
+}

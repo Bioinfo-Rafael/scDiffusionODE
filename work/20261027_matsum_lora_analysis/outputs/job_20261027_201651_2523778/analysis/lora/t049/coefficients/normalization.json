@@ -1,0 +1,6 @@
+{
+  "zero_L1_cells": 0,
+  "rule": "zero-L1 vectors excluded from normalized embeddings and composition averages",
+  "variance_ddof": 0,
+  "scatter_policy": "up to configured count per celltype; all cells used for statistics"
+}

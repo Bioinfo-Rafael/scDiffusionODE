@@ -1,0 +1,9 @@
+{
+  "axis": "eight shared matrices, not cells",
+  "ddof": 0,
+  "entries": 1048576,
+  "diagonal_included": true,
+  "ratio_threshold": 7.190489376080222e-08,
+  "undefined_ratio_entries": 466,
+  "warning": "Basis coordinate statistics depend on basis parameterization"
+}

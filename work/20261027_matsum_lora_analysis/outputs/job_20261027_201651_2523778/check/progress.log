@@ -1,0 +1,19 @@
+[2026-10-27T20:16:53+09:00] Loading matsum; mode=check, device=cuda
+[2026-10-27T20:16:53+09:00] matsum: importing original model/checkpoint modules
+[2026-10-27T20:16:55+09:00] matsum: validating and reading training data (includes file hashes)
+[2026-10-27T20:16:56+09:00] matsum: resolving checkpoint and verifying SHA256
+[2026-10-27T20:16:58+09:00] matsum: loading checkpoint /home/suzuki/Projects/scDiffusion-github/work/20261010_model_comparison/runs/model_expansion_20261012/D16_matsum_consistency_lambda1/checkpoints/model030000.pt
+[2026-10-27T20:16:59+09:00] matsum: validating source hashes and restoring ODE parameters
+[build_edge_mask] genes=1024, edges(in-list)=14653
+[2026-10-27T20:17:01+09:00] matsum: hashing original annotation source /home/suzuki/Projects/scDiffusion-github/data_preparation/20261007/data/MouseGastrulation.h5ad
+[2026-10-27T20:17:17+09:00] matsum: reading source annotations and joining by cell ID
+[2026-10-27T20:17:20+09:00] Loading lora; mode=check, device=cuda
+[2026-10-27T20:17:20+09:00] lora: importing original model/checkpoint modules
+[2026-10-27T20:17:21+09:00] lora: validating and reading training data (includes file hashes)
+[2026-10-27T20:17:21+09:00] lora: resolving checkpoint and verifying SHA256
+[2026-10-27T20:17:23+09:00] lora: loading checkpoint /home/suzuki/Projects/scDiffusion-github/work/20261010_model_comparison/runs/model_expansion_20261012/D20_lora_consistency_lambda1/checkpoints/model030000.pt
+[2026-10-27T20:17:23+09:00] lora: validating source hashes and restoring ODE parameters
+[build_edge_mask] genes=1024, edges(in-list)=14653
+[2026-10-27T20:17:24+09:00] lora: hashing original annotation source /home/suzuki/Projects/scDiffusion-github/data_preparation/20261007/data/MouseGastrulation.h5ad
+[2026-10-27T20:17:27+09:00] lora: reading source annotations and joining by cell ID
+[2026-10-27T20:17:27+09:00] Complete: /home/suzuki/Projects/scDiffusion-github/work/20261027_matsum_lora_analysis/outputs/job_20261027_201651_2523778/check

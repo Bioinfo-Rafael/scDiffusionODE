@@ -1,0 +1,8 @@
+{
+  "group": "Anterior Primitive Streak",
+  "n": 1062,
+  "ddof": 0,
+  "C_mean": "mean(a_k)*B_k",
+  "C_std": "std(a_k)*abs(B_k)",
+  "C_storage": "exact factors stored in matrix_moments.npz; B in basis/shared_matrices.npz"
+}

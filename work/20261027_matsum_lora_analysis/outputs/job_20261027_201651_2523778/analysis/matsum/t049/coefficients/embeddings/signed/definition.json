@@ -1,0 +1,8 @@
+{
+  "centered_PCA": true,
+  "standardized_components": false,
+  "clustering_space": "original eight-dimensional representation",
+  "cluster_selection": "all predeclared k; no label-based selection",
+  "n": 89267,
+  "exclusions": 0
+}
