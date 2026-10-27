@@ -81,32 +81,25 @@ def timestep_section(step, root, first):
     result.append(cards([coeff / 'mean_cell_composition.png'], root))
     result.append('<h3>3. 8次元全体にcelltype差が見える？</h3>')
     result.append(cards([coeff / 'embeddings/signed/pca_celltype.png', coeff / 'embeddings/signed/umap_celltype.png'], root))
-    result.append('<h3>4. celltype内より、celltype間の違いが大きい？</h3>')
-    result.append(cards([matrices / 'W_eta_squared_histogram.png'], root))
-    result.append(data_links([coeff / 'variance_decomposition.csv', coeff / 'variance_decomposition_within_stage.csv',
-                              coeff / 'coefficient_statistics.csv'], root))
+    result.append('<h3>4. 全体とcelltype内で係数・成分行列のばらつきを比較する</h3>')
+    result.append(data_links([coeff / 'coefficient_statistics.csv'], root))
     result.append('<h3>5. 具体的にどの遺伝子の重みが大きい？</h3><p>incoming＝標的として受ける絶対重みの和、outgoing＝制御元として送る絶対重みの和です。各モデルのgenes.csvでIDから遺伝子名を確認できます。</p>')
     result.append(data_links([matrices / 'top30_effective_genes.csv', matrices / 'effective_gene_rankings.csv',
                               matrices / 'genes_varying_by_celltype.csv'], root))
     result.append('<h2>目的別の詳細</h2>')
     result.append(group_browser(coeff / 'groups', root, '平均だけでは見えない係数分布：celltypeを選ぶ'))
-    result.append('<details><summary>構成比の別定義・28組の散布図・既存の発現UMAP</summary>')
-    result.append(cards([coeff / 'composition_of_mean_absolute.png', coeff / 'pairs_balanced/all_28_pairs.png',
-                          coeff / 'expression_umap_coefficients.png'], root))
+    result.append('<details><summary>係数の全28組の散布図</summary>')
     pairs = sorted((coeff / 'pairs_balanced').glob('a[1-8]_a[1-8].png'))
-    result.append('<p>個別ペア：' + ' / '.join(link(p, root, p.stem) for p in pairs) + '</p></details>')
-    for representation, label in [('signed', '符号と大きさを含むa'), ('signed_L1', '総量を除いた符号付きa'), ('absolute_L1', '符号と総量を除いた構成比')]:
-        folder = coeff / 'embeddings' / representation
-        result.append(f'<details><summary>PCA・UMAP・cluster分割表：{label}</summary>')
-        result.append(data_links([folder / 'clustering_metrics.csv', folder / 'pca_variance.csv', folder / 'pca_loadings.csv'], root))
-        result.append(cards(sorted(folder.glob('*.png')), root))
-        result.append('</details>')
+    result.append(cards(pairs, root) + '</details>')
+    folder = coeff / 'embeddings/signed'
+    result.append('<details><summary>クラスタとcelltypeの分割表・PCAの数値</summary>')
+    result.append(data_links(sorted(folder.glob('*.csv')), root))
+    result.append(cards(sorted(folder.glob('cluster_*_counts.png')), root))
+    result.append('</details>')
     result.append(group_browser(matrices / 'groups', root, '細胞依存行列の平均・std・std/mean：celltypeを選ぶ'))
-    result.append('<details><summary>係数に基底・発現を掛けた寄与と、成分除去の影響</summary>')
-    result.append(cards([matrices / 'component_frobenius.png', matrices / 'component_x_L2.png', matrices / 'component_ablation_L2.png'], root))
-    result.append('</details><details><summary>抽出した細胞のグラフスペクトル</summary>')
+    result.append('<details><summary>抽出細胞の係数付き成分行列のグラフスペクトル</summary>')
     graph = matrices / 'sampled_graphs'
-    result.append(cards([graph / 'ordinary_celltype_medians.png', graph / 'normalized_celltype_medians.png'], root))
+    result.append(cards(sorted(graph.glob('cell_*_C_ordinary.png')), root))
     result.append(data_links([graph / 'sampled_cells.csv'], root))
     result.append('<p>細胞別・celltype別の詳細図は、ページ末尾の全ファイル検索で <code>sampled_graphs</code> を検索してください。</p></details></div>')
     return ''.join(result)

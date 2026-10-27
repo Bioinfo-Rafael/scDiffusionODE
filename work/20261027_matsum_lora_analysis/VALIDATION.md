@@ -57,3 +57,11 @@ macOS / CPU、既存の `scdiffusion` conda環境。NumPy 1.24.0、SciPy 1.10.0�
 - 既存smokeの322 PNGすべてに、ファイル名に対応した専用説明があることを確認。
 - **18 tests passed**（3.622秒、`outputs/report_tests.log`）。追加テストは、既存ファイルへのリンク整合性、HTMLへのラベルescape、部分結果の警告表示、元画像を変更しないこと、数値・描画ライブラリなしで生成できること。
 - Chromeで日本語・代表図へのリンク・折りたたみ表示とモデル選択（MatSum→LoRA）を確認。実細胞のリモート結果への生成は未実施。
+
+## 2026-10-27 依頼範囲への縮小後
+
+- `python -m unittest discover -s work/20261027_matsum_lora_analysis/tests`: 20件成功。
+- `run.py --smoke --device cpu --output work/20261027_matsum_lora_analysis/outputs/requested_only_smoke`: MatSum/LoRAとも完了。人工48細胞×16遺伝子、ランダム重みであり実checkpoint解析ではない。
+- 生成PNGは各モデル60枚、計120枚。各モデルのペア散布図28枚を確認し、全PNGが `requested_outputs.requested_figure()` の範囲内であることを検証。
+- 旧ローカル人工結果4runの既知の追加出力を削除し、NPZ縮小・HTML再生成を実施。遠隔ホストの結果には未適用。
+- cleanupのdry-run、依頼図・不明ファイルの保持、係数配列の値の保持、反復実行、実行中run拒否、不明NPZキーを削除前に拒否するテストを含む。

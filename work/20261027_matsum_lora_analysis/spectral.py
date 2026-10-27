@@ -14,13 +14,16 @@ def laplacians(weight):
     return adjacency, degree, ordinary, normalized
 
 
-def spectrum(weight, dimensions):
+def spectrum(weight, dimensions, include_normalized=True):
     """All sorted eigenvalues; first q eigenvectors (including zero modes)."""
     adjacency, degree, ordinary, normalized = laplacians(weight)
     if not 1 <= dimensions < len(weight):
         raise ValueError('spectral_dimensions must be between 1 and d-1')
     result = dict(adjacency=adjacency, degree=degree)
-    for name, lap in [('ordinary', ordinary), ('normalized', normalized)]:
+    variants = [('ordinary', ordinary)]
+    if include_normalized:
+        variants.append(('normalized', normalized))
+    for name, lap in variants:
         values = eigh(lap, eigvals_only=True, check_finite=True)
         _, vectors = eigh(lap, subset_by_index=[0, dimensions - 1], check_finite=True)
         tolerance = 1e-9 * max(1., np.max(np.abs(values)))

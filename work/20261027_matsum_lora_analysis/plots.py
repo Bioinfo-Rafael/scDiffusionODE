@@ -130,29 +130,12 @@ def scatter(coords, labels, path, title, axis_names=None, zero_lines=False):
 
 
 def pair_scatter(a, labels, path, seed):
-    """28 individual pairs and one lower-triangle overview, signed coefficients."""
+    """Exactly 28 individual pairs, signed coefficients."""
     from itertools import combinations
     # Random draw order avoids always painting the same celltype last.
     order = np.random.default_rng(seed).permutation(len(a))
     a, labels = a[order], labels[order]
     mapping, colors = colors_for(labels)
-    fig, axes = plt.subplots(8, 8, figsize=(20, 20))
-    for i in range(8):
-        for j in range(8):
-            ax = axes[i, j]
-            if i < j:
-                ax.axis('off'); continue
-            if i == j:
-                ax.hist(a[:, i], bins=40, color='gray')
-            else:
-                ax.scatter(a[:, j], a[:, i], c=colors, s=.4, alpha=.3, rasterized=True)
-                ax.axhline(0, lw=.3); ax.axvline(0, lw=.3)
-            if i == 7: ax.set_xlabel(f'a{j + 1}')
-            if j == 0: ax.set_ylabel(f'a{i + 1}')
-            ax.tick_params(labelsize=5)
-    handles = [Line2D([], [], marker='o', linestyle='', color=color, label=name) for name, color in mapping.items()]
-    fig.legend(handles=handles, loc='upper right', fontsize=7)
-    save(fig, Path(path) / 'all_28_pairs.png')
     for i, j in combinations(range(8), 2):
         scatter(a[:, [i, j]], labels, Path(path) / f'a{i + 1}_a{j + 1}.png', f'Signed coefficients: a{i + 1} vs a{j + 1}',
                 axis_names=(f'a{i + 1}', f'a{j + 1}'), zero_lines=True)

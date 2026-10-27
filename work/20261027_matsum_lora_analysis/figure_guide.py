@@ -101,7 +101,7 @@ TABLES = {
     'sampled_cells.csv': '固有値解析に抽出した細胞IDと注釈。cell_0000は先頭行。',
     'cell_coefficients.csv.gz': '全細胞の8係数・構成比・L1総量と注釈。',
     'cell_effects.csv.gz': '全細胞の成分規模、入力への寄与、成分除去効果。',
-    'matrix_moments.npz': '集団平均W・std・比率、Cを再構成できる係数平均・std・共分散。',
+    'matrix_moments.npz': 'Cの平均・stdを再構成できる係数平均・std・共分散・絶対値平均。基底はshared_matrices.npz。',
     'shared_matrices.npz': '共有B[8,d,d]、W0[d,d]、遺伝子ID順序。',
     'across_eight_basis_statistics.npz': '8基底方向に計算した各遺伝子ペアのmean・std・比率。',
     'W_variance_decomposition.npz': '各遺伝子ペアのWの全体・celltype内・celltype間分散とη²。',

@@ -16,7 +16,7 @@ HERE = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parents[1]))
 from load_model import CONDITIONS, load_trained_model, shared_matrices, extract_coefficients
 from artifacts import write_json, sha256
-from analyze_cells import batched_cell_effects
+from analyze_cells import batched_gene_rankings
 
 P = 'work.20261010_model_comparison'
 C = importlib.import_module(P + '.common')
@@ -116,24 +116,19 @@ run.main()
             with self.subTest(change=change), self.assertRaises(ValueError):
                 load_trained_model('matsum', self.cfg, 'cpu')
 
-    def test_batched_gene_strength_and_ablation_equal_explicit_reference(self):
+    def test_batched_gene_strength_equals_explicit_reference(self):
         field, a, _ = load_trained_model('lora', self.cfg, 'cpu')
         coeff = extract_coefficients(field, a, 49, 3)
         basis, base = shared_matrices(field)
         output = self.root / 'effects'; output.mkdir()
-        batched_cell_effects(coeff, a, basis, base, field, output, self.cfg)
+        batched_gene_rankings(coeff, a, basis, base, field, output, self.cfg)
         w = base + np.einsum('bk,kij->bij', coeff, basis)
         absolute = np.abs(w); absolute[:, np.arange(6), np.arange(6)] = 0
         rankings = pd.read_csv(output / 'effective_gene_rankings.csv')
         all_rows = rankings[rankings.group == 'ALL'].set_index('gene_id').loc[a.var_names]
         np.testing.assert_allclose(all_rows.mean_cell_incoming, absolute.sum(axis=2).mean(axis=0))
         np.testing.assert_allclose(all_rows.mean_cell_outgoing, absolute.sum(axis=1).mean(axis=0))
-        x = a.X.astype(np.float64)
-        contributions = np.einsum('kij,bj->bki', basis, x) * coeff[:, :, None]
-        z = np.einsum('bij,bj->bi', w, x) + field.b.detach().numpy()
-        expected = np.linalg.norm(np.logaddexp(0, z[:, None]) - np.logaddexp(0, z[:, None] - contributions), axis=2)
-        effects = pd.read_csv(output / 'cell_effects.csv.gz')
-        np.testing.assert_allclose(effects[[f'C{k + 1}_ablation_L2' for k in range(8)]], expected, atol=1e-12)
+
 
 
 if __name__ == '__main__': unittest.main()

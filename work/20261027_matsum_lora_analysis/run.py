@@ -74,7 +74,7 @@ def analyze_model(kind, field, adata, stamp, cfg, output):
     basis, base = shared_matrices(field)
 
     log(f'{kind}: 8 shared bases')
-    zoom = run_basis_analysis(basis, base, adata.var_names, folder / 'basis', cfg)
+    run_basis_analysis(basis, base, adata.var_names, folder / 'basis', cfg)
 
     for timestep in cfg['timesteps']:
         step_folder = folder / f't{timestep:03d}'; step_folder.mkdir(parents=True, exist_ok=True)
@@ -87,7 +87,7 @@ def analyze_model(kind, field, adata, stamp, cfg, output):
         run_coefficient_analysis(a, adata, step_folder / 'coefficients', cfg)
 
         log(f'{kind}, t={timestep}: cell-dependent matrices / gene rankings / graph spectra')
-        run_cell_analysis(a, adata, basis, base, field, zoom, folder / 'basis', step_folder / 'cell_matrices', cfg)
+        run_cell_analysis(a, adata, basis, base, field, folder / 'basis', step_folder / 'cell_matrices', cfg)
 
 
 def load_config(args):
@@ -100,8 +100,8 @@ def load_config(args):
     if args.models: cfg['models'] = args.models
     if args.weights: cfg['weights'] = args.weights
     if args.smoke:
-        cfg.update(spectral_dimensions=4, spectral_cells_per_type=1, heatmap_top_genes=8,
-                   scatter_cells_per_type=10, cluster_counts=[3, 5], cluster_seeds=[0, 1],
+        cfg.update(spectral_dimensions=4, spectral_cells_per_type=1,
+                   scatter_cells_per_type=10, cluster_counts=[3], cluster_seeds=[0],
                    silhouette_sample_size=48, umap_neighbors=8, histogram_bins=20)
     if not cfg['models'] or any(k not in ('matsum', 'lora') for k in cfg['models']):
         raise ValueError('models must contain matsum and/or lora')
@@ -112,7 +112,7 @@ def load_config(args):
     if not cfg['timesteps'] or any(type(t) is not int or not 0 <= t < 1000 for t in cfg['timesteps']):
         raise ValueError('timesteps must be integer diffusion indices from 0 to 999')
     for key in ('coefficient_batch_size', 'matrix_batch_size', 'spectral_dimensions', 'spectral_cells_per_type',
-                'heatmap_top_genes', 'scatter_cells_per_type', 'histogram_bins', 'silhouette_sample_size', 'umap_neighbors'):
+                'scatter_cells_per_type', 'histogram_bins', 'silhouette_sample_size', 'umap_neighbors'):
         if type(cfg[key]) is not int or cfg[key] < 1: raise ValueError(f'{key} must be a positive integer')
     if cfg['umap_neighbors'] < 2 or not cfg['cluster_seeds']:
         raise ValueError('UMAP needs >=2 neighbors and clustering needs at least one seed')
