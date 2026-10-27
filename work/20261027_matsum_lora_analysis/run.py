@@ -205,6 +205,12 @@ def main():
     finally:
         sys.stdout = original_stdout
         write_json(output / 'manifest.json', manifest)
+        if not args.check_only and any((output / name).is_dir() for name in cfg['models']):
+            from report import write_report
+            try:
+                log(f'Japanese figure guide: {write_report(output)}')
+            except Exception as exc:
+                print(f'Figure guide failed; numerical results remain in {output}: {exc}', file=sys.stderr)
 
 
 if __name__ == '__main__':

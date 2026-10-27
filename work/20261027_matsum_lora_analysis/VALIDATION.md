@@ -50,3 +50,10 @@ macOS / CPU、既存の `scdiffusion` conda環境。NumPy 1.24.0、SciPy 1.10.0�
 - `run_background.sh` はpreflightと本解析をnohupで順に実行。人工実行コマンドで、preflight成功時は2段階実行、終了コード7の失敗時は本解析を呼ばず終了コード7を保存することを確認。スペースを含むパスでも検証。
 - **15 tests passed**（3.526秒）。ログ: `outputs/startup_tests_final.log`。shell構文とdiffの空白チェックも通過。
 - 計算式は変更していない。遅延import後の本解析経路は `outputs/startup_fix_smoke/` の人工MatSumで全工程完了を確認（20:15:03 JST）。
+
+## 結果ガイドの追加
+
+- `report.py` が既存図への日本語ガイド `index.html` を生成。統計・画像の再計算や既存結果の移動・削除は行わない。
+- 既存smokeの322 PNGすべてに、ファイル名に対応した専用説明があることを確認。
+- **18 tests passed**（3.622秒、`outputs/report_tests.log`）。追加テストは、既存ファイルへのリンク整合性、HTMLへのラベルescape、部分結果の警告表示、元画像を変更しないこと、数値・描画ライブラリなしで生成できること。
+- Chromeで日本語・代表図へのリンク・折りたたみ表示とモデル選択（MatSum→LoRA）を確認。実細胞のリモート結果への生成は未実施。

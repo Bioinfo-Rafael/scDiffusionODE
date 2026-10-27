@@ -2,6 +2,31 @@
 
 **入口は [`run.py`](run.py)、実行順序は `analyze_model()` にあります。** 学習済みの D16（MatSum）・D20（LoRA）、CellUNet–ODE consistency λ=1 を読み、再学習せず解析します。新しいブランチは作りません。
 
+## 結果は `index.html` から見る
+
+PNGを個別に探す代わりに、解析出力直下の **`index.html`** をブラウザで開いてください。バックグラウンド実行なら `outputs/job_…/analysis/index.html` です。
+
+- 最初に見る6枚：符号付き平均、⚠絶対値平均、細胞ごとに正規化した構成比、PCA、UMAP、Wのcelltype間分散比η²。
+- モデル・拡散tを切り替えられます。分布・行列統計はcelltypeを選んで表示します。
+- 各図に日本語で「何を見るか」「軸・点・色」「解釈上の注意」を添えています。
+- 基底比較・28散布図・cluster分割表は詳細として折りたたんであります。
+- ページ末尾の全ファイル辞典は、ファイル名・celltype・説明文で検索できます。
+- B＝共有基底、C＝aを掛けた成分、W＝8成分を合成した重みです。基底間stdと細胞間stdを区別して説明します。
+
+今後の実行は終了時（途中失敗時も結果フォルダがあれば）に自動生成します。**既存結果には再計算せず後付けできます。** 修正版をpull後、接続先で以下を実行してください。
+
+```bash
+# outputs内の既存runすべてに案内を追加（NumPy/PyTorch/Matplotlibすら不要）
+python work/20261027_matsum_lora_analysis/report.py \
+  work/20261027_matsum_lora_analysis/outputs --all
+
+# 特定runだけの場合（jobディレクトリを指定してもanalysis/を解決）
+python work/20261027_matsum_lora_analysis/report.py \
+  work/20261027_matsum_lora_analysis/outputs/job_YYYYMMDD_HHMMSS_PID
+```
+
+生成されたパスを表示します。VS CodeのHTMLソース表示ではなく、HTMLプレビューまたはブラウザで開いてください。別PCへコピーする場合は、`index.html` 単体ではなく同じ解析runのフォルダ全体をコピーします。図へのリンクは相対パスで、外部サービスやネット接続は不要です。実行中の結果に後付けした場合は部分的な案内になるため、完了後に再度生成してください。既存PNG・CSV・NPZは変更しません。
+
 ## 接続先で実行する
 
 VS Code Remote Tunnel の**接続先のターミナル**で、既存の `scdiffusion` 環境を使います。このディレクトリと既存リポジトリのコードを接続先にも配置してください。このスクリプト自体はトンネル接続・同期・環境変更を行いません。
