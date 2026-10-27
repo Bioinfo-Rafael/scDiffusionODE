@@ -17,6 +17,27 @@ python work/20261027_matsum_lora_analysis/run.py --check-only --device cuda
 python work/20261027_matsum_lora_analysis/run.py --device cuda
 ```
 
+### pullからバックグラウンド起動まで
+
+修正版をpush済みの状態で、接続先のターミナルで実行します。
+
+```bash
+(
+  set -e
+  cd /home/suzuki/Projects/scDiffusion-github
+  git pull --ff-only
+  source "$(conda info --base)/etc/profile.d/conda.sh"
+  conda activate scdiffusion
+  bash work/20261027_matsum_lora_analysis/run_background.sh --device cuda
+)
+```
+
+`run_background.sh` は確認処理も含めてnohupで起動します。確認が成功した場合だけ本解析へ進みます。起動時にPIDと `tail -f` コマンドを表示します。出力は `outputs/job_<JST日時>_<PID>/` 内の `check/` と `analysis/`、共通ログは `console.log`、終了コードは `exit_code`（0なら両段階成功）です。`tail -f` のCtrl+Cはログ表示だけを止め、ジョブは継続します。
+
+`run_background.sh` に `--run-root`、`--data-dir`、`--models`、`--weights`、`--config` も渡せます。`--output` は起動スクリプトが管理します。人工smokeは前述の `run.py --smoke` を使います。
+
+起動直後にNumPy/PyTorch読込の進捗を表示します。`--help` は数値・描画ライブラリを読みません。`--check-only` はMatplotlib/scikit-learn/UMAPを読みません。本解析はモデル読込後に描画ライブラリを読み、その開始・完了をログに表示します。確認途中でのCtrl+Cは、作成済みmanifestに `status=interrupted` を記録します。
+
 既定の読込先は次です。絶対パスへの書き換えは不要で、リポジトリルートを基準に解決します。
 
 ```text

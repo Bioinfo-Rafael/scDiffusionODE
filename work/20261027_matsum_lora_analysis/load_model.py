@@ -4,7 +4,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 import torch
-from artifacts import sha256
+from artifacts import sha256, log
 
 ROOT = Path(__file__).resolve().parents[2]
 P = 'work.20261010_model_comparison'
@@ -37,6 +37,7 @@ def read_obs_and_umap(path):
 
 def load_trained_model(kind, cfg, device):
     """Read-only boundary: final checkpoint, config, ordered IDs, hashes and GRN must match."""
+    log(f'{kind}: importing original model/checkpoint modules')
     common = importlib.import_module(P + '.common')
     checkpoints = importlib.import_module(P + '.adapters.checkpoint')
     data = importlib.import_module(P + '.adapters.data')
@@ -49,8 +50,11 @@ def load_trained_model(kind, cfg, device):
                     hybrid='none', consistency_lambda=1., prediction='START_X')
     if any(config[k] != v for k, v in expected.items()):
         raise ValueError(f'Expected trained D16/D20 consistency lambda=1: {run}')
+    log(f'{kind}: validating and reading training data (includes file hashes)')
     adata, meta = data.read_data(config, root_path(cfg['data_dir']))
+    log(f'{kind}: resolving checkpoint and verifying SHA256')
     path = checkpoints.resolve(run)
+    log(f'{kind}: loading checkpoint {path}')
     ck = checkpoints.read(path)
     if ck.get('schema') != checkpoints.SCHEMA or ck['config'] != config:
         raise ValueError('Checkpoint schema/config mismatch')
@@ -60,6 +64,7 @@ def load_trained_model(kind, cfg, device):
     pointer = common.read_json(run / 'checkpoints/latest.json')
     if pointer['step'] != ck['step']:
         raise ValueError('Latest pointer step mismatch')
+    log(f'{kind}: validating source hashes and restoring ODE parameters')
     reviewed = verify(ck['provenance']['source_hashes'], config)
     mask = data.mask_for(meta['gene_ids'], meta)
     field = models.build_field(config, meta['gene_ids'], mask, meta)
@@ -74,8 +79,10 @@ def load_trained_model(kind, cfg, device):
     source = root_path(config['input'])
     source_available = source.is_file()
     if source_available:
+        log(f'{kind}: hashing original annotation source {source}')
         if sha256(source) != meta['input_sha256']:
             raise ValueError('Original annotation source hash mismatch')
+        log(f'{kind}: reading source annotations and joining by cell ID')
         obs, umap = read_obs_and_umap(source)
         if not obs.index.is_unique:
             raise ValueError('Source cell IDs are not unique')

@@ -40,3 +40,13 @@ macOS / CPU、既存の `scdiffusion` conda環境。NumPy 1.24.0、SciPy 1.10.0�
 ## 未実施
 
 接続先の学習済みD16/D20 checkpoint・実細胞89,267×1,024による `--check-only` と本解析、およびCUDAでの実行。このローカル環境には実checkpointがなく、操作可能なリモートトンネル接続も確認できなかったため。人工データの完走を、実細胞でのcelltype差や学習済みモデルの結果とは解釈しない。
+
+## 起動・バックグラウンド実行の修正
+
+ユーザー提供ログで、接続先のD16/D20の `latest.json` が想定の `model030000.pt` を指し、step=30000と記録されていることを確認。ログはMatplotlib import中の `KeyboardInterrupt` であり、checkpoint検証はまだ開始されていない。遅延の原因はこのログだけでは特定していない。
+
+- `--help` は標準ライブラリのみで処理。起動ログをNumPy/PyTorch import前に表示。
+- 描画・クラスタリングのimportを本解析へ移動。新しいプロセスでMatplotlib/scikit-learn/UMAP/解析モジュールのimportを禁止したまま、実形式の人工D16/D20 checkpointで `--check-only` が両方完了することを検証。
+- `run_background.sh` はpreflightと本解析をnohupで順に実行。人工実行コマンドで、preflight成功時は2段階実行、終了コード7の失敗時は本解析を呼ばず終了コード7を保存することを確認。スペースを含むパスでも検証。
+- **15 tests passed**（3.526秒）。ログ: `outputs/startup_tests_final.log`。shell構文とdiffの空白チェックも通過。
+- 計算式は変更していない。遅延import後の本解析経路は `outputs/startup_fix_smoke/` の人工MatSumで全工程完了を確認（20:15:03 JST）。

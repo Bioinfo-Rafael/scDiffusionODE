@@ -16,17 +16,13 @@ HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[1]
 sys.path.insert(0, str(ROOT))
 
-import numpy as np
-import torch
 from artifacts import log, sha256, write_json
-from load_model import load_trained_model, shared_matrices, extract_coefficients
-from analyze_coefficients import run_coefficient_analysis
-from analyze_basis import run_basis_analysis
-from analyze_cells import run_cell_analysis
 
 
 def smoke_fixture(kind, cfg, device):
     """Artificial data + original field classes; only for execution/numerical QA."""
+    import numpy as np
+    import torch
     import anndata as ad
     import pandas as pd
     from ODE.ode_20260609_mathmlp import MatSumField, LoRAField
@@ -47,6 +43,8 @@ def smoke_fixture(kind, cfg, device):
 
 def verify_reconstruction(field, adata, a, basis, base, timestep):
     """Independent exported-factor reconstruction must match original forward/compute_W."""
+    import numpy as np
+    import torch
     block = adata.X[:4]; block = block.toarray() if hasattr(block, 'toarray') else np.asarray(block)
     device = next(field.parameters()).device
     x = torch.as_tensor(block, dtype=torch.float32, device=device)
@@ -64,6 +62,12 @@ def verify_reconstruction(field, adata, a, basis, base, timestep):
 
 def analyze_model(kind, field, adata, stamp, cfg, output):
     """The whole scientific execution order is intentionally visible in one function."""
+    log('Loading plotting and analysis libraries (Matplotlib / scikit-learn)')
+    from analyze_coefficients import run_coefficient_analysis
+    from analyze_basis import run_basis_analysis
+    from analyze_cells import run_cell_analysis
+    from load_model import shared_matrices, extract_coefficients
+    log('Plotting and analysis libraries ready')
     folder = output / kind; folder.mkdir(parents=True, exist_ok=True)
     write_json(folder / 'model_provenance.json', stamp)
     adata.var.to_csv(folder / 'genes.csv', index_label='gene_id')
@@ -137,6 +141,13 @@ def main():
     parser.add_argument('--smoke', action='store_true', help='Complete pipeline on artificial fixtures; does not read trained runs')
     args = parser.parse_args()
     cfg = load_config(args)
+    log('Starting analysis entry point; loading NumPy')
+    import numpy as np
+    log('Loading PyTorch')
+    import torch
+    log('Loading checkpoint/data adapter')
+    from load_model import load_trained_model, shared_matrices, extract_coefficients
+    log('Core libraries ready')
     device = 'cuda' if args.device == 'auto' and torch.cuda.is_available() else ('cpu' if args.device == 'auto' else args.device)
     torch.set_num_threads(int(os.environ['OMP_NUM_THREADS']))
     np.random.seed(cfg['seed']); torch.manual_seed(cfg['seed'])
@@ -183,6 +194,10 @@ def main():
                 del field, adata
             manifest['status'] = 'complete'
             log(f'Complete: {output}')
+    except KeyboardInterrupt:
+        manifest.update(status='interrupted', error='KeyboardInterrupt')
+        (output / 'error.txt').write_text(traceback.format_exc())
+        raise
     except Exception as exc:
         manifest.update(status='failed', error=f'{type(exc).__name__}: {exc}')
         (output / 'error.txt').write_text(traceback.format_exc())

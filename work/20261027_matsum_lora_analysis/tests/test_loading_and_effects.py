@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+import subprocess
 import numpy as np
 import pandas as pd
 import torch
@@ -80,6 +81,27 @@ class CheckpointTests(unittest.TestCase):
             np.testing.assert_array_equal(a.obs['sample'], self.a.obs['sample'])
             np.testing.assert_array_equal(a.obsm['X_umap_source'], self.a.obsm['X_umap'])
             self.assertEqual(stamp['step'], 30000)
+
+    def test_preflight_does_not_import_plotting_or_clustering(self):
+        script = '''
+import importlib.abc
+import sys
+class NoAnalysisImports(importlib.abc.MetaPathFinder):
+    def find_spec(self, fullname, path=None, target=None):
+        if fullname.split('.')[0] in ('matplotlib', 'sklearn', 'umap', 'plots', 'analyze_coefficients', 'analyze_cells', 'analyze_basis'):
+            raise RuntimeError('Preflight imported analysis dependency: ' + fullname)
+sys.meta_path.insert(0, NoAnalysisImports())
+import run
+run.main()
+'''
+        output = self.root / 'preflight'
+        result = subprocess.run([sys.executable, '-c', script, '--run-root', self.cfg['run_root'],
+                                 '--data-dir', self.cfg['data_dir'], '--check-only', '--device', 'cpu',
+                                 '--output', str(output)], cwd=HERE, text=True, capture_output=True, timeout=60)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        manifest = json.loads((output / 'manifest.json').read_text())
+        self.assertEqual(manifest['status'], 'complete')
+        self.assertEqual(manifest['completed_models'], ['matsum', 'lora'])
 
     def test_wrong_ids_nonfinal_and_unreviewed_source_rejected(self):
         path, ck = self.checkpoints['matsum']

@@ -3,7 +3,6 @@ import hashlib
 import json
 from pathlib import Path
 import re
-import numpy as np
 
 
 def write_json(path, value):
@@ -24,6 +23,7 @@ def group_folder(index, label):
 
 
 def groups(labels):
+    import numpy as np
     yield 'all', 'ALL', np.arange(len(labels))
     for i, label in enumerate(sorted(set(labels))):
         yield group_folder(i, label), label, np.flatnonzero(labels == label)
