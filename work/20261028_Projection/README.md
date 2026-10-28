@@ -1,4 +1,96 @@
-# Hodge・CellRankによる等値面へのVelocity射影
+# 等値面上のdivergence・遺伝子別寄与とVelocity射影
+
+新しい解析の入口は **`scripts/run_divergence_analysis.py`**。既存D20 LoRA（EMA、timestep 49）を読み、全training細胞の公式Hodge/CellRankスカラーを準備し、5クラスの有効細胞から中央値cを選び、retraction先yでsurface divergenceと遺伝子座標別寄与を計算する。最初に見る図は **Figure 1**。完成図は全体でPNG **5枚だけ**で、手法・クラスごとの画像は増やさない。
+
+環境構築済みならrepository rootから次で実行できる。`python` は後述の固定依存を満たす環境を使う。既存環境を変更したくない場合は後述の専用venvを使い、`python` をそのPythonパスに置き換える。
+
+```bash
+# 人工データで全工程を確認（実データの代用品にはしない）
+python work/20261028_Projection/scripts/run_divergence_analysis.py --smoke
+# 実D20: GPUを自動選択。CPUを明示するなら --device cpu
+python work/20261028_Projection/scripts/run_divergence_analysis.py
+# 出力から再作図。モデル・スカラー推定・微分は再実行しない
+python work/20261028_Projection/scripts/run_divergence_analysis.py --replot work/20261028_Projection/outputs/divergence_analysis/real
+```
+
+ユーザー側でリモートのpull・起動を行う場合は次を使う。launcherは環境構築やpullを自動実行せず、指定Python・Juliaを確認してから新しいjobディレクトリを作る。
+
+```bash
+git pull --ff-only origin main
+# 必要なら export JULIA=/absolute/path/to/julia
+PYTHON=python bash work/20261028_Projection/scripts/run_divergence_background.sh --device auto
+# 専用venvを使う場合:
+# PYTHON=work/20261028_Projection/.venv/bin/python bash work/20261028_Projection/scripts/run_divergence_background.sh
+```
+
+起動時に`PID`、`JOB_DIR`、`LOG`、`OUTPUT`を表示する。`JOB_DIR`には`launcher.pid`、`console.log`、`source_commit`、`source_status`、`command.txt`を保存し、処理終了後に`exit_code`を作る。結果は`JOB_DIR/analysis/`。終了コード0でも個別細胞の失敗はあり得るため`analysis/manifest.json`のstatus・成功率を確認する。
+
+```bash
+# 起動時に表示されたパスを代入
+job_dir=/absolute/path/to/job_directory
+tail -f "$job_dir/console.log"
+ps -p "$(cat "$job_dir/launcher.pid")" -o pid,etime,args
+cat "$job_dir/exit_code"  # 終了後のみ存在、0=処理完了
+# 中断後、同じ引数・コード・データで再開（計算済み細胞を再利用）
+nohup python -u work/20261028_Projection/scripts/run_divergence_analysis.py --output "$job_dir/analysis" --resume > "$job_dir/resume.log" 2>&1 < /dev/null &
+```
+
+直接実行の既定出力は`outputs/divergence_analysis/real/`、人工検証は`.../smoke/`。既存ディレクトリへの通常実行は拒否する。`--resume`は入力・モデル・数値コード・サンプリング条件と保存スカラーhashが一致する場合だけ利用できる。変更時は新しい`--output`を使う。既存全細胞スカラーの場所は`--hodge-dir`と`--cellrank-dir`で指定できる。対象集団が異なる保存結果は全training細胞で明示的に再計算する。公式計算途中で失敗した未完成スカラーは再計算が必要で、完成済みスカラーと細胞単位の微分キャッシュを再利用する。
+
+## Divergence解析の定義と保存内容
+
+5クラスは`data_preparation/20261007/benchmark/config.py`の定義をimportする。Blood progenitors 1/2、Erythroid1/2/3の全細胞を結果AnnDataへ残す。スカラー推定は5クラスに絞らず、元の全training細胞を使う。CellRank terminalは`celltype == 'Erythroid3'`の全細胞。各手法のcは**サンプリング前の全対象有効細胞**における連続スカラーの中央値で、CellRankのineligible細胞を除く。
+
+概要計算は既定で各クラス128細胞、計640細胞までを層別抽出する（`--samples-per-class 0`で全対象）。これは計算量を制御するためであり、全対象の微分を計算したとは扱わない。遺伝子詳細は各クラス2成功細胞、計10細胞まで（`--representatives-per-class`）を用い、両手法共通の成功細胞を優先する。Figure 5の比較は同一元cell IDの共通成功集合に限定する。失敗率が異なるため、手法ごとの成功集合平均と共通集合平均を別々に保存する。
+
+`y = projected_field.surface_points(x)`を既存実装で求め、既存`projected_field(y)`で接線Velocityを照合する。以下の微分の独立変数は**面上のy**であり、retractionを含む合成関数は微分しない。\(g=\nabla s, n=g/\|g\|, P=I-nn^\top, H_s=\nabla^2s\)として、
+
+\[
+D_S=\operatorname{tr}(P J_{PF})=D_J+D_C,\quad
+D_J=\operatorname{tr}(P J_F),\quad
+D_C=-\frac{F\cdot n}{\|g\|}\operatorname{tr}(P H_s).
+\]
+
+依頼文のunderbraceと加算式の符号を整合させるため、**D_Cには負号を含める**。遺伝子iの寄与は
+
+\[
+C_i^{(J)}=(P J_F P)_{ii},\qquad
+C_i^{(C)}=-\frac{F\cdot n}{\|g\|}(P H_s P)_{ii},\qquad
+C_i=C_i^{(J)}+C_i^{(C)},\quad \sum_i C_i=D_S.
+\]
+
+`analysis/surface_divergence.py`はPyTorch公式JVP/VJPで元の状態依存LoRA forwardを微分する。既存Hill ODE専用の解析Jacobianは流用しない。モデルはeval・固定重みのままで、微分区間だけ`inference_mode(False)`と`enable_grad()`を使い、optimizerやparameter更新を行わない。既存スカラーの勾配を再利用し、Gaussian RBFのHessianをPCA空間で解析計算する（H=B H_z Bᵀ）。従ってD×D Hessianを作る必要がない。
+
+概要のD_JはRademacher probeのHutchinson推定（既定64、`--probes`、seed 28）で、D_Cは採用した連続補間関数の解析trace。各細胞のprobe値、標準誤差、seed、probe数をNPZへ保存する。`analysis/gene_contributions.py`は座標JVPを少数ずつstreamし、JnとJᵀnを両方使って非対称Jacobianの対角寄与を厳密計算する。作業メモリは概ねO(batch×D + D×PCA次元)で、全細胞×D×D配列を保持しない。座標JVPの回数は代表細胞あたりDなので、詳細対象数には計算時間上の制約がある。
+
+加算一致は、定義したD_Sから同じ和を引くだけでなく、`d(PF)`の方向微分を別経路で縮約したtraceと照合する。overviewのSEはD_Jのprobe不確実性のみで、補間・モデル・射影の不確実性を含まない。スカラーのholdout NRMSEは値の近似誤差であり、勾配や曲率の誤差上限ではない。補間のPCA次元・center・seed・誤差・支持距離、surface残差、接線誤差、変位、勾配norm、失敗理由を保存する。
+
+| 保存先（出力ディレクトリ内） | 内容 |
+|---|---|
+| `annotated_divergence.h5ad` | 5クラス全細胞。`projection_{hodge,cellrank}_{surface_divergence,jacobian_term,curvature_term,retraction_success}`とstatus、理由、診断量。未計算値はNaN |
+| `{method}_overview.csv` | 全対象行、元cell ID、scalar/eligible/sample、成功・失敗・未計算の区別、概要推定値 |
+| `{method}_representatives.csv` | 代表成功細胞の厳密計算と独立traceとの差、概要推定の誤差/SE |
+| `{method}_gene_contributions.npz` | C_J/C_C/C_totalとcell ID、gene ID、元入力順序、クラス |
+| `{method}_gene_ranking.csv`, `class_summary.csv` | 符号付き平均・平均絶対寄与と順位、クラス別D_S/D_J/D_Cの平均・中央値 |
+| `grn_sensitivities.csv` | hash確認済みtraining GRNが使える場合のみ、候補辺のJ[target,source]。因果効果ではない |
+| `manifest.json`, `identity.json`, `scalar_identity.json` | 完了/失敗stage、checkpoint/input/source hash、母集団・抽出ID、c、補間設定、version、device、成功数、比較統計 |
+| `cache/{method}/` | 細胞ごとのy、probe、詳細寄与。再開時に再利用 |
+
+`analysis_status`は`not_sampled`、`scalar_ineligible`、`surface_undefined`（勾配消失）、`retraction_failed`、`derivative_failed`、`ok`を区別する。retraction成功flagは未試行NaN、失敗0、成功1。成功条件付きの層別標本から全細胞平均を無条件に推定しない。
+
+## 5枚のoverview図
+
+1. `figure1_analysis_overview.png` — 対象クラス、スカラー分布、中央値c、射影成功率、D_Sの全体像。まずこれを見る。
+2. `figure2_surface_divergence.png` — 元細胞UMAP上のD_S、クラス別分布、失敗率。両手法で共通のゼロ中心色尺度。
+3. `figure3_divergence_decomposition.png` — D_J/D_C/D_S分布、クラス別平均・中央値、方向微分による加算残差。
+4. `figure4_gene_contributions.png` — 代表細胞での寄与上位20遺伝子（`--top-genes`で変更）、符号付き平均と平均絶対値、クラス別heatmap。
+5. `figure5_method_comparison.png` — 共通成功細胞の相関、共通代表細胞の遺伝子順位一致、検証済みGRN候補の局所感度または数値精度パネル。
+
+UMAPの座標は**元の入力細胞xの既存UMAP**。色は移動先yでの計算値で、y自体のembeddingではない。元UMAPがなければそのパネルに未提供と記し、再推定しない（人工fixtureのみ検証用UMAPを作る）。寄与は発現座標・尺度依存の局所的な数値量であり、遺伝子の因果効果や分化経路への生物学的復元力を意味しない。単位はモデルの任意rate単位で、生物学的時間への換算は未検証。
+
+検証結果・人工例の数値・未実施範囲は[DIVERGENCE_VALIDATION.md](DIVERGENCE_VALIDATION.md)、公式機能との境界は[SOURCE_REUSE_MAP.md](SOURCE_REUSE_MAP.md)を参照。今回の解析による追加packageはない。以下は既存Callable・スカラー準備APIの説明である。
+
+## Hodge・CellRankによる等値面へのVelocity射影API
 
 このディレクトリは、変更しない学習済みVelocity `F(x)` とAnnDataからスカラー場を構成し、ユーザーが選んだ等値面へ移動した点での接線Velocity `F_c(x)` をCallableとして返す。Hodgeは公式ddHodge.jlのポテンシャル、CellRankは公式VelocityKernelの遷移行列と公式平均吸収ステップ数を使う。両者の離散結果から連続スカラーを作る部分と等値面射影は本実装の追加処理であり、原論文の機能として扱わない。
 
@@ -67,7 +159,7 @@ MPLBACKEND=Agg work/20261028_Projection/.venv/bin/python -m pytest work/20261028
 work/20261028_Projection/.venv/bin/python work/20261028_Projection/scripts/check_model.py --device cpu
 ```
 
-`config.json` の `run_root` / `data_dir` は既存10/27解析と同じ既定値。D20条件名は `D20_lora_consistency_lambda1`。`effective_config.json`、最終checkpoint、training AnnData、training metadata、GRN、hashが揃っていることが必要。リモートからの自動取得・ジョブ起動・再学習はしない。異なる配置では別のJSONを作り `--config /path/to/config.json` を指定する。
+`config.json` の `run_root` / `data_dir` は既存10/27解析と同じ既定値。D20条件名は `D20_lora_consistency_lambda1`。`effective_config.json`、最終checkpoint、training AnnData、training metadata、GRN、hashが揃っていることが必要。このローダーはリモートからの自動取得・再学習をしない。バックグラウンド実行には冒頭の明示launcherを使う。異なる配置では別のJSONを作り `--config /path/to/config.json` を指定する。
 
 実データで両手法の小規模統合テストを明示実行する場合、configに `real_test_terminal_obs_key`、`real_test_terminal_values`（複数なら `real_test_lineage` も）を指定する。先頭128細胞にその群が存在しなければ停止する。このsubsetの結果は全細胞結果を保証しない。
 
@@ -104,7 +196,7 @@ work/20261028_Projection/.venv/bin/python work/20261028_Projection/scripts/examp
 
 既定はEMA、固定diffusion timestep **49**、clean training X。1,024 HVGの**線形正規化発現**、遺伝子IDと順序を元のtraining data/hashから検証する。raw count/log1p入力や再正規化は行わない。任意の `velocity_fn` にはこれらのprovenanceを自動推定できないため、呼び出し側が同じ前処理と順序を保証し、`provenance={...}` を与える。`feature_ids` 属性があるCallableではAnnDataとの順序を必ず照合する。
 
-ODEのSTART_X/consistency学習出力を生物学的な **dx/dt** と解釈すること自体が実験的仮定である。射影の数値検証はこの生物学的妥当性を証明しない。学習コード・モデルパラメータ・checkpointは変更せず、`torch.inference_mode()` で評価する。
+ODEのSTART_X/consistency学習出力を生物学的な **dx/dt** と解釈すること自体が実験的仮定である。射影の数値検証はこの生物学的妥当性を証明しない。学習コード・モデルパラメータ・checkpointは変更しない。通常のVelocity評価は`torch.inference_mode()`、今回のJVP/VJP計算は固定重みで微分を有効にして評価する。
 
 ## Hodgeの数学と公式実装
 

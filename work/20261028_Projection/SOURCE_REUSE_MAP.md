@@ -25,3 +25,17 @@
 - [CellRank linear solver](https://github.com/scverse/cellrank/blob/v2.0.7/src/cellrank/_utils/_linear_solver.py): `direct`の密化とgmresの経路を確認。独自solverへの代替なし。
 
 論文との符号不一致はREADMEのHodge節に記載した。原論文の生物学的結果を今回のD20へ移植したと主張しない。
+
+## Surface divergence追加分（2026-10-28）
+
+| 機能 | 再利用元と追加処理 | 境界 |
+|---|---|---|
+| 対象5クラス | `data_preparation/20261007/benchmark/config.py:ERYTHROID_CELLTYPES`をimport | スカラー母集団は全training、解析対象のみ5クラス |
+| 元Fとその微分 | `ODE/ode_20260609_mathmlp.py`の実際のLoRAField.forwardを固定tで呼ぶ | 状態依存係数を含む。`work/20260817_vector_field_analysis/vector_field_adapter.py`のHill解析Jacobianは採用しない |
+| JVP/VJP | [PyTorch 2.7 jvp](https://docs.pytorch.org/docs/2.7/generated/torch.func.jvp.html)、[vjp](https://docs.pytorch.org/docs/2.7/generated/torch.func.vjp.html)、vmap | 8/17のAD利用例を参照し、固定D20への薄い接続を追加。jacrev/hessianは小Dの独立検証だけ |
+| スカラー・射影 | 既存`HodgeProjector`、`CellRankProjector`、`ScalarExtension.gradient`、`surface_points`、`projected_field(y)` | 公式スカラーsolver・retraction・gradientを再実装しない |
+| 連続Hessian | 既存Gaussian RBFの解析2階微分をPCA空間に追加 | 元離散Hodge/CellRankのHessianではない |
+| Surface divergence・遺伝子座標寄与 | `analysis/surface_divergence.py`、`analysis/gene_contributions.py` | ユーザー指定式の追加解析。原論文や公式packageの既成解析とは扱わない |
+| 候補GRNの感度 | training manifestのhash検証済み候補辺だけに元FのJVPを評価 | 候補辺選択・局所感度であり、GRN再推定・因果推論ではない |
+
+10/13の`d20_adapter.py`は実測細胞・CellUNetに結び付くため入口にせず、10/27の既存ODE-onlyローダーを継続利用する。平面、非ゼロ曲率球面、非対称J、実装元LoRAFieldの人工重みで独立微分との照合を行った。実D20 checkpointでのAD検証はローカルでは未実施。

@@ -87,6 +87,21 @@ class ScalarExtension:
         grad_z += self.coefficients[1:1+self.basis.shape[1]]/self.scale
         return grad_z @ self.basis.T
 
+    def hessian_reduced(self, x):
+        """Analytic RBF Hessian in PCA space at ONE point; no D x D allocation.
+
+        H_x = basis @ H_z @ basis.T. Affine terms have zero Hessian.
+        """
+        x = np.asarray(x, dtype=float)
+        if x.shape != self.mean.shape:
+            raise ValueError('hessian_reduced expects one (D,) state')
+        z = (x-self.mean) @ self.basis
+        delta = z-self.centers
+        weights = np.exp(-np.sum(delta**2, axis=1)/(2*self.bandwidth**2))
+        weights *= self.coefficients[1+self.basis.shape[1]:]
+        return ((delta.T*weights) @ delta / self.bandwidth**4
+                - np.eye(self.basis.shape[1])*weights.sum()/self.bandwidth**2)
+
     def distribution_distance(self, x):
         return self.tree.query(np.atleast_2d(x))[0]
 

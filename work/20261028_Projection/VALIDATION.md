@@ -1,4 +1,6 @@
-# 実装・検証記録（2026-10-28 JST）
+# 初期Velocity射影の実装・検証記録（2026-10-28 JST）
+
+Surface divergence追加後の最新検証は[DIVERGENCE_VALIDATION.md](DIVERGENCE_VALIDATION.md)を参照。以下は初期実装時点の記録である。
 
 実装は `work/20261028_Projection/` 内に追加した。既存学習コード・モデル・checkpointを変更せず、Git push・リモート長時間ジョブは行っていない。作業開始時に存在した他ディレクトリの変更は本作業の変更ではない。
 

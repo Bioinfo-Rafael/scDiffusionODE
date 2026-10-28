@@ -36,6 +36,15 @@ class ODEVelocity:
         self.batch_size = batch_size
         self.provenance = dict(provenance, diffusion_timestep=self.timestep, branch='ODE only')
 
+    def torch_single(self, x):
+        """Differentiable original ODE at fixed t; preserves state-dependent LoRA coefficients.
+
+        For torch.func only: no NumPy conversion, no inference_mode, no parameter update.
+        """
+        import torch
+        t = torch.full((1,), self.timestep, dtype=torch.long, device=x.device)
+        return self.field(x.unsqueeze(0), t).squeeze(0)
+
     def __call__(self, x):
         import torch
         x, single = as_batch(x, len(self.feature_ids))

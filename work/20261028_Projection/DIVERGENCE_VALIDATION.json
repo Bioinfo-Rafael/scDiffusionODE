@@ -1,0 +1,296 @@
+{
+  "date_JST": "2026-10-28",
+  "data_kind": "synthetic_only",
+  "tests": {
+    "passed": 39,
+    "skipped": 1,
+    "warnings": 2,
+    "skip_reason": "Real D20 checkpoint/config unavailable locally"
+  },
+  "background_launcher": {
+    "exit_code": 0,
+    "location": "local macOS validation only; remote execution left to user"
+  },
+  "resume": {
+    "unchanged_cache_files": 90,
+    "settings_change_rejected": true,
+    "original_manifest_preserved": true
+  },
+  "replot": {
+    "model_or_derivative_recomputation": false,
+    "png_count": 5,
+    "artifact_hashes_verified": true
+  },
+  "stochastic_convergence": {
+    "dimension": 10,
+    "seed_count": 24,
+    "rmse_by_probes": {
+      "8": 3.9958694248690008,
+      "512": 0.3264914438499584
+    }
+  },
+  "full_scalar_population": 200,
+  "target_population": 200,
+  "results": {
+    "hodge": {
+      "c": -0.28701461063842343,
+      "target_count": 200,
+      "eligible_count": 200,
+      "excluded_count": 0,
+      "exclusion_reason": "nonfinite scalar or outside original scalar eligible population",
+      "quantiles": [
+        -5.135278618772852,
+        -2.679346681213893,
+        -0.28701461063842343,
+        2.740356542614483,
+        5.708018033824323
+      ],
+      "median_population": "all eligible cells in the five target classes, before overview sampling",
+      "sampled_count": 40,
+      "attempted_retractions": 40,
+      "retraction_success_count": 40,
+      "retraction_success_rate": 1.0,
+      "divergence_success_count": 40,
+      "statuses": {
+        "not_sampled": 160,
+        "ok": 40
+      },
+      "failure_reasons": {},
+      "divergence_mean": 0.3804694185480096,
+      "divergence_median": 0.38646928667535874,
+      "jacobian_mean": -1.3303801649472047,
+      "curvature_mean": 1.710849583495214,
+      "median_trace_se": 0.038400591971362016,
+      "scalar_bias_warning": "Overview describes the selected successful sample, not all target cells"
+    },
+    "cellrank": {
+      "c": 0.623087763306404,
+      "target_count": 200,
+      "eligible_count": 200,
+      "excluded_count": 0,
+      "exclusion_reason": "nonfinite scalar or outside original scalar eligible population",
+      "quantiles": [
+        -0.011801193150053459,
+        0.2834368390136105,
+        0.623087763306404,
+        0.9135670806416942,
+        1.015056599678391
+      ],
+      "median_population": "all eligible cells in the five target classes, before overview sampling",
+      "sampled_count": 40,
+      "attempted_retractions": 40,
+      "retraction_success_count": 34,
+      "retraction_success_rate": 0.85,
+      "divergence_success_count": 34,
+      "statuses": {
+        "not_sampled": 160,
+        "retraction_failed": 6,
+        "ok": 34
+      },
+      "failure_reasons": {
+        "line_search_or_domain_failure": 6
+      },
+      "divergence_mean": -2.3091231830253767,
+      "divergence_median": -1.6200990216082205,
+      "jacobian_mean": -1.3554045729837125,
+      "curvature_mean": -0.9537186100416645,
+      "median_trace_se": 0.03746310879113118,
+      "scalar_bias_warning": "Overview describes the selected successful sample, not all target cells"
+    }
+  },
+  "comparison": {
+    "common_success_count": 34,
+    "paired_cell_ids": [
+      "synthetic_0007",
+      "synthetic_0021",
+      "synthetic_0028",
+      "synthetic_0029",
+      "synthetic_0030",
+      "synthetic_0031",
+      "synthetic_0038",
+      "synthetic_0050",
+      "synthetic_0052",
+      "synthetic_0057",
+      "synthetic_0058",
+      "synthetic_0069",
+      "synthetic_0071",
+      "synthetic_0076",
+      "synthetic_0079",
+      "synthetic_0086",
+      "synthetic_0091",
+      "synthetic_0098",
+      "synthetic_0099",
+      "synthetic_0102",
+      "synthetic_0104",
+      "synthetic_0111",
+      "synthetic_0116",
+      "synthetic_0123",
+      "synthetic_0127",
+      "synthetic_0131",
+      "synthetic_0133",
+      "synthetic_0141",
+      "synthetic_0148",
+      "synthetic_0156",
+      "synthetic_0159",
+      "synthetic_0163",
+      "synthetic_0169",
+      "synthetic_0173"
+    ],
+    "divergence_comparison": "same original cells, different method-specific surface points and c",
+    "correlation_candidates": 1,
+    "correlation_selection": "pre-specified method pair; no scan over alternatives",
+    "shared_mathematics": "same original F, input cells and projection equations; not independent biological evidence",
+    "pearson": -0.06463246350682006,
+    "spearman": -0.08877005347593582,
+    "common_population_statistics": {
+      "hodge": {
+        "surface_divergence": {
+          "mean": 0.38268953066292316,
+          "median": 0.3918112800919161
+        },
+        "jacobian_term": {
+          "mean": -1.3320137628428776,
+          "median": -1.3390393555334201
+        },
+        "curvature_term": {
+          "mean": 1.7147032935058009,
+          "median": 1.7212971512205
+        }
+      },
+      "cellrank": {
+        "surface_divergence": {
+          "mean": -2.3091231830253767,
+          "median": -1.6200990216082205
+        },
+        "jacobian_term": {
+          "mean": -1.3554045729837125,
+          "median": -1.3586747290373629
+        },
+        "curvature_term": {
+          "mean": -0.9537186100416645,
+          "median": -0.273331939660556
+        }
+      }
+    },
+    "common_representative_count": 5,
+    "ranking_candidate_genes": 10,
+    "gene_rank_spearman": 0.06666666666666665,
+    "top_k": 10,
+    "top_k_overlap_informative": false,
+    "top_k_overlap": 10,
+    "top_k_jaccard": 1.0
+  },
+  "representatives": {
+    "hodge": {
+      "count": 5,
+      "top3_synthetic_coordinates": [
+        {
+          "gene_id": "SYN0001",
+          "signed_mean": 0.1607890171465054,
+          "mean_absolute": 0.1607890171465054,
+          "jacobian_mean": -0.0526082915144648,
+          "curvature_mean": 0.2133973086609702,
+          "rank": 1
+        },
+        {
+          "gene_id": "SYN0002",
+          "signed_mean": 0.1495319851348043,
+          "mean_absolute": 0.1495319851348043,
+          "jacobian_mean": -0.0736059074166479,
+          "curvature_mean": 0.2231378925514522,
+          "rank": 2
+        },
+        {
+          "gene_id": "SYN0009",
+          "signed_mean": -0.0677210509800134,
+          "mean_absolute": 0.0677210509800134,
+          "jacobian_mean": -0.1812893047061535,
+          "curvature_mean": 0.11356825372614,
+          "rank": 3
+        }
+      ],
+      "max_gene_sum_residual": 2.775557561562891e-16,
+      "max_decomposition_residual": 3.3306690738754696e-16,
+      "max_per_probe_decomposition_residual": 8.881784197001252e-16,
+      "max_overview_error_in_se": 0.7905326443875188
+    },
+    "cellrank": {
+      "count": 5,
+      "top3_synthetic_coordinates": [
+        {
+          "gene_id": "SYN0008",
+          "signed_mean": -0.3599948258683599,
+          "mean_absolute": 0.3599948258683599,
+          "jacobian_mean": -0.1826029823337264,
+          "curvature_mean": -0.1773918435346334,
+          "rank": 1
+        },
+        {
+          "gene_id": "SYN0009",
+          "signed_mean": -0.3230224315545013,
+          "mean_absolute": 0.3230224315545013,
+          "jacobian_mean": -0.1833749004557364,
+          "curvature_mean": -0.1396475310987649,
+          "rank": 2
+        },
+        {
+          "gene_id": "SYN0006",
+          "signed_mean": -0.2936158381861958,
+          "mean_absolute": 0.2936158381861958,
+          "jacobian_mean": -0.1470262722010543,
+          "curvature_mean": -0.1465895659851415,
+          "rank": 3
+        }
+      ],
+      "max_gene_sum_residual": 2.775557561562891e-16,
+      "max_decomposition_residual": 4.440892098500626e-16,
+      "max_per_probe_decomposition_residual": 3.552713678800501e-15,
+      "max_overview_error_in_se": 0.7240016395127108
+    }
+  },
+  "scalar_fit": {
+    "hodge": {
+      "fit_count": 160,
+      "max_abs_error": 0.020637072215672347,
+      "pca_explained_variance": 0.9900882085184862,
+      "support_definition": "Euclidean distance to nearest of at most 4096 original-space anchors",
+      "support_radius": 0.9527813712322836,
+      "target_range": 10.853954744001502,
+      "training_rmse": 0.004344491938418295,
+      "validation_count": 40,
+      "validation_nrmse": 0.0005747271594544747,
+      "validation_rmse": 0.006238062578867404
+    },
+    "cellrank": {
+      "fit_count": 160,
+      "max_abs_error": 0.052643731589358755,
+      "pca_explained_variance": 0.9900882085184862,
+      "support_definition": "Euclidean distance to nearest of at most 4096 original-space anchors",
+      "support_radius": 0.9527813712322836,
+      "target_range": 1.0,
+      "training_rmse": 0.014959350993495315,
+      "validation_count": 40,
+      "validation_nrmse": 0.024367007689436716,
+      "validation_rmse": 0.024367007689436716
+    }
+  },
+  "source_hashes": {
+    "common/scalar_extension.py": "000a7d3cea00e2395f6b20183e65949ddfe0939c3a0b029c9c4e42aa9018a49d",
+    "common/velocity_adapter.py": "24a1544f6d9fc90784422ee67f0027ae8751e6e3b8b37f5aed652203f3f2f7eb",
+    "common/levelset_projection.py": "c07f9e56606c00191889859849651357bde7dcb9901998e1566bf3c65026a93e",
+    "analysis/surface_divergence.py": "1fa6613962335d41482d424456eecc67e0ab2477b89a7ae990b79e162a137b38",
+    "analysis/gene_contributions.py": "4e2b41b6cbea1543b9d41698acc2ff6b5f53ebb5c4bbf2dc99587c125ecec1d7",
+    "analysis/diagnostics.py": "157136eff2c83013ee3503c7237cb61242bb9fa1ff8059d12432072862893379",
+    "scripts/run_divergence_analysis.py": "8c8a82faf695eeed779a6447544cf98ae34ab1f11f0be30233f0ed12deb8636f",
+    "analysis/smoke_data.py": "659cd01eb5f5f4580b586ee9492a7b471fce989799be6fdfe4c677b810a544d5"
+  },
+  "output_directory": "work/20261028_Projection/outputs/divergence_analysis/smoke",
+  "packages": {
+    "torch": "2.7.1",
+    "numpy": "1.26.4",
+    "scipy": "1.14.1",
+    "scanpy": "1.10.4",
+    "cellrank": "2.0.7",
+    "matplotlib": "3.11.2"
+  }
+}
