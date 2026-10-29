@@ -39,3 +39,7 @@
 | 候補GRNの感度 | training manifestのhash検証済み候補辺だけに元FのJVPを評価 | 候補辺選択・局所感度であり、GRN再推定・因果推論ではない |
 
 10/13の`d20_adapter.py`は実測細胞・CellUNetに結び付くため入口にせず、10/27の既存ODE-onlyローダーを継続利用する。平面、非ゼロ曲率球面、非対称J、実装元LoRAFieldの人工重みで独立微分との照合を行った。実D20 checkpointでのAD検証はローカルでは未実施。
+
+## 環境分離（2026-10-29）
+
+`CellRank/subprocess_bridge.py`は親でX/F(X)をNPZへ保存し、指定した別Pythonから`CellRank/worker.py`を起動する。子も同じ既存`cellrank_core.py`を呼び、公式計算の式・solver・terminal定義を変更しない。親と子で異なるAnnDataバージョンを使えるよう、境界はNPZ/JSON/CSRのみ。checkpointやモデルPython objectを子へ渡さない。`CELLRANK_PYTHON`未指定の既存APIは同一プロセス呼出しを維持する。検証では親Python 3.9/Torch 2.5.1/CellRankなし、子Python 3.11/CellRank 2.0.7/Torchなしを使う。

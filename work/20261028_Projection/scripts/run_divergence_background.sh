@@ -28,7 +28,8 @@ for arg in "$@"; do
             exec "$PYTHON" "$script_dir/run_divergence_analysis.py" --help ;;
     esac
 done
-"$PYTHON" -c 'import sys, torch, cellrank, scanpy, anndata; assert cellrank.__version__ == "2.0.7", "CellRank 2.0.7 required"; print("Python:", sys.executable, "Torch:", torch.__version__, "CUDA:", torch.cuda.is_available())'
+preflight=$("$PYTHON" "$script_dir/check_environment.py" "$@")
+printf '%s\n' "$preflight"
 if ! command -v "${JULIA:-julia}" >/dev/null; then
     echo 'Julia missing: set JULIA=/absolute/path/to/julia (tested 1.10.10).' >&2
     exit 2
@@ -41,7 +42,18 @@ git rev-parse HEAD > "$job_dir/source_commit"
 git status --short -- work/20261028_Projection > "$job_dir/source_status"
 printf '%q ' "$PYTHON" "$script_dir/run_divergence_analysis.py" --output "$job_dir/analysis" "$@" > "$job_dir/command.txt"
 printf '\n' >> "$job_dir/command.txt"
-nohup bash "$script_dir/run_divergence_background.sh" --worker "$job_dir" "$@" > "$job_dir/console.log" 2>&1 < /dev/null &
-job_pid=$!
+printf '%s\n' "$preflight" > "$job_dir/environment.json"
+job_pid=$("$PYTHON" - "$script_dir/run_divergence_background.sh" "$job_dir" "$@" <<'PY'
+import subprocess
+import sys
+from pathlib import Path
+script, directory, *args = sys.argv[1:]
+with open(Path(directory)/'console.log', 'w') as log:
+    child = subprocess.Popen(['bash', script, '--worker', directory, *args],
+                             stdin=subprocess.DEVNULL, stdout=log, stderr=subprocess.STDOUT,
+                             start_new_session=True)
+print(child.pid)
+PY
+)
 printf '%s\n' "$job_pid" > "$job_dir/launcher.pid"
 printf 'PID=%s\nJOB_DIR=%s\nLOG=%s/console.log\nOUTPUT=%s/analysis\n' "$job_pid" "$job_dir" "$job_dir" "$job_dir"

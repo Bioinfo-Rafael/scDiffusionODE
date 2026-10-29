@@ -2,7 +2,7 @@
 import numpy as np
 from common.base import BaseProjector
 from common.velocity_adapter import evaluate_velocity
-from . import cellrank_core as official
+from .subprocess_bridge import VERSION, run_cellrank
 
 
 class CellRankProjector(BaseProjector):
@@ -10,7 +10,8 @@ class CellRankProjector(BaseProjector):
 
     def fit_scalar(self, *, terminal_obs_key, terminal_values, lineage=None,
                    n_neighbors=30, similarity='cosine', softmax_scale=10.0,
-                   seed=0, solver='gmres', tol=1e-8, min_absorption_probability=1e-6):
+                   seed=0, solver='gmres', tol=1e-8, min_absorption_probability=1e-6,
+                   cellrank_python=None, worker_directory=None, worker_timeout=None):
         keys = ['projection_cellrank', 'projection_cellrank_absorption_steps',
                 'projection_cellrank_eligible', 'projection_cellrank_absorption_probability']
         self._check_free(keys, 'projection_cellrank_transition')
@@ -32,20 +33,17 @@ class CellRankProjector(BaseProjector):
         x = self._expression()
         v = evaluate_velocity(self.velocity, x)
         try:
-            kernel = official.velocity_kernel(x, v, self.adata.obs, self.adata.var,
-                                             n_neighbors=n_neighbors, seed=seed)
-            p, p_checks = official.transition_matrix(kernel, similarity=similarity,
-                                                    softmax_scale=softmax_scale, seed=seed)
-            estimator = official.terminal_estimator(kernel, terminal_cells)
-            times, probabilities = official.absorption_times(estimator, solver=solver, tol=tol)
-            absorption_checks = official.validate_absorption(estimator, times, probabilities, tol=tol)
+            result = run_cellrank(x, v, self.adata.obs_names.tolist(), self.adata.var_names.tolist(), terminal_cells,
+                dict(n_neighbors=n_neighbors, seed=seed, similarity=similarity, softmax_scale=softmax_scale,
+                     solver=solver, tol=tol), python=cellrank_python, work_directory=worker_directory, timeout=worker_timeout)
         except Exception as exc:
             self._record_failure('official_cellrank', exc)
             raise
-        if not times.index.equals(self.adata.obs_names):
+        if list(result['cell_ids']) != self.adata.obs_names.tolist():
             raise RuntimeError('Official absorption times cell order changed')
-        t = times[lineage+'_mean'].to_numpy(dtype=float)
-        probability = np.asarray(probabilities[:, lineage]).reshape(-1)
+        p, times, probabilities = result['transition'], result['times'], result['probabilities']
+        t = np.asarray(times[:, result['time_columns'].index(lineage+'_mean')], dtype=float)
+        probability = np.asarray(probabilities[:, result['probability_columns'].index(lineage)]).reshape(-1)
         probability_tolerance = max(1e-6, 100*tol)
         if not np.isfinite(probability).all() or (probability < -probability_tolerance).any() or (probability > 1+probability_tolerance).any():
             raise RuntimeError('Invalid official absorption probabilities')
@@ -63,18 +61,18 @@ class CellRankProjector(BaseProjector):
         self.transition_matrix = p
         self.intermediates = dict(X=x, V=v, absorption_steps=t, absorption_probability=probability,
                                   tau_discrete=tau, eligible=valid,
-                                  all_absorption_times=times.to_numpy(), all_fate_probabilities=np.asarray(probabilities))
+                                  all_absorption_times=times, all_fate_probabilities=np.asarray(probabilities))
         scalar, main = self._fit_extension(x, tau, valid)
         self.adata.obs['projection_cellrank'] = main
         self._record(scalar, dict(terminal_obs_key=terminal_obs_key, terminal_cells=terminal_cells,
-            lineage=lineage, all_absorption_time_columns=times.columns.tolist(),
-            all_fate_probability_columns=list(probabilities.names),
+            lineage=lineage, all_absorption_time_columns=result['time_columns'],
+            all_fate_probability_columns=result['probability_columns'],
             interpretation='conditional mean steps to selected lineage, all competing states retained',
             normalization=dict(T_min=tmin, T_max=tmax, formula='1-(T-T_min)/(T_max-T_min)',
                                min_absorption_probability=min_absorption_probability),
-            eligible_cells=self.adata.obs_names[valid].tolist(), transition_checks=p_checks,
-            absorption_checks=absorption_checks,
-            official=dict(version=official.VERSION, settings=dict(n_neighbors=n_neighbors,
+            eligible_cells=self.adata.obs_names[valid].tolist(), transition_checks=result['transition_checks'],
+            absorption_checks=result['absorption_checks'], execution=result['runtime'],
+            official=dict(version=VERSION, settings=dict(n_neighbors=n_neighbors,
                 use_rep='X', xkey='projection_expression', vkey='projection_velocity',
                 model='deterministic', similarity=similarity, softmax_scale=softmax_scale,
                 seed=seed, solver=solver, tol=tol, use_petsc=False, n_jobs=1)),

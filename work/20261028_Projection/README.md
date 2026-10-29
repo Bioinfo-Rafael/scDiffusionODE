@@ -2,7 +2,38 @@
 
 新しい解析の入口は **`scripts/run_divergence_analysis.py`**。既存D20 LoRA（EMA、timestep 49）を読み、全training細胞の公式Hodge/CellRankスカラーを準備し、5クラスの有効細胞から中央値cを選び、retraction先yでsurface divergenceと遺伝子座標別寄与を計算する。最初に見る図は **Figure 1**。完成図は全体でPNG **5枚だけ**で、手法・クラスごとの画像は増やさない。
 
-環境構築済みならrepository rootから次で実行できる。`python` は後述の固定依存を満たす環境を使う。既存環境を変更したくない場合は後述の専用venvを使い、`python` をそのPythonパスに置き換える。
+**既存`scdiffusion`を親プロセスとして使える（Python 3.9 / PyTorch 2.5.1で検証）。CellRankだけ別のPython 3.11環境のsubprocessで計算する。** 既存`scdiffusion`に`requirements.txt`やCellRankをインストールしない。
+
+リモートではrepository rootから、初回だけCellRank用環境を作る。`conda run -n ...`でインストール先を明示するので、現在有効な`scdiffusion`のpackageを更新しない。すでに同名環境を作成済みなら`conda create`を繰り返さず、チェックコマンドで確認する。
+
+```bash
+git pull --ff-only origin main
+conda create -n scprojection-cellrank python=3.11 pip -y
+conda run -n scprojection-cellrank python -m pip install -r work/20261028_Projection/requirements-cellrank.txt
+conda run -n scprojection-cellrank python -m pip check
+
+conda activate scdiffusion
+export CELLRANK_PYTHON="$(conda run -n scprojection-cellrank python -c 'import sys; print(sys.executable)')"
+# 必要なら export JULIA=/absolute/path/to/julia
+python work/20261028_Projection/scripts/check_environment.py
+PYTHON="$(command -v python)" bash work/20261028_Projection/scripts/run_divergence_background.sh --device auto
+```
+
+`CELLRANK_PYTHON`は**実行ファイルのパス**を指定し、`conda run ...`というコマンド文字列は指定しない。CLIの`--cellrank-python /path/to/python`でも指定できる。launcherは親の実import・JVPと子のCellRank実importを確認してから起動し、インストールは一切行わない。Juliaは既存どおり別プロセスで、環境準備は後述。
+
+| 処理 | 実行場所 |
+|---|---|
+| D20復元・Velocity・JVP/VJP・補間・retraction・集計・作図 | 親`scdiffusion`。checkpointは親だけが読む |
+| 公式VelocityKernel・遷移行列・吸収確率・吸収時間・残差検証 | `CELLRANK_PYTHON`の子プロセス。D20やPyTorchは不要 |
+| 公式ddHodge | Julia子プロセス（従来どおり） |
+
+CellRankへ渡すのは親が計算したX、F(X)、順序付きcell/gene ID、terminal cell ID、設定だけ。NPZ/JSONで渡し、疎行列はCSR NPZで返す。異なるAnnDataバージョン間でH5ADを往復させず、pickleも使わない。返却ファイルhash、要求hash、ID順序、形状、lineage列、遷移行列を確認してから使用する。失敗・timeout時に親環境の別solverへ切り替えない。
+
+本解析の交換ファイル・`worker.log`は`OUTPUT/cellrank_worker/cellrank-worker-*/`に保存する。全細胞のX/Vを渡すため追加ディスク容量が必要（89,267×1,024のfloat64を2配列なら約1.46 GB、結果ファイルは別途）。API単独利用で`worker_directory`未指定の場合、成功時の一時ファイルだけを自動削除し、失敗時は保存先を例外に表示する。子のPython・package・source hashは`manifest.cellrank_backend`とスカラーmetadataの`execution`へ記録し、親のversionとは区別する。
+
+`CELLRANK_PYTHON`もCLI指定もない場合は従来の同一プロセス経路を維持するが、その場合のみ親にCellRankが必要。再開時も同じ子環境を指定する。子の実行環境・コードが変わる場合は新しい出力先を使う。全工程の環境分離検証は[SUBPROCESS_VALIDATION.md](SUBPROCESS_VALIDATION.md)を参照。
+
+上記の`conda activate`と`CELLRANK_PYTHON`指定後、直接実行する場合は次を使う。
 
 ```bash
 # 人工データで全工程を確認（実データの代用品にはしない）
@@ -23,7 +54,7 @@ PYTHON=python bash work/20261028_Projection/scripts/run_divergence_background.sh
 # PYTHON=work/20261028_Projection/.venv/bin/python bash work/20261028_Projection/scripts/run_divergence_background.sh
 ```
 
-起動時に`PID`、`JOB_DIR`、`LOG`、`OUTPUT`を表示する。`JOB_DIR`には`launcher.pid`、`console.log`、`source_commit`、`source_status`、`command.txt`を保存し、処理終了後に`exit_code`を作る。結果は`JOB_DIR/analysis/`。終了コード0でも個別細胞の失敗はあり得るため`analysis/manifest.json`のstatus・成功率を確認する。
+起動時に`PID`、`JOB_DIR`、`LOG`、`OUTPUT`を表示する。子launcherを独立したOSセッションで起動し、標準入出力を端末から切り離す。`JOB_DIR`には`launcher.pid`、`console.log`、`source_commit`、`source_status`、`command.txt`、親・子の実行環境を記録した`environment.json`を保存し、処理終了後に`exit_code`を作る。結果は`JOB_DIR/analysis/`。終了コード0でも個別細胞の失敗はあり得るため`analysis/manifest.json`のstatus・成功率を確認する。
 
 ```bash
 # 起動時に表示されたパスを代入
@@ -88,7 +119,7 @@ C_i=C_i^{(J)}+C_i^{(C)},\quad \sum_i C_i=D_S.
 
 UMAPの座標は**元の入力細胞xの既存UMAP**。色は移動先yでの計算値で、y自体のembeddingではない。元UMAPがなければそのパネルに未提供と記し、再推定しない（人工fixtureのみ検証用UMAPを作る）。寄与は発現座標・尺度依存の局所的な数値量であり、遺伝子の因果効果や分化経路への生物学的復元力を意味しない。単位はモデルの任意rate単位で、生物学的時間への換算は未検証。
 
-検証結果・人工例の数値・未実施範囲は[DIVERGENCE_VALIDATION.md](DIVERGENCE_VALIDATION.md)、公式機能との境界は[SOURCE_REUSE_MAP.md](SOURCE_REUSE_MAP.md)を参照。今回の解析による追加packageはない。以下は既存Callable・スカラー準備APIの説明である。
+検証結果・人工例の数値・未実施範囲は[DIVERGENCE_VALIDATION.md](DIVERGENCE_VALIDATION.md)、公式機能との境界は[SOURCE_REUSE_MAP.md](SOURCE_REUSE_MAP.md)を参照。divergence計算自体の追加packageはないが、公式CellRank/ScanpyはCellRank用環境に必要。以下は既存Callable・スカラー準備APIの説明である。
 
 ## Hodge・CellRankによる等値面へのVelocity射影API
 
@@ -131,9 +162,9 @@ v, diagnostics = projected_field.evaluate(x)
 
 `c=0.5` を既定値にしない。Hodgeは正規化しないため、とくに0.5が有効範囲にあるとは限らない。`projector.scalar.valid_range` を確認する。CellRankでは `fit_scalar(terminal_obs_key='celltype', terminal_values=['Erythroid3'])` のように対象を必ず明示する。
 
-## 環境と再現コマンド
+## 従来の単一Python環境とJuliaの準備
 
-Python **3.11**、Julia **1.10.10**。Pythonの直接・間接依存は `requirements.txt` に固定し、Julia依存はPkgで実際に生成した `Hodge/julia_env/Manifest.toml` に固定した。ddHodge **0.7.1 / d5d6b09431c0ccbb16e0b63414a5038511c19b85**、CellRank **2.0.7 / tag v2.0.7**を使用する。CellRankの別versionは明示的に拒否する。Juliaも実際のddHodge revisionを確認する。
+**既存scdiffusionを使う場合は冒頭の環境分離手順を使い、下記requirementsをscdiffusionに入れない。** 以下は従来の全機能を1環境に入れる構成。Python **3.11**、Julia **1.10.10**。Pythonの直接・間接依存は `requirements.txt` に固定し、Julia依存はPkgで実際に生成した `Hodge/julia_env/Manifest.toml` に固定した。ddHodge **0.7.1 / d5d6b09431c0ccbb16e0b63414a5038511c19b85**、CellRank **2.0.7 / tag v2.0.7**を使用する。CellRankの別versionは明示的に拒否する。Juliaも実際のddHodge revisionを確認する。
 
 ```bash
 python3.11 -m venv work/20261028_Projection/.venv

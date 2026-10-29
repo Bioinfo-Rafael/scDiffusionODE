@@ -34,7 +34,7 @@ def make_smoke(seed=28):
     x = 2+time[:, None]*direction+rng.normal(0, .12, (n, d))
     velocity = SyntheticVelocity(d)
     labels = np.repeat(cell_classes(), n//5)
-    a = ad.AnnData(x, obs=pd.DataFrame({'celltype': pd.Categorical(labels)},
+    a = ad.AnnData(x, dtype=x.dtype, obs=pd.DataFrame({'celltype': pd.Categorical(labels)},
         index=[f'synthetic_{i:04d}' for i in range(n)]), var=pd.DataFrame(index=velocity.feature_ids))
     a.uns['data_kind'] = 'synthetic: class names are test labels, not biological observations'
     sc.pp.neighbors(a, n_neighbors=15, use_rep='X', random_state=seed)

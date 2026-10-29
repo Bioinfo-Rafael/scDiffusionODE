@@ -6,6 +6,7 @@ import sys
 import traceback
 import importlib.metadata
 import hashlib
+import os
 import numpy as np
 import pandas as pd
 import anndata as ad
@@ -19,6 +20,7 @@ from common.velocity_adapter import load_d20
 from common.base import data_identity, sha256
 from Hodge.projector import HodgeProjector
 from CellRank.projector import CellRankProjector
+from CellRank.subprocess_bridge import check_backend
 from analysis.surface_divergence import TorchDerivatives
 from analysis.gene_contributions import grn_sensitivities
 from analysis.diagnostics import (METHODS, METRICS, cell_classes, write_json, json_value, save_npz_new,
@@ -26,7 +28,7 @@ from analysis.diagnostics import (METHODS, METRICS, cell_classes, write_json, js
     method_summary, gene_rank_table, comparison_summary)
 
 
-def prepare_scalar(cls, velocity, full, saved, output, config, signature, smoke):
+def prepare_scalar(cls, velocity, full, saved, output, config, signature, smoke, cellrank_python=None):
     """Reuse verified ALL-cell artifacts; explicitly recompute mismatched/subset populations."""
     destination = output/'scalars'/cls.method
     candidate = destination if (destination/'metadata.json').exists() else saved
@@ -53,7 +55,8 @@ def prepare_scalar(cls, velocity, full, saved, output, config, signature, smoke)
         projector.fit_scalar(k=12, rdim=4, seed=config['seed'])
     else:
         projector.fit_scalar(terminal_obs_key='celltype', terminal_values=['Erythroid3'],
-                             n_neighbors=15 if smoke else 30, seed=config['seed'])
+                             n_neighbors=15 if smoke else 30, seed=config['seed'],
+                             cellrank_python=cellrank_python, worker_directory=output/'cellrank_worker')
     projector.save(destination)
     return projector, dict(action='recomputed_full_population', reason=reason, path=str(destination),
                            scalar_population=full.n_obs, metadata_sha256=sha256(destination/'metadata.json'))
@@ -94,6 +97,8 @@ def main():
     parser.add_argument('--replot', type=Path, help='Regenerate the same five PNGs using saved tables/NPZ only')
     parser.add_argument('--hodge-dir', type=Path, default=HERE/'outputs/hodge')
     parser.add_argument('--cellrank-dir', type=Path, default=HERE/'outputs/cellrank')
+    parser.add_argument('--cellrank-python', default=os.environ.get('CELLRANK_PYTHON'),
+                        help='Separate CellRank Python executable; default CELLRANK_PYTHON. Parent retains D20/AD.')
     parser.add_argument('--samples-per-class', type=int, help='Default real:128, smoke:8; 0=all target cells')
     parser.add_argument('--representatives-per-class', type=int, help='Default real:2, smoke:1')
     parser.add_argument('--probes', type=int, help='Default real:64, smoke:32')
@@ -129,6 +134,10 @@ def main():
                     completed_stages=[], request_date_JST='2026-10-28')
     if not previous_manifest_exists: write_json(manifest_path, manifest)
     try:
+        manifest['stage'] = 'check_cellrank_backend'
+        cellrank_backend = check_backend(args.cellrank_python)
+        manifest.update(cellrank_backend=cellrank_backend, parent_python=sys.executable, parent_python_version=sys.version)
+        manifest['stage'] = 'load_model_and_data'
         # 1. Load the unchanged model and ALL training cells (no five-class scalar refit).
         config = json.loads(Path(args.config).read_text()); config['seed'] = args.seed
         if config['weights'] != 'ema' or config.get('timestep', 49) != 49:
@@ -151,9 +160,10 @@ def main():
         signature = data_identity(full)
         numerical_files = [HERE/'common/scalar_extension.py', HERE/'common/velocity_adapter.py',
             HERE/'common/levelset_projection.py', HERE/'analysis/surface_divergence.py',
-            HERE/'analysis/gene_contributions.py', HERE/'analysis/diagnostics.py', Path(__file__)]
+            HERE/'analysis/gene_contributions.py', HERE/'analysis/diagnostics.py', Path(__file__),
+            HERE/'CellRank/projector.py', HERE/'CellRank/subprocess_bridge.py', HERE/'CellRank/worker.py', HERE/'CellRank/cellrank_core.py']
         if args.smoke: numerical_files.append(HERE/'analysis/smoke_data.py')
-        identity = dict(input=signature, model=velocity.provenance,
+        identity = dict(input=signature, model=velocity.provenance, cellrank_backend=cellrank_backend,
             celltype_labels_sha256=hashlib.sha256(json.dumps(full.obs.celltype.astype(str).tolist()).encode()).hexdigest(),
             derivative_device=str(derivatives.device), derivative_dtype=str(derivatives.dtype),
             config=config, sample_per_class=args.samples_per_class, representatives_per_class=args.representatives_per_class,
@@ -167,7 +177,7 @@ def main():
         manifest.update(identity=identity, full_scalar_population=full.n_obs, target_population=len(target),
                         target_cell_ids=target.obs_names.tolist(), feature_ids=target.var_names.tolist(),
                         class_counts=target.obs.celltype.value_counts().to_dict(),
-                        packages={p: importlib.metadata.version(p) for p in ('torch', 'numpy', 'scipy', 'scanpy', 'cellrank', 'matplotlib')},
+                        packages={p: importlib.metadata.version(p) for p in ('torch', 'numpy', 'scipy', 'anndata', 'pandas', 'scikit-learn', 'matplotlib')},
                         device=str(derivatives.device), dtype=str(derivatives.dtype))
         manifest['completed_stages'].append('load_model_and_data')
         # 2. Reuse existing official Hodge/CellRank projectors, full-population artifacts preferred.
@@ -175,7 +185,7 @@ def main():
         for cls, saved in ((HodgeProjector, args.hodge_dir), (CellRankProjector, args.cellrank_dir)):
             manifest['stage'] = 'prepare_scalar_'+cls.method; write_json(manifest_path, manifest)
             projectors[cls.method], scalar_sources[cls.method] = prepare_scalar(cls, velocity, full, saved,
-                                                                            output, config, signature, args.smoke)
+                                                                            output, config, signature, args.smoke, args.cellrank_python)
             manifest['completed_stages'].append(manifest['stage'])
         scalar_identity = {m: scalar_sources[m]['metadata_sha256'] for m in METHODS}
         scalar_identity_path = output/'scalar_identity.json'

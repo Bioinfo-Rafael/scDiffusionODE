@@ -24,6 +24,7 @@ def main():
     parser.add_argument('--max-cells', type=int)
     parser.add_argument('--n-neighbors', type=int, default=30)
     parser.add_argument('--device', default='cpu')
+    parser.add_argument('--cellrank-python', help='Separate Python executable; also accepts CELLRANK_PYTHON')
     args = parser.parse_args()
     if args.c is not None and not args.resume:
         parser.error('--c requires --resume: inspect saved scalar first')
@@ -40,7 +41,7 @@ def main():
         projector = CellRankProjector(velocity, adata, interpolation=config['interpolation'])
         projector.fit_scalar(terminal_obs_key=args.terminal_obs_key,
             terminal_values=args.terminal_values, lineage=args.lineage,
-            n_neighbors=args.n_neighbors, seed=config['seed'])
+            n_neighbors=args.n_neighbors, seed=config['seed'], cellrank_python=args.cellrank_python)
         print('Saved:', projector.save(args.output))
     print(adata.obs[['projection_cellrank_absorption_steps', 'projection_cellrank']].head())
     print('Selectable c range:', projector.scalar.valid_range)
