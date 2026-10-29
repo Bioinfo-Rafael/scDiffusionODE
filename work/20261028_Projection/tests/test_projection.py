@@ -28,6 +28,20 @@ def test_evaluates_velocity_at_y_not_x():
     np.testing.assert_allclose(f([2., 3.]), [0., .5])
 
 
+def test_nonnegative_boundary_uses_feasible_direction():
+    class SumPlane(Plane):
+        def values(self, x): return np.sum(np.atleast_2d(x), axis=1)
+        def gradient(self, x): return np.ones_like(np.atleast_2d(x))
+    f = ProjectedField(lambda x: np.ones_like(x), SumPlane(), 1., 2)
+    point = f.surface_points([0., 2.])
+    np.testing.assert_allclose(point, [0., 1.], atol=1e-8)
+    assert np.all(point >= 0)
+    assert f.last_diagnostics['surface_residual'][0] <= f.tolerance
+    blocked = ProjectedField(lambda x: x, Plane(), -1., 2)
+    with pytest.raises(ProjectionError, match='blocked_feasible_gradient'):
+        blocked.surface_points([0., 1.])
+
+
 def test_invalid_and_vanishing_gradient():
     with pytest.raises(ValueError): ProjectedField(lambda x: x, Plane(), 20, 2)
     f = ProjectedField(lambda x: x, Plane(), 1, 2)

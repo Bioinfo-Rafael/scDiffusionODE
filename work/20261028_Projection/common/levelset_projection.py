@@ -12,6 +12,8 @@ class ProjectionError(RuntimeError):
 class ProjectedField:
     """F_c(x)=(I-gg^T/||g||²)F(y), y obtained by local normal retraction.
 
+    At the nonnegative boundary, the residual-reducing direction is restricted to
+    feasible coordinates and trial points are clipped to the nonnegative orthant.
     Does not guarantee a unique, nearest or reachable surface point. A batch fails
     atomically if any row fails; partial/unconverged velocities are never returned.
     """
@@ -29,7 +31,8 @@ class ProjectedField:
         if not np.isfinite(self.max_distance) or self.max_distance <= 0:
             raise ValueError('Positive support distance required')
         self.settings = dict(tolerance=tolerance, gradient_min=gradient_min, max_iterations=max_iterations,
-                             nonnegative=nonnegative, max_distribution_distance=self.max_distance)
+                             nonnegative=nonnegative, max_distribution_distance=self.max_distance,
+                             retraction_method='active_set_nonnegative' if nonnegative else 'normal')
         self.last_diagnostics = None
 
     def _retract(self, x):
@@ -54,13 +57,19 @@ class ProjectedField:
                     reason = 'converged'; break
                 if iteration == self.max_iterations:
                     break
-                step = residual*g/norm2
+                direction = -np.sign(residual)*g
+                if self.nonnegative:
+                    direction[(row <= 0) & (direction < 0)] = 0
+                feasible_norm2 = float(direction @ direction)
+                if feasible_norm2 < self.gradient_min**2:
+                    reason = 'blocked_feasible_gradient'; break
+                step = abs(residual)*direction/feasible_norm2
                 # Backtracking avoids invalid expression and rejects non-decreasing residual.
                 accepted = False
                 for fraction in 0.5**np.arange(30):
-                    candidate = row-fraction*step
-                    if self.nonnegative and (candidate < 0).any():
-                        continue
+                    candidate = row+fraction*step
+                    if self.nonnegative:
+                        candidate = np.maximum(candidate, 0.)
                     if self.scalar.distribution_distance(candidate)[0] > self.max_distance:
                         continue
                     if abs(self.scalar.values(candidate)[0]-self.c) < abs(residual):

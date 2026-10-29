@@ -113,6 +113,9 @@ def analyze_overview(projector, derivatives, target, sample, values, eligible, c
                     diagnostics = dict(field.last_diagnostics)
                     tangent_velocity = field(y)  # Existing callable, already on its surface.
                     diagnostics['tangent_error'] = field.last_diagnostics['tangent_error']
+                    # Ambient level-set tangent velocity need not respect the orthant boundary.
+                    record['surface_zero_coordinates'] = int(np.count_nonzero(y == 0))
+                    record['surface_zero_outward_velocity'] = int(np.count_nonzero((y == 0) & (tangent_velocity < 0)))
                     for key in ('surface_residual', 'displacement', 'distribution_distance', 'gradient_norm', 'tangent_error'):
                         record[key] = float(diagnostics[key][0])
                     record['retraction_success'] = True
