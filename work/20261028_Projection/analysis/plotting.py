@@ -126,7 +126,7 @@ def plot_saved(directory, top_genes=20):
     ax[2, 0].set_title('Surface divergence: successful sampled cells')
     ax[2, 0].set_xlabel('Surface divergence (model-rate units)'); ax[2, 0].set_ylabel('Cells')
     text = ['Same initial-cell sample for both methods.', 'Each c = median over ALL eligible target cells.',
-            'Scalar fit population: '+str(manifest['full_scalar_population']),
+            'Scalar fit population: '+str(manifest.get('scalar_population', manifest.get('full_scalar_population'))),
             'CellRank terminal: all Erythroid3 cells.',
             'Overview: JVP Hutchinson trace + analytic curvature.',
             'Detailed genes: exact streamed coordinate derivatives.']

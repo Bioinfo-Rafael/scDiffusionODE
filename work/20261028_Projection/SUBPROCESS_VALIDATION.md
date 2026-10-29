@@ -50,3 +50,6 @@ JULIA=/tmp/julia-1.10.10/bin/julia JULIA_DEPOT_PATH=/tmp/scprojection-julia-depo
 ```
 
 Linux/GPU、実D20 checkpoint、全training細胞での時間・メモリは未検証。親の既存依存に不整合がある場合、今回の仕組みで自動修復はしない。子が別環境であることは、親で欠けているD20実行用依存を補うものではない。交換ファイルと失敗ログは本解析の出力配下に保持するため、全細胞X/V用の追加ディスク容量が必要。
+
+
+2026-10-29追記：本報告の検証後、divergence entry pointのスカラー推定母集団もbenchmarkの5クラスに限定した。上記の過去の測定値は変更していない。母集団変更の回帰検証は`tests/test_scalar_population.py`を参照。

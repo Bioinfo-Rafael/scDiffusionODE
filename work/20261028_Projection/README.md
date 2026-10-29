@@ -1,6 +1,6 @@
 # 等値面上のdivergence・遺伝子別寄与とVelocity射影
 
-新しい解析の入口は **`scripts/run_divergence_analysis.py`**。既存D20 LoRA（EMA、timestep 49）を読み、全training細胞の公式Hodge/CellRankスカラーを準備し、5クラスの有効細胞から中央値cを選び、retraction先yでsurface divergenceと遺伝子座標別寄与を計算する。最初に見る図は **Figure 1**。完成図は全体でPNG **5枚だけ**で、手法・クラスごとの画像は増やさない。
+新しい解析の入口は **`scripts/run_divergence_analysis.py`**。既存D20 LoRA（EMA、timestep 49）を読み、benchmarkと同じ5クラスだけで公式Hodge/CellRankスカラーを推定し、5クラスの有効細胞から中央値cを選び、retraction先yでsurface divergenceと遺伝子座標別寄与を計算する。最初に見る図は **Figure 1**。完成図は全体でPNG **5枚だけ**で、手法・クラスごとの画像は増やさない。
 
 **既存`scdiffusion`を親プロセスとして使える（Python 3.9 / PyTorch 2.5.1で検証）。CellRankだけ別のPython 3.11環境のsubprocessで計算する。** 既存`scdiffusion`に`requirements.txt`やCellRankをインストールしない。
 
@@ -29,7 +29,7 @@ PYTHON="$(command -v python)" bash work/20261028_Projection/scripts/run_divergen
 
 CellRankへ渡すのは親が計算したX、F(X)、順序付きcell/gene ID、terminal cell ID、設定だけ。NPZ/JSONで渡し、疎行列はCSR NPZで返す。異なるAnnDataバージョン間でH5ADを往復させず、pickleも使わない。返却ファイルhash、要求hash、ID順序、形状、lineage列、遷移行列を確認してから使用する。失敗・timeout時に親環境の別solverへ切り替えない。
 
-本解析の交換ファイル・`worker.log`は`OUTPUT/cellrank_worker/cellrank-worker-*/`に保存する。全細胞のX/Vを渡すため追加ディスク容量が必要（89,267×1,024のfloat64を2配列なら約1.46 GB、結果ファイルは別途）。API単独利用で`worker_directory`未指定の場合、成功時の一時ファイルだけを自動削除し、失敗時は保存先を例外に表示する。子のPython・package・source hashは`manifest.cellrank_backend`とスカラーmetadataの`execution`へ記録し、親のversionとは区別する。
+本解析の交換ファイル・`worker.log`は`OUTPUT/cellrank_worker/cellrank-worker-*/`に保存する。5クラスに絞ったX/Vだけを渡すため、その対象数×遺伝子数×16 bytes程度の追加ディスク容量が必要（結果ファイルは別途）。API単独利用で`worker_directory`未指定の場合、成功時の一時ファイルだけを自動削除し、失敗時は保存先を例外に表示する。子のPython・package・source hashは`manifest.cellrank_backend`とスカラーmetadataの`execution`へ記録し、親のversionとは区別する。
 
 `CELLRANK_PYTHON`もCLI指定もない場合は従来の同一プロセス経路を維持するが、その場合のみ親にCellRankが必要。再開時も同じ子環境を指定する。子の実行環境・コードが変わる場合は新しい出力先を使う。全工程の環境分離検証は[SUBPROCESS_VALIDATION.md](SUBPROCESS_VALIDATION.md)を参照。
 
@@ -66,11 +66,13 @@ cat "$job_dir/exit_code"  # 終了後のみ存在、0=処理完了
 nohup python -u work/20261028_Projection/scripts/run_divergence_analysis.py --output "$job_dir/analysis" --resume > "$job_dir/resume.log" 2>&1 < /dev/null &
 ```
 
-直接実行の既定出力は`outputs/divergence_analysis/real/`、人工検証は`.../smoke/`。既存ディレクトリへの通常実行は拒否する。`--resume`は入力・モデル・数値コード・サンプリング条件と保存スカラーhashが一致する場合だけ利用できる。変更時は新しい`--output`を使う。既存全細胞スカラーの場所は`--hodge-dir`と`--cellrank-dir`で指定できる。対象集団が異なる保存結果は全training細胞で明示的に再計算する。公式計算途中で失敗した未完成スカラーは再計算が必要で、完成済みスカラーと細胞単位の微分キャッシュを再利用する。
+直接実行の既定出力は`outputs/divergence_analysis/real/`、人工検証は`.../smoke/`。既存ディレクトリへの通常実行は拒否する。`--resume`は入力・モデル・数値コード・サンプリング条件と保存スカラーhashが一致する場合だけ利用できる。変更時は新しい`--output`を使う。保存済みスカラーの場所は`--hodge-dir`と`--cellrank-dir`で指定できる。対象集団が異なる保存結果（全training細胞で推定したものを含む）は再利用せず、5クラスだけで明示的に再計算する。公式計算途中で失敗した未完成スカラーは再計算が必要で、完成済みスカラーと細胞単位の微分キャッシュを再利用する。
+
+全training細胞を使った旧runは今回の条件と異なるため、停止後に新しいjobで実行する。旧runの`--resume`はコード・母集団identityの不一致で拒否する。`manifest.json`の`training_population`、`scalar_population`、`scalar_population_scope`、`scalar_cell_ids`で確認できる。以下の独立API examplesは従来どおり渡されたAnnData全件を使うため、5クラス限定の本解析には`run_divergence_analysis.py`を使用する。
 
 ## Divergence解析の定義と保存内容
 
-5クラスは`data_preparation/20261007/benchmark/config.py`の定義をimportする。Blood progenitors 1/2、Erythroid1/2/3の全細胞を結果AnnDataへ残す。スカラー推定は5クラスに絞らず、元の全training細胞を使う。CellRank terminalは`celltype == 'Erythroid3'`の全細胞。各手法のcは**サンプリング前の全対象有効細胞**における連続スカラーの中央値で、CellRankのineligible細胞を除く。
+5クラスは`data_preparation/20261007/benchmark/config.py`の定義をimportする。Blood progenitors 1/2、Erythroid1/2/3の全細胞を結果AnnDataへ残す。**スカラー推定も同じ5クラスの全細胞に限定する（2026-10-29の指定変更）。** 近傍グラフ、Hodge potential、CellRank遷移・吸収時間、PCA/RBF補間・支持領域はこの集団だけから作る。モデル復元・入力検証のためtrainingデータ自体は全件読み込むが、他クラスの細胞はスカラー推定へ渡さない。CellRank terminalは`celltype == 'Erythroid3'`の全細胞。各手法のcは**サンプリング前の全対象有効細胞**における連続スカラーの中央値で、CellRankのineligible細胞を除く。
 
 概要計算は既定で各クラス128細胞、計640細胞までを層別抽出する（`--samples-per-class 0`で全対象）。これは計算量を制御するためであり、全対象の微分を計算したとは扱わない。遺伝子詳細は各クラス2成功細胞、計10細胞まで（`--representatives-per-class`）を用い、両手法共通の成功細胞を優先する。Figure 5の比較は同一元cell IDの共通成功集合に限定する。失敗率が異なるため、手法ごとの成功集合平均と共通集合平均を別々に保存する。
 

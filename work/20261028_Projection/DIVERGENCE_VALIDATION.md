@@ -83,3 +83,8 @@ PYTHON=python bash work/20261028_Projection/scripts/run_divergence_background.sh
 ローカル実行Pythonは`/tmp/scprojection-venv/bin/python`、`JULIA=/tmp/julia-1.10.10/bin/julia`、`JULIA_DEPOT_PATH=/tmp/scprojection-julia-depot`。最初のsmokeで公式スカラーを計算し、最終launcher検証では同一全200細胞の保存済みスカラーを再利用した。再利用元を指定する場合は`--hodge-dir /path/to/hodge --cellrank-dir /path/to/cellrank`を追加し、再開時も同じ指定を渡す。
 
 `check_model.py --device cpu`はローカルで`D20_lora_consistency_lambda1/effective_config.json`が存在しないためFileNotFoundError。実D20によるdivergence、実遺伝子順位、GPU上のAD、全training細胞のスカラー計算の時間・メモリ、Linux上の本解析完走は未検証。既存チェックポイントとデータがある環境での実行後に、実データmanifestと失敗率を確認する必要がある。
+
+
+2026-10-29追記：本報告の検証後、divergence entry pointのスカラー推定母集団もbenchmarkの5クラスに限定した。上記の過去の測定値は変更していない。母集団変更の回帰検証は`tests/test_scalar_population.py`を参照。
+
+母集団変更後の全テスト：43 passed, 1 skipped（実checkpoint）, 2 Numba performance warnings、66.79秒。追加テストは対象5クラス＋対象外2細胞をCLIへ渡し、両projectorのfit入力が対象5細胞だけであること、全7細胞の旧artifactを再利用しないこと、manifestの件数・ID・入力hashを検証する。公式数値計算自体は既存テストで検証し、この追加テストではprojectorを記録用stubに置換して入力境界を検証した。実データでの再実行結果は未検証。既存scdiffusion Python 3.9で変更Pythonファイルの構文検査も通過。

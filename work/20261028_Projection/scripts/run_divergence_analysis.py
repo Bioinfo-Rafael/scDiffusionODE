@@ -1,4 +1,4 @@
-"""Read model -> prepare full-population scalars -> median c -> retract -> derivatives -> save -> five figures."""
+"""Read model -> prepare five-class scalars -> median c -> retract -> derivatives -> save -> five figures."""
 import argparse
 import json
 from pathlib import Path
@@ -28,8 +28,8 @@ from analysis.diagnostics import (METHODS, METRICS, cell_classes, write_json, js
     method_summary, gene_rank_table, comparison_summary)
 
 
-def prepare_scalar(cls, velocity, full, saved, output, config, signature, smoke, cellrank_python=None):
-    """Reuse verified ALL-cell artifacts; explicitly recompute mismatched/subset populations."""
+def prepare_scalar(cls, velocity, population, saved, output, config, signature, smoke, cellrank_python=None):
+    """Reuse artifacts for exactly the five-class population; reject broader populations."""
     destination = output/'scalars'/cls.method
     candidate = destination if (destination/'metadata.json').exists() else saved
     reason = 'No saved scalar artifacts available'
@@ -38,19 +38,19 @@ def prepare_scalar(cls, velocity, full, saved, output, config, signature, smoke,
         same_population = metadata.get('expression_and_ids_sha256') == signature
         terminal_ok = True
         if cls.method == 'cellrank':
-            expected = full.obs_names[full.obs['celltype'] == 'Erythroid3'].tolist()
+            expected = population.obs_names[population.obs['celltype'] == 'Erythroid3'].tolist()
             terminal_ok = (metadata.get('terminal_obs_key') == 'celltype' and
                            metadata.get('terminal_cells') == {'Erythroid3': expected})
         if same_population and terminal_ok:
             annotated = ad.read_h5ad(candidate/'annotated.h5ad')
             projector = cls.load_saved(candidate, velocity, annotated)
-            return projector, dict(action='reused_full_population', path=str(candidate),
-                                   scalar_population=full.n_obs, metadata_sha256=sha256(candidate/'metadata.json'))
-        reason = 'Saved scalar population/terminal definition differs; explicitly recomputing on ALL current cells'
-    print(f'{cls.method}: {reason}; population={full.n_obs}', flush=True)
+            return projector, dict(action='reused_target_population', path=str(candidate),
+                                   scalar_population=population.n_obs, metadata_sha256=sha256(candidate/'metadata.json'))
+        reason = 'Saved scalar population/terminal definition differs; explicitly recomputing on all five-class target cells'
+    print(f'{cls.method}: {reason}; population={population.n_obs}', flush=True)
     settings = dict(config['interpolation'])
     if smoke: settings.update(n_components=8, n_centers=96)
-    projector = cls(velocity, full.copy(), interpolation=settings)
+    projector = cls(velocity, population.copy(), interpolation=settings)
     if cls.method == 'hodge':
         projector.fit_scalar(k=12, rdim=4, seed=config['seed'])
     else:
@@ -58,8 +58,8 @@ def prepare_scalar(cls, velocity, full, saved, output, config, signature, smoke,
                              n_neighbors=15 if smoke else 30, seed=config['seed'],
                              cellrank_python=cellrank_python, worker_directory=output/'cellrank_worker')
     projector.save(destination)
-    return projector, dict(action='recomputed_full_population', reason=reason, path=str(destination),
-                           scalar_population=full.n_obs, metadata_sha256=sha256(destination/'metadata.json'))
+    return projector, dict(action='recomputed_target_population', reason=reason, path=str(destination),
+                           scalar_population=population.n_obs, metadata_sha256=sha256(destination/'metadata.json'))
 
 
 def optional_grn(config, velocity, rankings, points, representatives, derivatives, smoke):
@@ -138,7 +138,7 @@ def main():
         cellrank_backend = check_backend(args.cellrank_python)
         manifest.update(cellrank_backend=cellrank_backend, parent_python=sys.executable, parent_python_version=sys.version)
         manifest['stage'] = 'load_model_and_data'
-        # 1. Load the unchanged model and ALL training cells (no five-class scalar refit).
+        # 1. Validate the unchanged model/training input, then select the scalar population.
         config = json.loads(Path(args.config).read_text()); config['seed'] = args.seed
         if config['weights'] != 'ema' or config.get('timestep', 49) != 49:
             raise ValueError('This analysis requires D20 EMA and fixed timestep 49')
@@ -157,13 +157,14 @@ def main():
         missing = set(classes)-set(full.obs.iloc[target_rows].celltype.astype(str))
         if missing: raise ValueError(f'Missing target classes: {sorted(missing)}')
         target = full[target_rows].copy()
-        signature = data_identity(full)
+        signature = data_identity(target)
+        print(f'Scalar population: five benchmark classes; training={full.n_obs}, target={len(target)}', flush=True)
         numerical_files = [HERE/'common/scalar_extension.py', HERE/'common/velocity_adapter.py',
             HERE/'common/levelset_projection.py', HERE/'analysis/surface_divergence.py',
             HERE/'analysis/gene_contributions.py', HERE/'analysis/diagnostics.py', Path(__file__),
             HERE/'CellRank/projector.py', HERE/'CellRank/subprocess_bridge.py', HERE/'CellRank/worker.py', HERE/'CellRank/cellrank_core.py']
         if args.smoke: numerical_files.append(HERE/'analysis/smoke_data.py')
-        identity = dict(input=signature, model=velocity.provenance, cellrank_backend=cellrank_backend,
+        identity = dict(scalar_population_scope="benchmark_five_classes", scalar_classes=classes, input=signature, model=velocity.provenance, cellrank_backend=cellrank_backend,
             celltype_labels_sha256=hashlib.sha256(json.dumps(full.obs.celltype.astype(str).tolist()).encode()).hexdigest(),
             derivative_device=str(derivatives.device), derivative_dtype=str(derivatives.dtype),
             config=config, sample_per_class=args.samples_per_class, representatives_per_class=args.representatives_per_class,
@@ -174,17 +175,19 @@ def main():
             raise ValueError('Resume identity changed (input/model/settings/numerical source); use a new output directory')
         if not identity_path.exists(): write_json(identity_path, identity)
         resume_identity_verified = True
-        manifest.update(identity=identity, full_scalar_population=full.n_obs, target_population=len(target),
+        manifest.update(identity=identity, training_population=full.n_obs, scalar_population=len(target),
+                        scalar_population_scope="benchmark_five_classes", scalar_cell_ids=target.obs_names.tolist(),
+                        target_population=len(target),
                         target_cell_ids=target.obs_names.tolist(), feature_ids=target.var_names.tolist(),
                         class_counts=target.obs.celltype.value_counts().to_dict(),
                         packages={p: importlib.metadata.version(p) for p in ('torch', 'numpy', 'scipy', 'anndata', 'pandas', 'scikit-learn', 'matplotlib')},
                         device=str(derivatives.device), dtype=str(derivatives.dtype))
         manifest['completed_stages'].append('load_model_and_data')
-        # 2. Reuse existing official Hodge/CellRank projectors, full-population artifacts preferred.
+        # 2. Fit both official scalars on ALL five-class target cells, before overview sampling.
         projectors, scalar_sources = {}, {}
         for cls, saved in ((HodgeProjector, args.hodge_dir), (CellRankProjector, args.cellrank_dir)):
             manifest['stage'] = 'prepare_scalar_'+cls.method; write_json(manifest_path, manifest)
-            projectors[cls.method], scalar_sources[cls.method] = prepare_scalar(cls, velocity, full, saved,
+            projectors[cls.method], scalar_sources[cls.method] = prepare_scalar(cls, velocity, target, saved,
                                                                             output, config, signature, args.smoke, args.cellrank_python)
             manifest['completed_stages'].append(manifest['stage'])
         scalar_identity = {m: scalar_sources[m]['metadata_sha256'] for m in METHODS}

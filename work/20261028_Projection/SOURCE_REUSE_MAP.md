@@ -30,7 +30,7 @@
 
 | 機能 | 再利用元と追加処理 | 境界 |
 |---|---|---|
-| 対象5クラス | `data_preparation/20261007/benchmark/config.py:ERYTHROID_CELLTYPES`をimport | スカラー母集団は全training、解析対象のみ5クラス |
+| 対象5クラス | `data_preparation/20261007/benchmark/config.py:ERYTHROID_CELLTYPES`をimport | スカラー母集団・解析対象とも5クラス（2026-10-29変更）。全trainingの保存スカラーは再利用しない |
 | 元Fとその微分 | `ODE/ode_20260609_mathmlp.py`の実際のLoRAField.forwardを固定tで呼ぶ | 状態依存係数を含む。`work/20260817_vector_field_analysis/vector_field_adapter.py`のHill解析Jacobianは採用しない |
 | JVP/VJP | [PyTorch 2.7 jvp](https://docs.pytorch.org/docs/2.7/generated/torch.func.jvp.html)、[vjp](https://docs.pytorch.org/docs/2.7/generated/torch.func.vjp.html)、vmap | 8/17のAD利用例を参照し、固定D20への薄い接続を追加。jacrev/hessianは小Dの独立検証だけ |
 | スカラー・射影 | 既存`HodgeProjector`、`CellRankProjector`、`ScalarExtension.gradient`、`surface_points`、`projected_field(y)` | 公式スカラーsolver・retraction・gradientを再実装しない |
